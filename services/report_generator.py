@@ -13,14 +13,19 @@ import logging
 
 logger = logging.getLogger("smartmineguard.reports")
 
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import inch, mm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image, KeepTogether
-)
-import qrcode
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch, mm
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image, KeepTogether
+    )
+    import qrcode
+    REPORTLAB_AVAILABLE = True
+except (ImportError, OSError) as _e:
+    REPORTLAB_AVAILABLE = False
+    logger.warning(f"ReportLab / PDF engine not loaded (serverless or missing libfreetype): {_e}")
 
 from config import Config
 from services.db import db
@@ -31,6 +36,10 @@ def generate_evidence_pdf(investigation_id, case_id=None):
     Builds a professional, government-style PDF evidence dossier for an investigation.
     Returns: relative path to the generated PDF file.
     """
+    if not REPORTLAB_AVAILABLE:
+        logger.warning("PDF dossier requested but ReportLab is not available.")
+        return None
+
     # Fetch investigation details
     inv = db.query("SELECT * FROM investigations WHERE id = ? OR case_id = ?", 
                    (investigation_id, case_id or ""), one=True)
@@ -547,6 +556,10 @@ def generate_erawana_pdf(permit_id, doc_type="erawana"):
     - doc_type = 'weighment': HSIIDC Ltd. Khanak Weighment Slip (Gross/Tare) (Doc 3)
     - doc_type = 'packet' or 'all': Complete 3-page consolidated statutory document suite
     """
+    if not REPORTLAB_AVAILABLE:
+        logger.warning("e-Rawana PDF requested but ReportLab is not available in serverless environment.")
+        return None
+
     data = get_enriched_permit_data(permit_id)
     if not data:
         logger.error(f"Cannot generate e-Rawana PDF: Permit {permit_id} not found.")
@@ -1187,6 +1200,10 @@ def generate_seizure_notice_pdf(mine_id):
     under Section 21 of the MMDR Act (1957) and Rule 104 of Haryana Minor Mineral Rules (2012)
     when a mine exhausts 100% of its annual environmental concession quota.
     """
+    if not REPORTLAB_AVAILABLE:
+        logger.warning("Seizure notice PDF requested but ReportLab is not available in serverless environment.")
+        return None
+
     mine = db.query("SELECT * FROM mines WHERE id = ?", (mine_id,), one=True)
     if not mine:
         return None
