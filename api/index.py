@@ -1,42 +1,77 @@
+from flask import Flask, jsonify
 import sys
 import os
 import traceback
-from flask import Flask, Response
 
-# Add project root to sys.path
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-_main_app = None
-_import_error = None
+app = Flask(__name__)
 
-try:
-    import app as imported_module
-    _main_app = imported_module.app
-except Exception:
-    _import_error = traceback.format_exc()
+@app.route("/ping")
+def ping():
+    return "PONG: SmartMineGuard Vercel Runtime Active\n"
 
-if _main_app is not None:
-    app = _main_app
+@app.route("/")
+def home():
+    return (
+        "<!DOCTYPE html><html><head><title>SmartMineGuard Status</title></head>"
+        "<body style='font-family:sans-serif;padding:40px;background:#0f172a;color:#f8fafc;'>"
+        "<h1>SmartMineGuard Serverless Online</h1>"
+        "<p>Vercel AWS Lambda container is running successfully.</p>"
+        "<p><a href='/diag' style='color:#38bdf8;font-size:18px;'>Click here to run System Diagnostics</a></p>"
+        "</body></html>"
+    )
+
+@app.route("/diag")
+def diag():
+    results = {}
+    results["python_version"] = sys.version
+    results["cwd"] = os.getcwd()
+    results["sys_path"] = sys.path[:5]
+
+    # Test 1: Config
     try:
-        @app.route("/ping")
-        def ping_ok():
-            return Response("PONG: SmartMineGuard is operational!\n", mimetype="text/plain")
+        from config import Config
+        results["config"] = {
+            "status": "OK",
+            "is_serverless": Config.IS_SERVERLESS,
+            "sqlite_path": str(Config.SQLITE_PATH),
+            "reports_dir": str(Config.REPORTS_DIR)
+        }
     except Exception:
-        pass
-else:
-    app = Flask(__name__)
+        results["config_error"] = traceback.format_exc()
 
-    @app.route("/ping")
-    def ping_err():
-        return Response("PONG (DEGRADED): Runtime active but app failed to load\n", mimetype="text/plain")
+    # Test 2: Database
+    try:
+        from services.db import db
+        conn = db.get_connection()
+        conn.close()
+        mine_count = db.query("SELECT COUNT(*) as c FROM mines", one=True)
+        results["db"] = {
+            "status": "OK",
+            "mine_count": mine_count
+        }
+    except Exception:
+        results["db_error"] = traceback.format_exc()
 
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-    def error_handler(path):
-        return Response(
-            f"SMARTMINEGUARD INITIALIZATION FAILURE:\n\n{_import_error}\n",
-            status=500,
-            mimetype="text/plain; charset=utf-8"
-        )
+    # Test 3: Services
+    services_to_test = ["detection", "risk_engine", "gps_simulator", "material_service", "report_generator"]
+    results["services"] = {}
+    for s in services_to_test:
+        try:
+            __import__(f"services.{s}")
+            results["services"][s] = "OK"
+        except Exception:
+            results["services"][s] = traceback.format_exc()
+
+    # Test 4: Main app import
+    try:
+        import app as main_app_module
+        results["app_module"] = "OK"
+        results["routes_count"] = len(list(main_app_module.app.url_map.iter_rules()))
+    except Exception:
+        results["app_module_error"] = traceback.format_exc()
+
+    return jsonify(results)
