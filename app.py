@@ -4,92 +4,109 @@ Mining & Mineral Transport Monitoring System
 STRICTLY PURE SOFTWARE — NO AI / NO MACHINE LEARNING / NO NODE.JS.
 """
 import os
-import json
-import logging
-import hashlib
-import re
-import time
-import math
-import uuid
-from datetime import datetime, timedelta
-from functools import wraps
+import sys
+import traceback
 
-from flask import (
-    Flask, render_template, request, redirect, url_for, 
-    session, jsonify, send_file, flash, abort
-)
-try:
-    from flask_socketio import SocketIO, emit
-except Exception as _e:
-    class DummySocketIO:
-        def init_app(self, *args, **kwargs): pass
-        def on(self, *args, **kwargs):
-            return lambda f: f
-        def emit(self, *args, **kwargs): pass
-        def run(self, *args, **kwargs): pass
-    SocketIO = DummySocketIO
-    def emit(*args, **kwargs): pass
-
-from werkzeug.security import check_password_hash, generate_password_hash
-
-from config import Config
-from services.db import db
-from services.detection import DetectionEngine
-from services.risk_engine import RiskEngine
-from services.gps_simulator import simulator, is_within_india
+_BOOT_ERROR = None
 
 try:
-    from services.report_generator import (
-        generate_evidence_pdf, 
-        generate_erawana_pdf, 
-        generate_seizure_notice_pdf,
-        get_enriched_permit_data
+    import json
+    import logging
+    import hashlib
+    import re
+    import time
+    import math
+    import uuid
+    from datetime import datetime, timedelta
+    from functools import wraps
+
+    from flask import (
+        Flask, render_template, request, redirect, url_for, 
+        session, jsonify, send_file, flash, abort, Response
     )
-except Exception as _e:
-    generate_evidence_pdf = None
-    generate_erawana_pdf = None
-    generate_seizure_notice_pdf = None
-    def get_enriched_permit_data(*args, **kwargs): return {}
+    try:
+        from flask_socketio import SocketIO, emit
+    except Exception as _e:
+        class DummySocketIO:
+            def init_app(self, *args, **kwargs): pass
+            def on(self, *args, **kwargs):
+                return lambda f: f
+            def emit(self, *args, **kwargs): pass
+            def run(self, *args, **kwargs): pass
+        SocketIO = DummySocketIO
+        def emit(*args, **kwargs): pass
 
-from services.material_service import MaterialMonitoringService
+    from werkzeug.security import check_password_hash, generate_password_hash
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("smartmineguard.app")
+    from config import Config
+    from services.db import db
+    from services.detection import DetectionEngine
+    from services.risk_engine import RiskEngine
+    from services.gps_simulator import simulator, is_within_india
 
-# Initialize Flask & SocketIO
-app = Flask(
-    __name__,
-    template_folder=str(Config.BASE_DIR / "templates"),
-    static_folder=str(Config.BASE_DIR / "static"),
-    static_url_path="/static"
-)
-app.config.from_object(Config)
+    try:
+        from services.report_generator import (
+            generate_evidence_pdf, 
+            generate_erawana_pdf, 
+            generate_seizure_notice_pdf,
+            get_enriched_permit_data
+        )
+    except Exception as _e:
+        generate_evidence_pdf = None
+        generate_erawana_pdf = None
+        generate_seizure_notice_pdf = None
+        def get_enriched_permit_data(*args, **kwargs): return {}
 
+    from services.material_service import MaterialMonitoringService
 
-class ErrorLoggingMiddleware:
-    def __init__(self, wsgi_app):
-        self.wsgi_app = wsgi_app
-    def __call__(self, environ, start_response):
-        try:
-            return self.wsgi_app(environ, start_response)
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            logger.critical(f"Unhandled WSGI Exception: {tb}")
-            body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
-            start_response("500 Internal Server Error", [
-                ("Content-Type", "text/plain; charset=utf-8"),
-                ("Content-Length", str(len(body)))
-            ])
-            return [body]
+except BaseException as _ex:
+    _BOOT_ERROR = traceback.format_exc()
 
-app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
+if _BOOT_ERROR:
+    def app(environ, start_response):
+        body = f"SMARTMINEGUARD BOOT FAILURE TRACEBACK:\n\n{_BOOT_ERROR}\n\nSYS_PATH:\n{sys.path}".encode("utf-8")
+        start_response("200 OK", [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(body)))
+        ])
+        return [body]
+else:
+    # Setup logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logger = logging.getLogger("smartmineguard.app")
 
-socketio = SocketIO()
-if not Config.IS_SERVERLESS:
-    socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
-simulator.set_socketio(socketio)
+    # Initialize Flask & SocketIO
+    app = Flask(
+        __name__,
+        template_folder=str(Config.BASE_DIR / "templates"),
+        static_folder=str(Config.BASE_DIR / "static"),
+        static_url_path="/static"
+    )
+    app.config.from_object(Config)
+
+    class ErrorLoggingMiddleware:
+        def __init__(self, wsgi_app):
+            self.wsgi_app = wsgi_app
+        def __call__(self, environ, start_response):
+            try:
+                return self.wsgi_app(environ, start_response)
+            except Exception as e:
+                tb = traceback.format_exc()
+                logger.critical(f"Unhandled WSGI Exception: {tb}")
+                body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
+                start_response("200 OK", [
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Length", str(len(body)))
+                ])
+                return [body]
+
+    app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
+
+    socketio = SocketIO()
+    if not Config.IS_SERVERLESS:
+        socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
+    simulator.set_socketio(socketio)
+
 
 
 
@@ -3940,12 +3957,17 @@ def handle_request_step():
     emit("gps_batch_update", {"trucks": updates})
 
 
-# Initialize DB on application load (safe on serverless cold starts)
-try:
-    db.init_db()
-except Exception as e:
-    logger.error(f"Initial DB setup deferred/failed: {e}")
+_db_initialized = False
 
+@app.before_request
+def ensure_db_ready():
+    global _db_initialized
+    if not _db_initialized:
+        try:
+            db.init_db()
+            _db_initialized = True
+        except Exception as e:
+            logger.error(f"Lazy DB setup error: {e}")
 
 # Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
 if not Config.IS_SERVERLESS:
