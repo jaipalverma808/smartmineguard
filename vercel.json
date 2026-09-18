@@ -4,16 +4,5 @@
       "source": "/(.*)",
       "destination": "/api/index"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "includeFiles": [
-        "templates/**",
-        "static/**",
-        "services/**",
-        "config.py",
-        "app.py"
-      ]
-    }
-  }
+  ]
 }
