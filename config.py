@@ -24,7 +24,12 @@ class Config:
     DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
     
     # Serverless runtime detection (Vercel, AWS Lambda)
-    IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+    IS_SERVERLESS = bool(
+        os.getenv("VERCEL") 
+        or os.getenv("VERCEL_ENV")
+        or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        or os.getenv("LAMBDA_TASK_ROOT")
+    )
 
     # SQLite Fallback Path (enables zero-friction local and serverless run)
     if IS_SERVERLESS:
