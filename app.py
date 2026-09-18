@@ -48,8 +48,11 @@ app = Flask(
 app.config.from_object(Config)
 
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO()
+if not Config.IS_SERVERLESS:
+    socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
 simulator.set_socketio(socketio)
+
 
 
 # ============================================================
