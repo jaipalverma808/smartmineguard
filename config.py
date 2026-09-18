@@ -23,8 +23,17 @@ class Config:
     DB_USER = os.getenv("DB_USER", "postgres")
     DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
     
-    # SQLite Fallback Path (enables zero-friction local run)
-    SQLITE_PATH = BASE_DIR / "database" / "smartmineguard.db"
+    # Serverless runtime detection (Vercel, AWS Lambda)
+    IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+    # SQLite Fallback Path (enables zero-friction local and serverless run)
+    if IS_SERVERLESS:
+        SQLITE_PATH = Path("/tmp") / "smartmineguard.db"
+        REPORTS_DIR = Path("/tmp") / "reports"
+    else:
+        SQLITE_PATH = BASE_DIR / "database" / "smartmineguard.db"
+        REPORTS_DIR = BASE_DIR / "static" / "reports"
+
     
     # Server configuration
     PORT = int(os.getenv("PORT", 5000))

@@ -39,8 +39,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("smartmineguard.app")
 
 # Initialize Flask & SocketIO
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=str(Config.BASE_DIR / "templates"),
+    static_folder=str(Config.BASE_DIR / "static"),
+    static_url_path="/static"
+)
 app.config.from_object(Config)
+
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 simulator.set_socketio(socketio)
@@ -3896,8 +3902,10 @@ def handle_request_step():
 # Initialize DB on application load
 db.init_db()
 
-# Auto-start GPS simulator loop
-simulator.start()
+# Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
+if not Config.IS_SERVERLESS:
+    simulator.start()
+
 
 
 if __name__ == "__main__":

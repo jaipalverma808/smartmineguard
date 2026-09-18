@@ -70,6 +70,11 @@ class DatabaseManager:
         if not PSYCOPG2_AVAILABLE:
             self.use_postgres = False
             return
+        # In serverless environments, only test Postgres if explicit DATABASE_URL env var is provided
+        import os
+        if Config.IS_SERVERLESS and "DATABASE_URL" not in os.environ:
+            self.use_postgres = False
+            return
         try:
             conn = psycopg2.connect(
                 Config.DATABASE_URL, 
@@ -86,10 +91,14 @@ class DatabaseManager:
         if self.use_postgres:
             return psycopg2.connect(Config.DATABASE_URL)
         else:
-            Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
             conn = sqlite3.connect(str(Config.SQLITE_PATH))
             conn.row_factory = sqlite3.Row
             return conn
+
 
     def query(self, sql, params=None, one=False):
         """Execute a query and return rows as list of dicts."""
@@ -543,8 +552,12 @@ class DatabaseManager:
 
     def init_sqlite(self, force=False):
         """Set up SQLite with identical schema and realistic demo data."""
-        Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         if Config.SQLITE_PATH.exists() and not force:
+
             self.run_auto_migrations()
             # Check if users exist
             try:
