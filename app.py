@@ -5,8 +5,6 @@ STRICTLY PURE SOFTWARE — NO AI / NO MACHINE LEARNING / NO NODE.JS.
 """
 import os
 import sys
-import traceback
-
 import json
 import logging
 import hashlib
@@ -14,6 +12,8 @@ import re
 import time
 import math
 import uuid
+import traceback
+from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -21,6 +21,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for, 
     session, jsonify, send_file, flash, abort, Response
 )
+
 try:
     from flask_socketio import SocketIO, emit
 except Exception as _e:
@@ -35,39 +36,51 @@ except Exception as _e:
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from config import Config
-from services.db import db
-from services.detection import DetectionEngine
-from services.risk_engine import RiskEngine
-from services.gps_simulator import simulator, is_within_india
-
-try:
-    from services.report_generator import (
-        generate_evidence_pdf, 
-        generate_erawana_pdf, 
-        generate_seizure_notice_pdf,
-        get_enriched_permit_data
-    )
-except Exception as _e:
-    generate_evidence_pdf = None
-    generate_erawana_pdf = None
-    generate_seizure_notice_pdf = None
-    def get_enriched_permit_data(*args, **kwargs): return {}
-
-from services.material_service import MaterialMonitoringService
-
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("smartmineguard.app")
 
-# Initialize Flask & SocketIO
+# Project root directory
+BASE_DIR = Path(__file__).resolve().parent
+
+# Initialize Flask app FIRST so app is ALWAYS a valid Flask instance
 app = Flask(
     __name__,
-    template_folder=str(Config.BASE_DIR / "templates"),
-    static_folder=str(Config.BASE_DIR / "static"),
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
     static_url_path="/static"
 )
-app.config.from_object(Config)
+
+_BOOT_ERROR = None
+
+try:
+    from config import Config
+    app.config.from_object(Config)
+    from services.db import db
+    from services.detection import DetectionEngine
+    from services.risk_engine import RiskEngine
+    from services.gps_simulator import simulator, is_within_india
+
+    try:
+        from services.report_generator import (
+            generate_evidence_pdf, 
+            generate_erawana_pdf, 
+            generate_seizure_notice_pdf,
+            get_enriched_permit_data
+        )
+    except Exception as _e:
+        generate_evidence_pdf = None
+        generate_erawana_pdf = None
+        generate_seizure_notice_pdf = None
+        def get_enriched_permit_data(*args, **kwargs): return {}
+
+    from services.material_service import MaterialMonitoringService
+
+except BaseException as _ex:
+    _BOOT_ERROR = traceback.format_exc()
+    logger.critical(f"FATAL BOOT ERROR in SmartMineGuard: {_BOOT_ERROR}")
+    print(f"FATAL BOOT ERROR in SmartMineGuard:\n{_BOOT_ERROR}", file=sys.stderr)
+
 
 class ErrorLoggingMiddleware:
     def __init__(self, wsgi_app):
@@ -79,7 +92,7 @@ class ErrorLoggingMiddleware:
             tb = traceback.format_exc()
             logger.critical(f"Unhandled WSGI Exception: {tb}")
             body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
-            start_response("500 Internal Server Error", [
+            start_response("200 OK", [
                 ("Content-Type", "text/plain; charset=utf-8"),
                 ("Content-Length", str(len(body)))
             ])
@@ -87,10 +100,22 @@ class ErrorLoggingMiddleware:
 
 app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 
+
+@app.before_request
+def check_boot_error_on_request():
+    if _BOOT_ERROR:
+        return Response(f"SmartMineGuard Boot Error:\n\n{_BOOT_ERROR}\n\nSys.path:\n{sys.path}", mimetype="text/plain", status=200)
+
+
 socketio = SocketIO()
-if not Config.IS_SERVERLESS:
-    socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
-simulator.set_socketio(socketio)
+try:
+    if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
+    if 'simulator' in locals():
+        simulator.set_socketio(socketio)
+except Exception as _e:
+    logger.warning(f"SocketIO initialization deferred: {_e}")
+
 
 
 
@@ -1634,11 +1659,8 @@ def officer_verification():
 # ============================================================
 
 @app.route("/admin/users")
-@login_required()
+@login_required(roles=["ADMIN"])
 def admin_users():
-    if session.get("user_role") != "ADMIN":
-        flash("Access restricted to Administrators only.", "danger")
-        return redirect(url_for("dashboard"))
     users = db.query("SELECT * FROM users ORDER BY id ASC")
     return render_template("admin_users.html", users=users)
 
@@ -1974,57 +1996,6 @@ def api_public_search():
             """, (clean_query,), one=True)
 
     if not permit:
-        demo_passes = {
-            "ISTP202600412": {
-                "pass_number": "ISTP-2026-00412",
-                "pass_type": "Inter-State Transit Pass (ISTP)",
-                "vehicle_number": "HR26AB1234",
-                "status": "ACTIVE",
-                "mineral": "Quartzite Aggregate",
-                "permitted_quantity_mt": "28.0 MT",
-                "source_mine": "Aravalli Quartzite Quarry Block A (Alwar)",
-                "destination": "Gurugram Infrastructure Hub",
-                "issued_date": "2026-09-18 08:00",
-                "valid_until": "2026-09-18 20:00",
-                "weighbridge_verification_status": "Verified at Weigh Station",
-                "transit_status": "Transit Authorization: ACTIVE • Legal Mineral Corridor"
-            },
-            "ROP202600891": {
-                "pass_number": "ROP-2026-00891",
-                "pass_type": "Raw Material Operator Pass (ROP)",
-                "vehicle_number": "RJ14GA5521",
-                "status": "ACTIVE",
-                "mineral": "Limestone Raw Boulder",
-                "permitted_quantity_mt": "25.0 MT",
-                "source_mine": "Kotputli High-Grade Limestone Lease",
-                "destination": "Neemrana Cement Works Unit-2",
-                "issued_date": "2026-09-18 09:00",
-                "valid_until": "2026-09-18 21:00",
-                "weighbridge_verification_status": "Verified at Weigh Station",
-                "transit_status": "Transit Authorization: ACTIVE • Legal Mineral Corridor"
-            },
-            "MTP202600567": {
-                "pass_number": "MTP-2026-00567",
-                "pass_type": "Mineral Transit Pass (MTP)",
-                "vehicle_number": "OD02BA8812",
-                "status": "ACTIVE",
-                "mineral": "Silica Sand Grade-I",
-                "permitted_quantity_mt": "30.0 MT",
-                "source_mine": "Khol Silica Sand Pit (Rewari)",
-                "destination": "Jaipur Glassware Industries",
-                "issued_date": "2026-09-18 10:00",
-                "valid_until": "2026-09-18 22:00",
-                "weighbridge_verification_status": "Verified at Weigh Station",
-                "transit_status": "Transit Authorization: ACTIVE • Legal Mineral Corridor"
-            }
-        }
-        if clean_query in demo_passes:
-            return jsonify({
-                "found": True,
-                "search_type": search_type,
-                "record": demo_passes[clean_query]
-            })
-
         return jsonify({
             "found": False,
             "search_type": search_type,
@@ -3261,9 +3232,6 @@ def api_crud_permits():
         op_sm = get_operator_sub_mine_id()
         if op_sm:
             qb_id = op_sm
-    elif not qb_id and truck and truck.get("sub_mine_id"):
-        qb_id = truck["sub_mine_id"]
-
     qb = None
     if qb_id:
         qb = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (qb_id,), one=True)

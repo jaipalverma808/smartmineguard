@@ -17,8 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100),
     phone VARCHAR(20),
     is_active BOOLEAN DEFAULT TRUE,
-    assigned_mine_id INT REFERENCES mines(id) DEFAULT 1,
-    assigned_sub_mine_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -61,7 +59,6 @@ CREATE TABLE IF NOT EXISTS trucks (
     current_risk_score INT DEFAULT 0,
     current_risk_level VARCHAR(20) DEFAULT 'LOW' CHECK (current_risk_level IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
     assigned_mine_id INT REFERENCES mines(id),
-    sub_mine_id INT,
     allowed_rounds_per_day INT DEFAULT 4,
     completed_rounds_today INT DEFAULT 0,
     current_round_number INT DEFAULT 1,
@@ -91,7 +88,6 @@ CREATE TABLE IF NOT EXISTS permits (
     expires_at TIMESTAMP NOT NULL,
     status VARCHAR(40) DEFAULT 'ACTIVE' CHECK (status IN ('ISSUED', 'ACTIVE', 'TRUCK_ARRIVED', 'LOADING', 'WEIGHED', 'DISPATCHED', 'COMPLETED', 'EXPIRED', 'CANCELLED', 'SUSPICIOUS', 'RECONCILIATION_REQUIRED')),
     reconciliation_reason TEXT,
-    quarry_block_id INT,
     route_waypoints_json TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -244,7 +240,6 @@ CREATE TABLE IF NOT EXISTS drivers (
     license_number VARCHAR(50) UNIQUE NOT NULL,
     contact_phone VARCHAR(25),
     assigned_truck_id INT REFERENCES trucks(id) ON DELETE SET NULL,
-    sub_mine_id INT,
     status VARCHAR(20) DEFAULT 'ACTIVE',
     allowed_rounds_per_day INT DEFAULT 4,
     completed_rounds_today INT DEFAULT 0,

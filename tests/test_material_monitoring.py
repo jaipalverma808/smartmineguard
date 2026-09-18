@@ -191,7 +191,7 @@ class TestOperationalMaterialMonitoring(unittest.TestCase):
         data = res.get_json()
         self.assertIn("ledger", data)
         for truck in data["ledger"]:
-            self.assertIn(truck["mine_id"], (1, 5), "Operator must never receive trucks from another mine")
+            self.assertEqual(truck["mine_id"], 1, "Operator must never receive trucks from another mine")
         self.client.get("/logout")
 
         # Admin can legitimately query mine_id=2

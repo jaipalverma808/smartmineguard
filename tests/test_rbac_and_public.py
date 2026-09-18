@@ -209,7 +209,7 @@ class TestSmartMineGuardRBAC(unittest.TestCase):
         # Verify operator cannot access police alerts or admin users
         for blocked_path in ["/alerts", "/investigations", "/admin/users"]:
             res = self.client.get(blocked_path, follow_redirects=False)
-            self.assertIn(res.status_code, (302, 403), f"Operator should be blocked from {blocked_path}")
+            self.assertEqual(res.status_code, 302)
 
         self.client.get("/logout")
 
