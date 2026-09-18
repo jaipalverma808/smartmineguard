@@ -239,9 +239,7 @@ class VigilanceTriageTestCase(unittest.TestCase):
         # Should contain locked sector badge
         self.assertIn("LOCKED SECTOR", html)
         self.assertIn("Assigned Mine:", html)
-        assigned_m = db.query("SELECT m.name FROM users u JOIN mines m ON m.id = u.assigned_mine_id WHERE u.id = 2", one=True)
-        mine_name = assigned_m["name"] if assigned_m else "Aravalli Quartzite Quarry Block A"
-        self.assertIn(mine_name, html)
+        self.assertIn("Aravalli Quartzite Quarry Block A", html)
         # Must NOT contain the dropdown selector for switching mines
         self.assertNotIn('<select name="mine_id"', html)
 
@@ -261,7 +259,7 @@ class VigilanceTriageTestCase(unittest.TestCase):
             self.assertNotEqual(sess.get("selected_mine_id"), 3)
 
     def test_11_officer_trips_only_shows_assigned_mine_trips(self):
-        """Officer on /trips only sees trips from their assigned mine."""
+        """Officer on /trips only sees trips from their assigned mine (Mine 1)."""
         with self.client.session_transaction() as sess:
             sess["user_id"] = 2
             sess["user_role"] = "OFFICER"
@@ -271,10 +269,7 @@ class VigilanceTriageTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         html = res.get_data(as_text=True)
         self.assertIn("LOCKED SECTOR", html)
-        u = db.query("SELECT assigned_mine_id FROM users WHERE id = 2", one=True)
-        expected_mine_id = u["assigned_mine_id"] if u and u["assigned_mine_id"] else 1
-        m = db.query("SELECT name FROM mines WHERE id = ?", (expected_mine_id,), one=True)
-        self.assertIn(m["name"], html)
+        self.assertIn("Aravalli Quartzite Quarry Block A", html)
         
         with self.app.test_request_context():
             from flask import session as flask_sess
@@ -282,7 +277,7 @@ class VigilanceTriageTestCase(unittest.TestCase):
             flask_sess["user_id"] = 2
             flask_sess["user_role"] = "OFFICER"
             flask_sess["username"] = "officer1"
-            self.assertEqual(get_active_mine_id(), expected_mine_id)
+            self.assertEqual(get_active_mine_id(), 1)
 
 
 if __name__ == "__main__":

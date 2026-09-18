@@ -1,0 +1,20 @@
+[project]
+name = "smartmineguard"
+version = "1.0.0"
+description = "Mining & Mineral Transport Monitoring System"
+requires-python = ">=3.12"
+dependencies = [
+    "Flask==3.0.3",
+    "Werkzeug==3.0.6",
+    "python-dotenv==1.0.1",
+    "gunicorn==22.0.0",
+    "Flask-SocketIO==5.6.1",
+    "python-socketio==5.16.4",
+    "python-engineio==4.14.0",
+    "simple-websocket==1.1.0",
+    "qrcode>=8.0",
+    "reportlab>=4.0.0",
+]
+
+[tool.vercel]
+entrypoint = "app:app"

@@ -11,9 +11,8 @@
       <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
       <div>
         <span class="font-bold text-slate-900 uppercase">Sub-Mine Operations Console</span>
-        <span class="sr-only">Authorized Mine Leaseholder Portal &bull; Aravalli Quartzite</span>
         <span class="text-slate-400 mx-2">|</span>
-        <span>Concession: <strong class="text-emerald-900">{{ sub_mine.block_name if sub_mine else (mine.name if mine else 'Aravalli Quartzite Quarry Block A') }}</strong> &bull; Parent: <span class="text-slate-700">{{ mine.name if mine else 'Aravalli Quartzite Quarry Block A' }}</span></span>
+        <span>Concession: <strong class="text-emerald-900">{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong> &bull; Parent: <span class="text-slate-700">{{ mine.name if mine else 'HSIIDC Ltd. (Khanak Stone Mines)' }}</span></span>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -144,7 +143,7 @@
         {{ operator_mismatch_check.explanation }}
       </div>
       <div class="font-mono text-[11px] text-amber-200 pt-1">
-        Expected Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.expected_closing_mt or operator_mismatch_check.metrics.expected_closing_stock_mt or 0.0) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.recorded_stock_mt or operator_mismatch_check.metrics.recorded_closing_stock_mt or 0.0) }} MT
+        Expected Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.expected_closing_mt) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.recorded_stock_mt) }} MT
       </div>
     </div>
   </div>
@@ -233,7 +232,7 @@
     <div class="gov-card-header">
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-        <h3 class="gov-card-title">Leasehold Daily Dispatch &amp; Stock Balance &bull; Truck-Wise Material Movement</h3>
+        <h3 class="gov-card-title">Today's Dispatch &amp; Truck-Wise Material Movement</h3>
       </div>
       <span class="text-xs text-slate-500">Authorized Sub-Mine Fleet Dispatches</span>
     </div>

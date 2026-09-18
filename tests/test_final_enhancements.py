@@ -244,8 +244,8 @@ class TestSmartMineGuardFinalEnhancements(unittest.TestCase):
     # 17. Create a new trip via CRUD
     def test_17_create_new_trip_crud(self):
         self.login("admin", "admin123")
-        # Fetch active permit (latest created in test 16)
-        p = db.query("SELECT id FROM permits WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1", one=True)
+        # Fetch active permit
+        p = db.query("SELECT id FROM permits WHERE status = 'ACTIVE' LIMIT 1", one=True)
         payload = {
             "permit_id": p["id"],
             "planned_distance_km": 52.0
