@@ -598,6 +598,10 @@ class DetectionEngine:
                     "dispatch_mt": dispatch,
                     "expected_closing_stock_mt": expected_closing,
                     "recorded_closing_stock_mt": recorded_closing,
+                    "expected_closing_mt": expected_closing,
+                    "recorded_stock_mt": recorded_closing,
+                    "recorded_closing_mt": recorded_closing,
+                    "delta_mt": mismatch,
                     "mismatch_mt": mismatch,
                     "tolerance_mt": tolerance_mt
                 }
@@ -609,7 +613,15 @@ class DetectionEngine:
             "severity": "LOW",
             "risk_contribution": 0,
             "explanation": f"Production and dispatch mass-balance reconciled for {mine['name']} (Discrepancy: {mismatch:.1f} MT within {tolerance_mt:.1f} MT limit).",
-            "metrics": {"expected_closing_mt": expected_closing, "recorded_closing_mt": recorded_closing, "mismatch_mt": mismatch}
+            "metrics": {
+                "expected_closing_mt": expected_closing,
+                "expected_closing_stock_mt": expected_closing,
+                "recorded_stock_mt": recorded_closing,
+                "recorded_closing_mt": recorded_closing,
+                "recorded_closing_stock_mt": recorded_closing,
+                "delta_mt": mismatch,
+                "mismatch_mt": mismatch
+            }
         }
 
     @staticmethod

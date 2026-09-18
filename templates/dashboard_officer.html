@@ -435,7 +435,7 @@
         {{ mismatch_check.explanation }}
       </div>
       <div class="font-mono text-[11px] text-red-300 pt-1">
-        Expected Stock: {{ "{:,.1f}".format(mismatch_check.metrics.expected_closing_mt) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(mismatch_check.metrics.recorded_stock_mt) }} MT &bull; Discrepancy Delta: {{ "{:,.1f}".format(mismatch_check.metrics.delta_mt) }} MT
+        Expected Stock: {{ "{:,.1f}".format(mismatch_check.metrics.expected_closing_mt or mismatch_check.metrics.expected_closing_stock_mt or 0.0) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(mismatch_check.metrics.recorded_stock_mt or mismatch_check.metrics.recorded_closing_stock_mt or 0.0) }} MT &bull; Discrepancy Delta: {{ "{:,.1f}".format(mismatch_check.metrics.delta_mt or mismatch_check.metrics.mismatch_mt or 0.0) }} MT
       </div>
     </div>
   </div>

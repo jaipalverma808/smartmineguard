@@ -94,7 +94,7 @@ class TestERawanaPDFSuite(unittest.TestCase):
         # Operator download (Operator assigned to mine or admin)
         self.login_as("operator1", "operator123")
         # For operator, download their own mine pass or test general permit
-        p_op = db.query("SELECT id FROM permits WHERE mine_id = 1 LIMIT 1", one=True)
+        p_op = db.query("SELECT id FROM permits WHERE quarry_block_id = 55 OR mine_id = 5 OR mine_id = 1 ORDER BY (CASE WHEN quarry_block_id = 55 THEN 0 WHEN mine_id = 5 THEN 1 ELSE 2 END) LIMIT 1", one=True)
         if p_op:
             res_op = self.client.get(f"/permits/{p_op['id']}/download-pdf?type=weighment")
             self.assertEqual(res_op.status_code, 200)

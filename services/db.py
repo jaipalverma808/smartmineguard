@@ -5,6 +5,7 @@ Supports PostgreSQL / PostGIS with seamless SQLite spatial-emulated fallback.
 import sqlite3
 import math
 import json
+import hashlib
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -64,6 +65,7 @@ def point_to_segment_distance_m(p_lat, p_lon, a_lat, a_lon, b_lat, b_lon):
 class DatabaseManager:
     def __init__(self):
         self.use_postgres = False
+        self._sqlite_initialized = False
         self._test_postgres()
 
     def _test_postgres(self):
@@ -95,17 +97,29 @@ class DatabaseManager:
                 Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
             except OSError:
                 pass
+            if Config.IS_SERVERLESS and not Config.SQLITE_PATH.exists():
+                bundled_db = Config.BASE_DIR / "database" / "smartmineguard.db"
+                if bundled_db.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(bundled_db, Config.SQLITE_PATH)
+                    except Exception:
+                        pass
             conn = sqlite3.connect(str(Config.SQLITE_PATH))
             conn.row_factory = sqlite3.Row
-            try:
-                has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-            except Exception:
-                has_users = 0
-            if not has_users:
-                conn.close()
-                self.init_sqlite(force=True)
-                conn = sqlite3.connect(str(Config.SQLITE_PATH))
-                conn.row_factory = sqlite3.Row
+            if not self._sqlite_initialized:
+                try:
+                    has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+                except Exception:
+                    has_users = 0
+                if not has_users:
+                    conn.close()
+                    self.init_sqlite(force=True)
+                    conn = sqlite3.connect(str(Config.SQLITE_PATH))
+                    conn.row_factory = sqlite3.Row
+                else:
+                    self.run_auto_migrations(conn)
+                self._sqlite_initialized = True
             return conn
 
 
@@ -253,6 +267,8 @@ class DatabaseManager:
             truck_cols = [r[1] for r in cur.execute("PRAGMA table_info(trucks)").fetchall()]
             if "assigned_mine_id" not in truck_cols:
                 cur.execute("ALTER TABLE trucks ADD COLUMN assigned_mine_id INTEGER DEFAULT 1")
+            if "sub_mine_id" not in truck_cols:
+                cur.execute("ALTER TABLE trucks ADD COLUMN sub_mine_id INTEGER")
             if "allowed_rounds_per_day" not in truck_cols:
                 cur.execute("ALTER TABLE trucks ADD COLUMN allowed_rounds_per_day INTEGER DEFAULT 4")
             if "completed_rounds_today" not in truck_cols:
@@ -435,6 +451,8 @@ class DatabaseManager:
 
             # driver columns
             driver_cols = [r[1] for r in cur.execute("PRAGMA table_info(drivers)").fetchall()]
+            if "sub_mine_id" not in driver_cols:
+                cur.execute("ALTER TABLE drivers ADD COLUMN sub_mine_id INTEGER")
             if "allowed_rounds_per_day" not in driver_cols:
                 cur.execute("ALTER TABLE drivers ADD COLUMN allowed_rounds_per_day INTEGER DEFAULT 4")
             if "completed_rounds_today" not in driver_cols:
@@ -472,6 +490,8 @@ class DatabaseManager:
             user_cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
             if "assigned_mine_id" not in user_cols:
                 cur.execute("ALTER TABLE users ADD COLUMN assigned_mine_id INTEGER DEFAULT 1")
+            if "assigned_sub_mine_id" not in user_cols:
+                cur.execute("ALTER TABLE users ADD COLUMN assigned_sub_mine_id INTEGER")
             cur.execute("UPDATE users SET assigned_mine_id = 1 WHERE username IN ('officer1', 'operator1') AND (assigned_mine_id IS NULL OR assigned_mine_id = 0)")
 
             # quarry_blocks table (Mine Sub-Locations / Businessmen Concessions)
@@ -554,6 +574,135 @@ class DatabaseManager:
                     (3, "QB-REW-03", "South Khol Co-operative Plot", "Khol Miners Welfare Union (Sukhbir Yadav)", "Baljit Yadav (Scale Operator 3)", "+91 98120 33445", 10000.0, 9700.0, 3, "OPERATIONAL")
                 ])
 
+            # Ensure Mine 5 (HSIIDC Khanak Stone Mines) exists
+            m5 = cur.execute("SELECT id FROM mines WHERE id = 5 OR mine_code = 'MN-HR-BHW-05'").fetchone()
+            if not m5:
+                cur.execute("""
+                    INSERT OR IGNORE INTO mines (id, mine_code, name, mineral, district, state, latitude, longitude,
+                                       authorized_annual_quota_mt, current_dispatch_mt, status, operator_name, contact_phone,
+                                       opening_stock_mt, current_stock_mt, daily_production_mt, daily_planned_dispatch_mt)
+                    VALUES (5, 'MN-HR-BHW-05', 'HSIIDC Ltd. (Khanak Stone Mines)', 'Blue Stone', 'Bhiwani', 'Haryana',
+                            28.8475, 75.8920, 250000.0, 48290.0, 'OPERATIONAL',
+                            'Haryana State Industrial Infrastructure Development Corporation Limited / HSIIDC',
+                            '+91 1664 242250', 12000.0, 11500.0, 1800.0, 1900.0)
+                """)
+
+            # Ensure Mine 5 Sub-Mines exist (Khanak sub-mines with fixed IDs 55, 56, 57, 58)
+            cur.executemany("""
+                INSERT OR IGNORE INTO quarry_blocks 
+                (id, mine_id, block_code, block_name, leaseholder_name, operator_name, contact_phone, allocated_quota_mt, dispatched_mt, active_trucks_count, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [
+                (55, 5, "QB-HR-BHW-01", "Khanak Blue Stone Pit 1A", "Sharma Stone Aggregates Ltd.", "Virendra Singh (Operator A)", "+91 98120 11223", 85000.0, 42350.0, 4, "OPERATIONAL"),
+                (56, 5, "QB-HR-BHW-02", "Khanak Commercial Clinker Lot B", "Apex Mining Transporters", "Rajendra Kumar (Operator B)", "+91 98120 44556", 75000.0, 38100.0, 3, "OPERATIONAL"),
+                (57, 5, "QB-HR-BHW-03", "Khanak Western Aggregate Highwall", "Haryana Infrastructure Partners", "Sukhbir Singh", "+91 98120 77889", 60000.0, 29400.0, 2, "OPERATIONAL"),
+                (58, 5, "QB-HR-BHW-04", "Khanak Southern Road Metal Quarry", "Mewat Aggregates Consortium", "Kailash Chand", "+91 98120 99001", 30000.0, 14200.0, 2, "OPERATIONAL")
+            ])
+
+            # Ensure operator1 and operator2 users are bound to their respective sub-mines under Mine 5
+            cur.execute("""
+                UPDATE users 
+                SET assigned_mine_id = 5, assigned_sub_mine_id = 55, department = 'Khanak Blue Stone Pit 1A • Sharma Stone Aggregates'
+                WHERE username = 'operator1'
+            """)
+            op2 = cur.execute("SELECT id FROM users WHERE username = 'operator2'").fetchone()
+            if not op2:
+                from werkzeug.security import generate_password_hash
+                pw_hash = generate_password_hash("operator123")
+                cur.execute("""
+                    INSERT INTO users (id, username, password_hash, full_name, role, department, badge_number, email, phone, is_active, assigned_mine_id, assigned_sub_mine_id)
+                    VALUES (5, 'operator2', ?, 'Rajendra Kumar (Operator B)', 'OPERATOR', 'Khanak Commercial Clinker Lot B • Apex Mining Transporters', 'OP-HR-BHW-02', 'operator2@hsiidc-mines.gov.in', '+91 98120 44556', 1, 5, 56)
+                """, (pw_hash,))
+            else:
+                cur.execute("""
+                    UPDATE users 
+                    SET assigned_mine_id = 5, assigned_sub_mine_id = 56, department = 'Khanak Commercial Clinker Lot B • Apex Mining Transporters'
+                    WHERE username = 'operator2'
+                """)
+
+            # Update officer1 and admin assignments for Haryana jurisdiction
+            cur.execute("""
+                UPDATE users SET assigned_mine_id = 5, department = 'Mining Enforcement Squad Zone 4 (Bhiwani & Hisar Belt)' WHERE username = 'officer1'
+            """)
+            cur.execute("""
+                UPDATE users SET assigned_mine_id = 5, department = 'Directorate of Mines & Geology, Haryana (State HQ)' WHERE username = 'admin'
+            """)
+
+            # Ensure Truck HR46D2823 (ID 29) exists
+            cur.execute("""
+                INSERT OR IGNORE INTO trucks (id, registration_number, vehicle_type, registered_owner, driver_name, driver_phone,
+                                    tare_weight_mt, max_capacity_mt, rfid_tag, gps_imei, status, current_lat, current_lng,
+                                    assigned_mine_id, sub_mine_id, allowed_rounds_per_day, completed_rounds_today, current_round_number)
+                VALUES (29, 'HR46D2823', '10-Wheeler Tipper Truck', 'Neelkanth Logistics Pvt Ltd', 'Sunil Kumar', '+91 98124 55678',
+                        11.87, 45.0, 'RFID-HR46-2823', '864201045678999', 'WEIGHED', 28.8475, 75.8920,
+                        5, 55, 4, 1, 1)
+            """)
+
+            # Ensure Neelkanth Stone Crusher destination exists
+            cur.execute("""
+                INSERT OR IGNORE INTO destinations (id, name, destination_type, license_number, district, state, latitude, longitude, authorized_minerals, status)
+                VALUES (5, 'M/S Neelkanth Stone Crusher L-136', 'CRUSHER', 'CR-HR-BHW-136', 'Bhiwani', 'Haryana', 28.8520, 75.8850, 'Blue Stone', 'AUTHORIZED')
+            """)
+
+            # Ensure e-Rawana Permit RCO26041 exists
+            has_rco = cur.execute("SELECT id FROM permits WHERE permit_number = 'RCO26041'").fetchone()
+            if not has_rco:
+                qr_hash = hashlib.sha256(b"SMARTMINEGUARD:RCO26041:HR46D2823:HSIIDC:KHANAK").hexdigest()
+                issued_dt = "2026-09-11 21:24:46"
+                expires_dt = "2026-09-12 09:24:46"
+                waypoints_json = '[[28.8475, 75.892], [28.849, 75.889], [28.852, 75.885]]'
+                cur.execute("""
+                    INSERT INTO permits (permit_number, qr_code_hash, truck_id, mine_id, mineral,
+                                        permitted_weight_mt, source_name, destination_name, destination_lat, destination_lng,
+                                        buyer_name, buyer_type, buyer_address, buyer_gstn,
+                                        quarry_name, contractor_name, contractor_gstn,
+                                        rate_per_mt, taxable_amount, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total_amount,
+                                        hsn_code, weighment_slip_no, auction_no, pit_lot_no, customer_code, balance_amount,
+                                        cctv_image_front, cctv_image_back,
+                                        issued_at, expires_at, status, route_waypoints_json, quarry_block_id)
+                    VALUES ('RCO26041', ?, 29, 5, 'Blue Stone',
+                            30.39, 'HSIIDC Ltd. (Khanak Stone Mines)', 'M/S NEELKANTH STONE CRUSHER L-136', 28.8520, 75.8850,
+                            'M/S NEELKANTH STONE CRUSHER L-136', 'Registered Entity',
+                            'M/S NEELKANTH STONE CRUSHER, G.J.M. VILLAGE KHANAK TEHSIL TOSHAM 127040', '06AAAAN2658Q1Z4',
+                            'HARYANA STATE INDUSTRIAL INFRASTRUCTURE DEVELOPMENT CORPORATION LIMITED/ HSIIDC',
+                            'HARYANA STATE INDUSTRIAL INFRASTRUCTURE DEVELOPMENT CORPORATION LIMITED/ HSIIDC',
+                            '06AAACH4114R2ZG',
+                            336.00, 10211.04, 2.50, 255.28, 2.50, 255.28, 10721.59,
+                            '2517', '26-27/S8/29748', 'MSTC/CDG/HSIIDC Limited/56/HARYANA/26-27/30341', '21', '61', 262969.59,
+                            'static/images/weighbridge/cctv_anpr_front.jpg', 'static/images/weighbridge/cctv_bed_overhead.jpg',
+                            ?, ?, 'ACTIVE', ?, 55)
+                """, (qr_hash, issued_dt, expires_dt, waypoints_json))
+                rco_id = cur.lastrowid
+                
+                cur.execute("""
+                    INSERT INTO trips (trip_number, permit_id, truck_id, mine_id, status, start_time,
+                                       planned_distance_km, actual_distance_km, max_recorded_speed_kmh, avg_speed_kmh, risk_score, risk_level)
+                    VALUES ('TRIP-HR-2026-0881', ?, 29, 5, 'IN_TRANSIT', ?,
+                            18.5, 4.2, 42.0, 32.0, 8, 'LOW')
+                """, (rco_id, issued_dt))
+                trip_id = cur.lastrowid
+
+                cur.execute("""
+                    INSERT INTO weighments (trip_id, permit_id, truck_id, weighbridge_code, weighbridge_name,
+                                            gross_weight_mt, tare_weight_mt, net_weight_mt, permitted_weight_mt, difference_mt,
+                                            is_overweight, timestamp, measurement_source, measurement_status,
+                                            slip_number, pit_lot_no, customer_code, balance_amount, auction_number, cctv_image_url)
+                    VALUES (?, ?, 29, 'WB-KHANAK-01', 'Khanak Automated Central Weighbridge #1',
+                            42.26, 11.87, 30.39, 30.39, 0.0,
+                            0, ?, 'AUTOMATED_WEIGHBRIDGE_SCALE', 'VERIFIED',
+                            '26-27/S8/29748', '21', '61', 262969.59, 'MSTC/CDG/HSIIDC Limited/56/HARYANA/26-27/30341',
+                            'static/images/weighbridge/cctv_anpr_front.jpg')
+                """, (trip_id, rco_id, issued_dt))
+
+            # Assign trucks, permits, drivers to sub-mines
+            cur.execute("UPDATE trucks SET assigned_mine_id = 5, sub_mine_id = 55 WHERE id IN (1, 3, 4, 5, 29)")
+            cur.execute("UPDATE trucks SET assigned_mine_id = 5, sub_mine_id = 56 WHERE id IN (2, 7, 66, 67, 68)")
+            cur.execute("UPDATE permits SET quarry_block_id = 55, mine_id = 5 WHERE truck_id IN (1, 3, 4, 5, 29) OR id = 1")
+            cur.execute("UPDATE permits SET quarry_block_id = 56, mine_id = 5 WHERE truck_id IN (2, 7, 66, 67, 68) OR id = 2")
+            cur.execute("UPDATE drivers SET sub_mine_id = 55 WHERE assigned_truck_id IN (1, 3, 4, 5, 29) OR id = 1")
+            cur.execute("UPDATE drivers SET sub_mine_id = 56 WHERE assigned_truck_id IN (2, 7, 66, 67, 68) OR id = 2")
+            cur.execute("UPDATE trips SET mine_id = 5 WHERE truck_id IN (1, 3, 4, 5, 29, 2, 7, 66, 67, 68)")
+
             conn.commit()
         finally:
             if close_needed:
@@ -592,6 +741,8 @@ class DatabaseManager:
             email TEXT,
             phone TEXT,
             is_active INTEGER DEFAULT 1,
+            assigned_mine_id INTEGER DEFAULT 1,
+            assigned_sub_mine_id INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -630,6 +781,7 @@ class DatabaseManager:
             current_risk_score INTEGER DEFAULT 0,
             current_risk_level TEXT DEFAULT 'LOW',
             assigned_mine_id INTEGER DEFAULT 1,
+            sub_mine_id INTEGER,
             allowed_rounds_per_day INTEGER DEFAULT 4,
             completed_rounds_today INTEGER DEFAULT 0,
             current_round_number INTEGER DEFAULT 1,
@@ -657,6 +809,7 @@ class DatabaseManager:
             expires_at DATETIME NOT NULL,
             status TEXT DEFAULT 'ACTIVE',
             reconciliation_reason TEXT,
+            quarry_block_id INTEGER,
             route_waypoints_json TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -794,6 +947,9 @@ class DatabaseManager:
             license_number TEXT UNIQUE NOT NULL,
             contact_phone TEXT,
             assigned_truck_id INTEGER,
+            sub_mine_id INTEGER,
+            allowed_rounds_per_day INTEGER DEFAULT 4,
+            completed_rounds_today INTEGER DEFAULT 0,
             status TEXT DEFAULT 'ACTIVE',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
