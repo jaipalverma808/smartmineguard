@@ -12,10 +12,10 @@ class Config:
     BASE_DIR = BASE_DIR
     SECRET_KEY = os.getenv("SECRET_KEY", "smartmineguard-secure-secret-key-2026")
     
-    # PostgreSQL Configuration
+    # PostgreSQL Configuration (Neon Serverless PostgreSQL)
     DATABASE_URL = os.getenv(
-        "DATABASE_URL", 
-        "postgresql://postgres:postgres@localhost:5432/smartmineguard"
+        "DATABASE_URL",
+        "postgresql://neondb_owner:npg_mGC2RgpcL7ZV@ep-red-glitter-b4zrur32-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require"
     )
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", 5432))
@@ -53,4 +53,3 @@ class Config:
     IMPOSSIBLE_TRANSIT_RISK = 30
     PRODUCTION_MISMATCH_RISK = 30
     SUSPICIOUS_ZONE_RISK = 15
-
