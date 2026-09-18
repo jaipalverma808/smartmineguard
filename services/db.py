@@ -95,11 +95,17 @@ class DatabaseManager:
                 Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
             except OSError:
                 pass
-            need_init = not Config.SQLITE_PATH.exists() or Config.SQLITE_PATH.stat().st_size == 0
-            if need_init:
-                self.init_sqlite()
             conn = sqlite3.connect(str(Config.SQLITE_PATH))
             conn.row_factory = sqlite3.Row
+            try:
+                has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+            except Exception:
+                has_users = 0
+            if not has_users:
+                conn.close()
+                self.init_sqlite(force=True)
+                conn = sqlite3.connect(str(Config.SQLITE_PATH))
+                conn.row_factory = sqlite3.Row
             return conn
 
 
@@ -559,19 +565,20 @@ class DatabaseManager:
             Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
         except OSError:
             pass
-        if Config.SQLITE_PATH.exists() and not force:
-
-            self.run_auto_migrations()
-            # Check if users exist
-            try:
-                rows = self.query("SELECT COUNT(*) as count FROM users")
-                if rows and rows[0]["count"] > 0:
-                    return
-            except Exception:
-                pass
 
         conn = sqlite3.connect(str(Config.SQLITE_PATH))
         cur = conn.cursor()
+
+        if not force:
+            try:
+                has_users = cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+                if has_users:
+                    user_count = cur.execute("SELECT count(*) FROM users").fetchone()[0]
+                    if user_count > 0:
+                        conn.close()
+                        return
+            except Exception:
+                pass
 
         cur.executescript("""
         CREATE TABLE IF NOT EXISTS users (
