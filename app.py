@@ -5,40 +5,57 @@ STRICTLY PURE SOFTWARE — NO AI / NO MACHINE LEARNING / NO NODE.JS.
 """
 import os
 import sys
+import json
+import logging
+import hashlib
+import re
+import time
+import math
+import uuid
 import traceback
+from pathlib import Path
+from datetime import datetime, timedelta
+from functools import wraps
+
+from flask import (
+    Flask, render_template, request, redirect, url_for, 
+    session, jsonify, send_file, flash, abort, Response
+)
+
+try:
+    from flask_socketio import SocketIO, emit
+except Exception as _e:
+    class DummySocketIO:
+        def init_app(self, *args, **kwargs): pass
+        def on(self, *args, **kwargs):
+            return lambda f: f
+        def emit(self, *args, **kwargs): pass
+        def run(self, *args, **kwargs): pass
+    SocketIO = DummySocketIO
+    def emit(*args, **kwargs): pass
+
+from werkzeug.security import check_password_hash, generate_password_hash
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("smartmineguard.app")
+
+# Project root directory
+BASE_DIR = Path(__file__).resolve().parent
+
+# Initialize Flask app FIRST so app is ALWAYS a valid Flask instance
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
+    static_url_path="/static"
+)
 
 _BOOT_ERROR = None
 
 try:
-    import json
-    import logging
-    import hashlib
-    import re
-    import time
-    import math
-    import uuid
-    from datetime import datetime, timedelta
-    from functools import wraps
-
-    from flask import (
-        Flask, render_template, request, redirect, url_for, 
-        session, jsonify, send_file, flash, abort, Response
-    )
-    try:
-        from flask_socketio import SocketIO, emit
-    except Exception as _e:
-        class DummySocketIO:
-            def init_app(self, *args, **kwargs): pass
-            def on(self, *args, **kwargs):
-                return lambda f: f
-            def emit(self, *args, **kwargs): pass
-            def run(self, *args, **kwargs): pass
-        SocketIO = DummySocketIO
-        def emit(*args, **kwargs): pass
-
-    from werkzeug.security import check_password_hash, generate_password_hash
-
     from config import Config
+    app.config.from_object(Config)
     from services.db import db
     from services.detection import DetectionEngine
     from services.risk_engine import RiskEngine
@@ -61,51 +78,44 @@ try:
 
 except BaseException as _ex:
     _BOOT_ERROR = traceback.format_exc()
+    logger.critical(f"FATAL BOOT ERROR in SmartMineGuard: {_BOOT_ERROR}")
+    print(f"FATAL BOOT ERROR in SmartMineGuard:\n{_BOOT_ERROR}", file=sys.stderr)
 
-if _BOOT_ERROR:
-    def app(environ, start_response):
-        body = f"SMARTMINEGUARD BOOT FAILURE TRACEBACK:\n\n{_BOOT_ERROR}\n\nSYS_PATH:\n{sys.path}".encode("utf-8")
-        start_response("200 OK", [
-            ("Content-Type", "text/plain; charset=utf-8"),
-            ("Content-Length", str(len(body)))
-        ])
-        return [body]
-else:
-    # Setup logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    logger = logging.getLogger("smartmineguard.app")
 
-    # Initialize Flask & SocketIO
-    app = Flask(
-        __name__,
-        template_folder=str(Config.BASE_DIR / "templates"),
-        static_folder=str(Config.BASE_DIR / "static"),
-        static_url_path="/static"
-    )
-    app.config.from_object(Config)
+class ErrorLoggingMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+    def __call__(self, environ, start_response):
+        try:
+            return self.wsgi_app(environ, start_response)
+        except Exception as e:
+            tb = traceback.format_exc()
+            logger.critical(f"Unhandled WSGI Exception: {tb}")
+            body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
+            start_response("200 OK", [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body)))
+            ])
+            return [body]
 
-    class ErrorLoggingMiddleware:
-        def __init__(self, wsgi_app):
-            self.wsgi_app = wsgi_app
-        def __call__(self, environ, start_response):
-            try:
-                return self.wsgi_app(environ, start_response)
-            except Exception as e:
-                tb = traceback.format_exc()
-                logger.critical(f"Unhandled WSGI Exception: {tb}")
-                body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
-                start_response("200 OK", [
-                    ("Content-Type", "text/plain; charset=utf-8"),
-                    ("Content-Length", str(len(body)))
-                ])
-                return [body]
+app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 
-    app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 
-    socketio = SocketIO()
-    if not Config.IS_SERVERLESS:
+@app.before_request
+def check_boot_error_on_request():
+    if _BOOT_ERROR:
+        return Response(f"SmartMineGuard Boot Error:\n\n{_BOOT_ERROR}\n\nSys.path:\n{sys.path}", mimetype="text/plain", status=200)
+
+
+socketio = SocketIO()
+try:
+    if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
         socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
-    simulator.set_socketio(socketio)
+    if 'simulator' in locals():
+        simulator.set_socketio(socketio)
+except Exception as _e:
+    logger.warning(f"SocketIO initialization deferred: {_e}")
+
 
 
 
