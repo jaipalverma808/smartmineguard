@@ -18,7 +18,18 @@ from flask import (
     Flask, render_template, request, redirect, url_for, 
     session, jsonify, send_file, flash, abort
 )
-from flask_socketio import SocketIO, emit
+try:
+    from flask_socketio import SocketIO, emit
+except Exception as _e:
+    class DummySocketIO:
+        def init_app(self, *args, **kwargs): pass
+        def on(self, *args, **kwargs):
+            return lambda f: f
+        def emit(self, *args, **kwargs): pass
+        def run(self, *args, **kwargs): pass
+    SocketIO = DummySocketIO
+    def emit(*args, **kwargs): pass
+
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from config import Config
@@ -26,12 +37,20 @@ from services.db import db
 from services.detection import DetectionEngine
 from services.risk_engine import RiskEngine
 from services.gps_simulator import simulator, is_within_india
-from services.report_generator import (
-    generate_evidence_pdf, 
-    generate_erawana_pdf, 
-    generate_seizure_notice_pdf,
-    get_enriched_permit_data
-)
+
+try:
+    from services.report_generator import (
+        generate_evidence_pdf, 
+        generate_erawana_pdf, 
+        generate_seizure_notice_pdf,
+        get_enriched_permit_data
+    )
+except Exception as _e:
+    generate_evidence_pdf = None
+    generate_erawana_pdf = None
+    generate_seizure_notice_pdf = None
+    def get_enriched_permit_data(*args, **kwargs): return {}
+
 from services.material_service import MaterialMonitoringService
 
 # Setup logging
@@ -47,6 +66,25 @@ app = Flask(
 )
 app.config.from_object(Config)
 
+
+class ErrorLoggingMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+    def __call__(self, environ, start_response):
+        try:
+            return self.wsgi_app(environ, start_response)
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            logger.critical(f"Unhandled WSGI Exception: {tb}")
+            body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
+            start_response("500 Internal Server Error", [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body)))
+            ])
+            return [body]
+
+app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 
 socketio = SocketIO()
 if not Config.IS_SERVERLESS:

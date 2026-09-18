@@ -95,6 +95,9 @@ class DatabaseManager:
                 Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
             except OSError:
                 pass
+            need_init = not Config.SQLITE_PATH.exists() or Config.SQLITE_PATH.stat().st_size == 0
+            if need_init:
+                self.init_sqlite()
             conn = sqlite3.connect(str(Config.SQLITE_PATH))
             conn.row_factory = sqlite3.Row
             return conn
@@ -1110,6 +1113,10 @@ class DatabaseManager:
 
         conn.commit()
         conn.close()
+        try:
+            self.run_auto_migrations()
+        except Exception as e:
+            logger.warning(f"Auto-migrations after fresh init encountered non-fatal error: {e}")
         logger.info("SQLite database initialized and seeded.")
 
 

@@ -53,6 +53,4 @@ class Config:
     IMPOSSIBLE_TRANSIT_RISK = 30
     PRODUCTION_MISMATCH_RISK = 30
     SUSPICIOUS_ZONE_RISK = 15
-    
-    # Upload and Reports directory
-    REPORTS_DIR = BASE_DIR / "static" / "reports"
+
