@@ -3902,8 +3902,12 @@ def handle_request_step():
     emit("gps_batch_update", {"trucks": updates})
 
 
-# Initialize DB on application load
-db.init_db()
+# Initialize DB on application load (safe on serverless cold starts)
+try:
+    db.init_db()
+except Exception as e:
+    logger.error(f"Initial DB setup deferred/failed: {e}")
+
 
 # Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
 if not Config.IS_SERVERLESS:
