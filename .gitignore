@@ -1,0 +1,19 @@
+# Security & Tokens
+.mcp.json
+.env
+*.token
+.agents/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+

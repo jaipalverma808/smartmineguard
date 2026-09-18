@@ -1,0 +1,543 @@
+{% extends "base.html" %}
+
+{% block title %}e-Rawana Official Transit Pass — {{ doc.permit_number }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-4 pb-12">
+
+  <!-- Document Action Header (Hidden in Print) -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded-lg p-3 shadow-sm gap-3 print:hidden">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('permits') }}" class="btn-gov btn-gov-secondary text-xs flex items-center gap-1.5 py-1.5 px-3">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        Back to Permits
+      </a>
+      <div>
+        <h1 class="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+          Official Mineral Transit Suite
+          <span class="badge {% if doc.pass_status == 'ACTIVE' %}badge-active{% elif doc.pass_status == 'WEIGHED' %}badge-active{% else %}badge-consumed{% endif %} text-[11px]">
+            {{ doc.pass_status }}
+          </span>
+        </h1>
+        <p class="text-[11px] text-slate-500 font-mono">Pass: {{ doc.permit_number }} | Vehicle: {{ doc.vehicle_no }}</p>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200 text-xs">
+      <button onclick="switchTab('erawana')" id="tab-btn-erawana" class="px-3 py-1.5 rounded font-semibold text-slate-700 transition bg-white shadow-sm text-emerald-900">
+        🏛️ e-Rawana Pass
+      </button>
+      <button onclick="switchTab('invoice')" id="tab-btn-invoice" class="px-3 py-1.5 rounded font-semibold text-slate-600 hover:text-slate-900 transition">
+        🧾 Tax Invoice
+      </button>
+      <button onclick="switchTab('weighment')" id="tab-btn-weighment" class="px-3 py-1.5 rounded font-semibold text-slate-600 hover:text-slate-900 transition">
+        ⚖️ Weighment Slip
+      </button>
+      <button onclick="switchTab('all')" id="tab-btn-all" class="px-3 py-1.5 rounded font-semibold text-slate-600 hover:text-slate-900 transition">
+        📑 All Documents
+      </button>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex items-center gap-2">
+      <!-- Download PDF Dropdown -->
+      <div class="relative group">
+        <button class="btn-gov btn-gov-primary text-xs flex items-center gap-1.5 py-1.5 px-3">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          Download PDF
+          <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+        </button>
+        <div class="absolute right-0 mt-1 w-56 bg-white border border-slate-300 rounded-md shadow-xl py-1 hidden group-hover:block z-50 text-xs">
+          <a href="{{ url_for('download_permit_pdf', permit_id=doc.permit['id'], type='erawana') }}" class="block px-3 py-2 text-slate-700 hover:bg-slate-100 flex items-center justify-between">
+            <span>🏛️ Official e-Rawana Pass</span>
+            <span class="text-[10px] text-slate-400">PDF</span>
+          </a>
+          <a href="{{ url_for('download_permit_pdf', permit_id=doc.permit['id'], type='invoice') }}" class="block px-3 py-2 text-slate-700 hover:bg-slate-100 flex items-center justify-between">
+            <span>🧾 HSIIDC GST Tax Invoice</span>
+            <span class="text-[10px] text-slate-400">PDF</span>
+          </a>
+          <a href="{{ url_for('download_permit_pdf', permit_id=doc.permit['id'], type='weighment') }}" class="block px-3 py-2 text-slate-700 hover:bg-slate-100 flex items-center justify-between">
+            <span>⚖️ Weighment Slip (Gross)</span>
+            <span class="text-[10px] text-slate-400">PDF</span>
+          </a>
+          <div class="border-t border-slate-200 my-1"></div>
+          <a href="{{ url_for('download_permit_pdf', permit_id=doc.permit['id'], type='packet') }}" class="block px-3 py-2 text-emerald-800 font-bold hover:bg-emerald-50 flex items-center justify-between">
+            <span>📑 Complete 3-in-1 Dossier</span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-1 rounded">ALL</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Print Button -->
+      <button onclick="window.print()" class="btn-gov btn-gov-secondary text-xs flex items-center gap-1.5 py-1.5 px-3">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+        Print
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- DOCUMENT 1: OFFICIAL GOVERNMENT OF HARYANA e-RAWANA PASS      -->
+  <!-- ============================================================== -->
+  <div id="doc-section-erawana" class="erawana-paper bg-white border border-slate-300 rounded-lg p-6 shadow-md print:border-none print:shadow-none print:p-0 print:m-0 space-y-4 text-slate-800">
+    
+    <!-- Top Header: Logo + Department + QR -->
+    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+      <div class="w-24 flex items-center">
+        <img src="/static/images/weighbridge/haryana_govt_logo.png" alt="Haryana Govt Logo" class="h-20 w-20 object-contain drop-shadow-sm" onerror="this.style.display='none'" />
+      </div>
+      
+      <div class="text-center flex-1 px-4">
+        <h2 class="text-base md:text-lg font-bold text-slate-900 tracking-wide uppercase font-serif">Government of Haryana</h2>
+        <h3 class="text-sm md:text-base font-bold text-slate-800 uppercase tracking-wider">DEPARTMENT OF MINES & GEOLOGY</h3>
+        <p class="text-[11px] font-bold text-emerald-900 tracking-widest mt-0.5">MINERAL TRANSIT PASS (e-RAWANA)</p>
+      </div>
+
+      <div class="w-28 flex flex-col items-center justify-center">
+        <div id="erawana-pass-qr" class="p-1 bg-white border border-slate-300 rounded shadow-xs"></div>
+        <span class="text-[10px] font-bold text-slate-500 mt-1">Page P 1/1</span>
+      </div>
+    </div>
+
+    <!-- Metadata Bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs border border-slate-300 p-2.5 bg-slate-50 rounded">
+      <div>
+        <span class="text-slate-500 font-medium">Rawana No:</span>
+        <div class="font-mono font-bold text-sm text-slate-900">{{ doc.rawana_no }}</div>
+      </div>
+      <div>
+        <span class="text-slate-500 font-medium">Generation Time:</span>
+        <div class="font-semibold text-slate-800">{{ doc.generation_time }}</div>
+      </div>
+      <div>
+        <span class="text-slate-500 font-medium">Vehicle No:</span>
+        <div class="font-mono font-bold text-sm text-slate-900 bg-amber-100 px-1.5 py-0.5 rounded inline-block border border-amber-300">{{ doc.vehicle_no }}</div>
+      </div>
+      <div>
+        <span class="text-slate-500 font-medium">Pass Status:</span>
+        <div class="font-bold text-emerald-800">Rawaana Issue ({{ doc.pass_status }})</div>
+      </div>
+    </div>
+
+    <!-- Dual CCTV / Weighbridge Visual Proof Images -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 border border-slate-300 p-2.5 bg-slate-900 rounded-md">
+      <div class="space-y-1 text-center">
+        <div class="overflow-hidden rounded border border-slate-700 bg-black relative">
+          <img src="/{{ doc.cctv_front }}" alt="CAM-01 ANPR Plate View" class="w-full h-44 object-cover" />
+          <div class="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-white animate-ping"></span> REC ● LIVE CAM-01
+          </div>
+          <div class="absolute bottom-1.5 left-2 right-2 flex justify-between text-[10px] text-emerald-400 bg-black/80 px-2 py-0.5 font-mono rounded">
+            <span>ANPR: {{ doc.vehicle_no }}</span>
+            <span>WB-KHANAK SCALE #1</span>
+          </div>
+        </div>
+        <p class="text-[11px] font-bold text-slate-300">WEIGHBRIDGE CAMERA 1: FRONT ANPR & CABIN CAPTURE</p>
+      </div>
+
+      <div class="space-y-1 text-center">
+        <div class="overflow-hidden rounded border border-slate-700 bg-black relative">
+          <img src="/{{ doc.cctv_back }}" alt="CAM-02 Cargo Overhead View" class="w-full h-44 object-cover" />
+          <div class="absolute top-2 left-2 bg-red-600/90 text-white text-[10px] px-2 py-0.5 rounded font-mono font-bold flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-white animate-ping"></span> REC ● LIVE CAM-02
+          </div>
+          <div class="absolute bottom-1.5 left-2 right-2 flex justify-between text-[10px] text-emerald-400 bg-black/80 px-2 py-0.5 font-mono rounded">
+            <span>NET: {{ doc.quantity_mt }} MT ({{ doc.mineral }})</span>
+            <span>PLATFORM VERIFIED</span>
+          </div>
+        </div>
+        <p class="text-[11px] font-bold text-slate-300">WEIGHBRIDGE CAMERA 2: SCALE PLATFORM & CARGO BED VIEW</p>
+      </div>
+    </div>
+
+    <!-- Quarry & Contractor Details + Buyer Details -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-300 p-3 rounded">
+      <div class="space-y-2">
+        <h4 class="font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wider text-[11px]">Quarry & Concessionaire Information</h4>
+        <div><span class="text-slate-500">Location:</span> <strong class="text-slate-900">{{ doc.location }}</strong></div>
+        <div><span class="text-slate-500">Name of Quarry:</span> <span class="font-semibold text-slate-800">{{ doc.quarry_name }}</span></div>
+        <div><span class="text-slate-500">Name of Contractor:</span> <span class="font-semibold text-slate-800">{{ doc.contractor_name }}</span></div>
+        <div><span class="text-slate-500">Contractor GSTN:</span> <span class="font-mono font-bold text-slate-800">{{ doc.contractor_gstn }}</span></div>
+      </div>
+
+      <div class="space-y-2">
+        <h4 class="font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wider text-[11px]">Consignee & Buyer Information</h4>
+        <div><span class="text-slate-500">Buyer Type:</span> <strong class="text-slate-900">{{ doc.buyer_type }}</strong></div>
+        <div><span class="text-slate-500">Buyer Name:</span> <span class="font-semibold text-slate-800">{{ doc.buyer_name }}</span></div>
+        <div><span class="text-slate-500">Buyer Address:</span> <span class="text-slate-700">{{ doc.buyer_address }}</span></div>
+        <div><span class="text-slate-500">Buyer GSTN:</span> <span class="font-mono font-bold text-slate-800">{{ doc.buyer_gstn }}</span></div>
+      </div>
+    </div>
+
+    <!-- Mineral, Quantity & Valuation Grid matching Real Pass -->
+    <div class="border border-slate-300 rounded overflow-hidden">
+      <table class="w-full text-xs text-left border-collapse">
+        <tbody class="divide-y divide-slate-200">
+          <tr class="bg-slate-50">
+            <td class="p-2 font-medium text-slate-600 w-1/4">Mineral Commodity:</td>
+            <td class="p-2 font-bold text-slate-900 w-1/4">{{ doc.mineral }} (HSN {{ doc.hsn_code }})</td>
+            <td class="p-2 font-medium text-slate-600 w-1/4">Price (Taxable Value):</td>
+            <td class="p-2 font-bold text-slate-900 w-1/4">₹ {{ "{:,.2f}".format(doc.taxable_amount) }}</td>
+          </tr>
+          <tr>
+            <td class="p-2 font-medium text-slate-600">Net Quantity (MT):</td>
+            <td class="p-2 font-bold text-emerald-900 text-sm">{{ doc.quantity_mt }} MT <span class="text-[10px] font-normal text-slate-500">({{ "{:,.0f}".format(doc.net_weight_kg) }} kg)</span></td>
+            <td class="p-2 font-medium text-slate-600">CGST (2.5%):</td>
+            <td class="p-2 text-slate-800">₹ {{ "{:,.2f}".format(doc.cgst_amount) }}</td>
+          </tr>
+          <tr class="bg-slate-50">
+            <td class="p-2 font-medium text-slate-600">Unit Rate / MT:</td>
+            <td class="p-2 text-slate-800">₹ {{ "{:,.2f}".format(doc.rate_per_mt) }}</td>
+            <td class="p-2 font-medium text-slate-600">SGST (2.5%):</td>
+            <td class="p-2 text-slate-800">₹ {{ "{:,.2f}".format(doc.sgst_amount) }}</td>
+          </tr>
+          <tr>
+            <td class="p-2 font-medium text-slate-600">Weighment Slip Ref:</td>
+            <td class="p-2 font-mono text-slate-800">{{ doc.slip_no }} (Lot #{{ doc.pit_lot_no }})</td>
+            <td class="p-2 font-bold text-slate-900">Total Invoice Value:</td>
+            <td class="p-2 font-mono font-bold text-sm text-emerald-900 bg-emerald-50">₹ {{ "{:,.2f}".format(doc.total_amount) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Informative Anti-Fraud Compliance Box -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-emerald-50 border border-emerald-300 rounded text-xs">
+      <div class="space-y-1">
+        <h5 class="font-bold text-emerald-900 uppercase text-[11px]">Transit Corridor & Security Seal</h5>
+        <div><span class="text-emerald-700 font-medium">Designated Route:</span> <span class="font-semibold text-slate-800">Tosham-Khanak Mineral Link Route (Geofenced)</span></div>
+        <div><span class="text-emerald-700 font-medium">FASTag / RFID Tag:</span> <span class="font-mono text-slate-800">{{ doc.rfid_tag }}</span></div>
+        <div><span class="text-emerald-700 font-medium">Digital Verification Hash:</span> <span class="font-mono text-[10px] text-slate-600 break-all">{{ doc.qr_code_hash[:36] }}...</span></div>
+      </div>
+      <div class="space-y-1">
+        <h5 class="font-bold text-emerald-900 uppercase text-[11px]">Statutory Enforcement Status</h5>
+        <div><span class="text-emerald-700 font-medium">Valid From:</span> <span class="font-semibold text-slate-800">{{ doc.generation_time }}</span></div>
+        <div><span class="text-emerald-700 font-medium">Valid Upto:</span> <span class="font-semibold text-slate-800">{{ doc.expiry_time }}</span></div>
+        <div><span class="text-emerald-700 font-medium">Daily Dispatch:</span> <span class="font-bold text-emerald-800">Unrestricted Commercial Operations (No Round Limit)</span></div>
+        <div><span class="text-emerald-700 font-medium">Roadside Inspection:</span> <span class="font-bold text-emerald-800">Compliant &bull; Scannable via Officer QR Scanner</span></div>
+      </div>
+    </div>
+
+    <!-- Statutory Footer -->
+    <div class="pt-3 border-t border-slate-300 text-center text-[10px] text-slate-500 space-y-1">
+      <p>This is a computer generated e-Rawana mineral transit pass issued by the Department of Mines & Geology, Government of Haryana under MMDR Act rules. No physical signature required.</p>
+      <p class="font-bold text-slate-700">Directorate of Mines & Geology, Haryana • Khanak Mining Zone, Distt. Bhiwani</p>
+    </div>
+
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- DOCUMENT 2: HSIIDC TAX INVOICE                                 -->
+  <!-- ============================================================== -->
+  <div id="doc-section-invoice" class="invoice-paper bg-white border border-slate-300 rounded-lg p-6 shadow-md print:border-none print:shadow-none print:p-0 print:m-0 space-y-4 text-slate-800 hidden">
+    
+    <!-- Top Bar -->
+    <div class="flex justify-between items-start border-b border-slate-800 pb-3">
+      <div class="flex items-center gap-3">
+        <img src="/static/images/weighbridge/hsiidc_logo.png" alt="HSIIDC Logo" class="h-16 w-16 object-contain" onerror="this.style.display='none'" />
+        <div>
+          <h2 class="text-base md:text-xl font-bold text-slate-900 uppercase tracking-wide">HSIIDC LTD. KHANAK</h2>
+          <span class="text-xs font-bold text-slate-700 border border-slate-400 px-2 py-0.5 rounded uppercase tracking-wider">TAX INVOICE</span>
+        </div>
+      </div>
+      <div class="text-right text-xs">
+        <div class="font-bold text-slate-800">Duplicate For Transporter</div>
+        <div class="text-slate-500 text-[11px]">Page 1 of 1</div>
+      </div>
+    </div>
+
+    <!-- Mine Address & Invoice Info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-300 p-3 rounded">
+      <div class="space-y-1">
+        <strong class="text-sm font-bold text-slate-900">HSIIDC Ltd. (Khanak Stone Mines)</strong>
+        <p class="text-slate-700">Panchayat Bhawan, Village Khanak<br/>Distt. Bhiwani (Haryana) 127040<br/>State Name : Haryana, Code : 06<br/>CIN : U29199HR1967SGC034545<br/>E-Mail : hsiidckhanak@gmail.com</p>
+      </div>
+      <div class="space-y-1 md:border-l md:border-slate-200 md:pl-4">
+        <div class="flex justify-between"><span class="text-slate-500">INVOICE NO:</span> <strong class="font-mono text-sm text-slate-900">{{ doc.slip_no }}</strong></div>
+        <div class="flex justify-between"><span class="text-slate-500">INVOICE DATE:</span> <span class="font-semibold">{{ doc.generation_time }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">GST NO:</span> <span class="font-mono font-bold">{{ doc.contractor_gstn }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">PAN NO:</span> <span class="font-mono font-bold">AAACH4114R</span></div>
+      </div>
+    </div>
+
+    <!-- Receiver & Consignee Details -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-300 p-3 rounded">
+      <div class="space-y-1">
+        <h4 class="font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase">Details of Receiver ( Billed To )</h4>
+        <div><span class="text-slate-500">Name:-</span> <strong class="text-slate-800">{{ doc.buyer_name }}</strong></div>
+        <div><span class="text-slate-500">Address:-</span> <span>{{ doc.buyer_address }}</span></div>
+        <div><span class="text-slate-500">STATE:</span> <span>Haryana</span></div>
+        <div><span class="text-slate-500">GST:</span> <span class="font-mono font-bold">{{ doc.buyer_gstn }}</span></div>
+        <div><span class="text-slate-500">VEHICLE NO:</span> <span class="font-mono font-bold text-amber-900 bg-amber-100 px-1 rounded">{{ doc.vehicle_no }}</span></div>
+      </div>
+
+      <div class="space-y-1">
+        <h4 class="font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase">Details of Consigner ( Shipped To )</h4>
+        <div><span class="text-slate-500">Name:-</span> <strong class="text-slate-800">{{ doc.buyer_name }}</strong></div>
+        <div><span class="text-slate-500">Address:-</span> <span>{{ doc.buyer_address }}</span></div>
+        <div><span class="text-slate-500">STATE:</span> <span>Haryana</span></div>
+        <div><span class="text-slate-500">GST:</span> <span class="font-mono font-bold">{{ doc.buyer_gstn }}</span></div>
+        <div><span class="text-slate-500">VEHICLE NO:</span> <span class="font-mono font-bold text-amber-900 bg-amber-100 px-1 rounded">{{ doc.vehicle_no }}</span></div>
+      </div>
+    </div>
+
+    <!-- Invoice Items Table -->
+    <div class="border border-slate-300 rounded overflow-x-auto">
+      <table class="w-full text-xs text-center border-collapse">
+        <thead class="bg-slate-100 border-b border-slate-300 text-[11px] font-bold">
+          <tr>
+            <th class="p-2 border-r border-slate-200">Sno</th>
+            <th class="p-2 border-r border-slate-200 text-left">Description of Goods</th>
+            <th class="p-2 border-r border-slate-200">HSN/SAC</th>
+            <th class="p-2 border-r border-slate-200">Qty</th>
+            <th class="p-2 border-r border-slate-200">UQC</th>
+            <th class="p-2 border-r border-slate-200">Rate Per Item</th>
+            <th class="p-2 border-r border-slate-200">Taxable Amount</th>
+            <th class="p-2 border-r border-slate-200">CGST (2.5%)</th>
+            <th class="p-2 border-r border-slate-200">SGST (2.5%)</th>
+            <th class="p-2 border-r border-slate-200">IGST</th>
+            <th class="p-2">Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          <tr>
+            <td class="p-2 border-r border-slate-200">1</td>
+            <td class="p-2 border-r border-slate-200 text-left font-semibold text-slate-900">{{ doc.mineral }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ doc.hsn_code }}</td>
+            <td class="p-2 border-r border-slate-200 font-bold">{{ "{:.3f}".format(doc.quantity_mt) }}</td>
+            <td class="p-2 border-r border-slate-200">MT</td>
+            <td class="p-2 border-r border-slate-200">{{ "{:.2f}".format(doc.rate_per_mt) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.taxable_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.cgst_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.sgst_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">0.00</td>
+            <td class="p-2 font-mono font-bold">{{ "{:.2f}".format(doc.total_amount) }}</td>
+          </tr>
+          <tr class="bg-slate-50 font-bold border-t border-slate-300">
+            <td class="p-2 border-r border-slate-200" colspan="3">Total:</td>
+            <td class="p-2 border-r border-slate-200">{{ "{:.3f}".format(doc.quantity_mt) }} MT</td>
+            <td class="p-2 border-r border-slate-200"></td>
+            <td class="p-2 border-r border-slate-200"></td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.taxable_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.cgst_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">{{ "{:.2f}".format(doc.sgst_amount) }}</td>
+            <td class="p-2 border-r border-slate-200 font-mono">0.00</td>
+            <td class="p-2 font-mono font-bold text-emerald-900 bg-emerald-50">₹ {{ "{:,.2f}".format(doc.total_amount) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Amount in Words -->
+    <div class="border border-slate-300 p-3 rounded text-xs space-y-1.5 bg-slate-50">
+      <div class="flex justify-between items-center">
+        <span class="font-bold text-slate-700">Total Invoice Value (In Figure):</span>
+        <span class="font-mono font-bold text-sm text-slate-900">₹ {{ "{:,.2f}".format(doc.total_amount) }}</span>
+      </div>
+      <div>
+        <span class="font-bold text-slate-700">Total Invoice Value (In Words):</span>
+        <span class="font-semibold text-slate-800 ml-2 italic">{{ doc.total_in_words }}</span>
+      </div>
+    </div>
+
+    <!-- Bottom Declarations & Signature -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs border border-slate-300 p-3 rounded">
+      <div class="space-y-2">
+        <p class="text-slate-600"><strong>Declaration :-</strong> We Declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</p>
+        <p class="font-bold text-slate-800 uppercase tracking-wide">WEATHER THE TAX IS PAYABLE ON REVERSE CHARGE BASIS: NO</p>
+      </div>
+      <div class="text-right flex flex-col justify-between pt-4 md:pt-0">
+        <div class="font-bold text-slate-800">For HSIIDC Ltd. (Khanak Stone Mines)</div>
+        <div class="mt-8 border-t border-slate-400 pt-1 inline-block self-end text-slate-600">Authorised Signatory</div>
+      </div>
+    </div>
+
+    <div class="text-center text-[10px] text-slate-500">This is Computer Generated Invoice</div>
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- DOCUMENT 3: WEIGHMENT SLIP (GROSS)                             -->
+  <!-- ============================================================== -->
+  <div id="doc-section-weighment" class="weighment-paper bg-white border border-slate-300 rounded-lg p-6 shadow-md print:border-none print:shadow-none print:p-0 print:m-0 space-y-4 text-slate-800 hidden">
+    
+    <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+      <div class="text-center flex-1">
+        <h2 class="text-base md:text-xl font-bold text-slate-900 uppercase tracking-wide">HSIIDC LTD. KHANAK</h2>
+        <h3 class="text-xs md:text-sm font-bold text-slate-700 uppercase tracking-wider">Weighment Slip(Gross)</h3>
+      </div>
+      <span class="text-[11px] text-slate-400">Page 1 of 1</span>
+    </div>
+
+    <!-- Structured Grid matching Real Slip -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 border border-slate-300 p-3 rounded">
+      <div class="lg:col-span-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">Slip No:</span>
+          <strong class="font-mono text-slate-900 ml-1">{{ doc.slip_no }}</strong>
+        </div>
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">Pit/Lot No:</span>
+          <strong class="font-mono text-base text-slate-900 ml-1">{{ doc.pit_lot_no }}</strong>
+        </div>
+
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">Customer:</span>
+          <strong class="text-slate-800 block">{{ doc.buyer_name }}</strong>
+        </div>
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">CustomerCode:</span>
+          <strong class="font-mono text-slate-800 ml-1">{{ doc.customer_code }}</strong>
+        </div>
+
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">Material:</span>
+          <strong class="text-slate-800 ml-1">{{ doc.mineral }}</strong>
+        </div>
+        <div class="border-b border-slate-200 pb-1">
+          <span class="text-slate-500">Balance:</span>
+          <strong class="font-mono text-slate-800 ml-1">{{ "{:,.2f}".format(doc.balance_amount) }}</strong>
+        </div>
+
+        <div class="border-b border-slate-200 pb-1 bg-slate-50 p-1 rounded">
+          <span class="text-slate-500">Gross Weight:</span>
+          <strong class="font-mono text-sm text-slate-900 block">{{ "{:,.2f}".format(doc.gross_weight_kg) }} kg</strong>
+        </div>
+        <div class="border-b border-slate-200 pb-1 bg-slate-50 p-1 rounded">
+          <span class="text-slate-500">Tare Weight:</span>
+          <strong class="font-mono text-sm text-slate-900 block">{{ "{:,.2f}".format(doc.tare_weight_kg) }} kg</strong>
+        </div>
+
+        <div class="bg-emerald-50 p-2 rounded border border-emerald-300">
+          <span class="text-emerald-700 font-bold">Net Weight:</span>
+          <strong class="font-mono text-base text-emerald-900 block">{{ "{:,.2f}".format(doc.net_weight_kg) }} kg ({{ doc.quantity_mt }} MT)</strong>
+        </div>
+        <div class="bg-amber-50 p-2 rounded border border-amber-300">
+          <span class="text-amber-800 font-bold">Vehicle:</span>
+          <strong class="font-mono text-base text-amber-950 block">{{ doc.vehicle_no }}</strong>
+        </div>
+
+        <div class="pt-1">
+          <span class="text-slate-500">Date:</span>
+          <strong class="text-slate-800 ml-1">{{ doc.generation_time[:10] }}</strong>
+          <span class="text-slate-500 ml-3">Time:</span>
+          <strong class="text-slate-800 ml-1">{{ doc.generation_time[11:] }}</strong>
+        </div>
+        <div class="pt-1">
+          <span class="text-slate-500">Operator:</span>
+          <strong class="text-slate-800 ml-1">{{ doc.operator_name }}</strong>
+        </div>
+
+        <div class="col-span-2 pt-1">
+          <span class="text-slate-500 text-[11px]">Auction:</span>
+          <span class="font-mono text-[11px] text-slate-700">{{ doc.auction_no }}</span>
+        </div>
+      </div>
+
+      <!-- Embedded CCTV Camera View on Scale Platform -->
+      <div class="flex flex-col items-center justify-center p-2 bg-slate-900 rounded text-center">
+        <div class="overflow-hidden rounded border border-slate-700 w-full relative">
+          <img src="/{{ doc.cctv_front }}" alt="Truck On Scale" class="w-full h-44 object-cover" />
+          <div class="absolute bottom-1 left-1 right-1 text-[10px] bg-black/80 text-emerald-400 font-mono py-0.5 px-1 rounded">
+            SCALE GROSS: {{ "{:,.0f}".format(doc.gross_weight_kg) }} KG
+          </div>
+        </div>
+        <span class="text-[10px] font-bold text-slate-300 mt-1">AUTOMATED WEIGHBRIDGE SCALE SENSOR</span>
+      </div>
+    </div>
+
+    <!-- Metrology Verification Seal -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-300 rounded text-xs">
+      <div>
+        <h5 class="font-bold text-slate-900 uppercase text-[11px]">Automated Weighbridge Metrology</h5>
+        <p class="text-slate-600">Scale ID: WB-KHANAK-01 (Electronic 100 MT Pitless)<br/>Verification: Zero-Tare Validated • Dual S-Type Load Cells</p>
+      </div>
+      <div>
+        <h5 class="font-bold text-slate-900 uppercase text-[11px]">Legal Compliance</h5>
+        <p class="text-slate-600">Status: Legal Metrology Stamped & Non-Tampered<br/>Permitted Variance: 0.00 MT (Compliant)</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- QR Code Script -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+  // Generate QR Code on page load
+  document.addEventListener("DOMContentLoaded", function() {
+    const qrContainer = document.getElementById("erawana-pass-qr");
+    if (qrContainer) {
+      new QRCode(qrContainer, {
+        text: "SMARTMINEGUARD:{{ doc.permit_number }}:{{ doc.vehicle_reg_raw }}:{{ doc.quantity_mt }}:{{ doc.qr_code_hash }}",
+        width: 80,
+        height: 80,
+        colorDark : "#0F172A",
+        colorLight : "#FFFFFF",
+        correctLevel : QRCode.CorrectLevel.M
+      });
+    }
+
+    // Check active tab parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab') || 'erawana';
+    switchTab(tab);
+  });
+
+  function switchTab(tabId) {
+    const sections = ['erawana', 'invoice', 'weighment'];
+    const tabBtns = ['erawana', 'invoice', 'weighment', 'all'];
+
+    tabBtns.forEach(btn => {
+      const el = document.getElementById(`tab-btn-${btn}`);
+      if (el) {
+        if (btn === tabId) {
+          el.className = "px-3 py-1.5 rounded font-semibold transition bg-white shadow-sm text-emerald-900";
+        } else {
+          el.className = "px-3 py-1.5 rounded font-semibold text-slate-600 hover:text-slate-900 transition";
+        }
+      }
+    });
+
+    if (tabId === 'all') {
+      sections.forEach(sec => {
+        const el = document.getElementById(`doc-section-${sec}`);
+        if (el) el.classList.remove('hidden');
+      });
+    } else {
+      sections.forEach(sec => {
+        const el = document.getElementById(`doc-section-${sec}`);
+        if (el) {
+          if (sec === tabId) {
+            el.classList.remove('hidden');
+          } else {
+            el.classList.add('hidden');
+          }
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+@media print {
+  body {
+    background: #FFFFFF !important;
+    font-size: 11pt !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  #doc-section-erawana, #doc-section-invoice, #doc-section-weighment {
+    display: block !important;
+    page-break-after: always;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+</style>
+{% endblock %}

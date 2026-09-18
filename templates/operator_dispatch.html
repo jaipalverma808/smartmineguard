@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Mineral Dispatch Monitoring — Operator Console{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Card -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+        <span>Mineral Dispatch &amp; Logistics Surveillance</span>
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        {{ mine.name }} &bull; Today's Planned: {{ "{:,.1f}".format(daily_summary.planned_dispatch_mt) }} MT &bull; Actual Weighed: {{ "{:,.1f}".format(daily_summary.actual_dispatch_mt) }} MT
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if is_quota_frozen %}
+      <button disabled title="e-Rawaana generation frozen due to quota exhaustion" class="btn-gov bg-slate-400 text-slate-200 cursor-not-allowed btn-sm flex items-center gap-1 opacity-70">
+        <span>🔒 Dispatch Locked (Quota Exhausted)</span>
+      </button>
+      {% else %}
+      <button onclick="openDispatchModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Initiate Dispatch Trip</span>
+      </button>
+      {% endif %}
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-secondary btn-sm">
+        &larr; Operations Hub
+      </a>
+    </div>
+  </div>
+
+  <!-- STATUTORY TENDER QUOTA KILL-SWITCH ALERT (Idea 4) -->
+  {% if is_quota_frozen %}
+  <div class="p-4 bg-red-950 border-2 border-red-600 rounded-lg text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-red-500 animate-ping"></span>
+        <span class="text-xs font-black uppercase tracking-wider text-red-200">
+          STATUTORY TENDER QUOTA KILL-SWITCH ACTIVE (PILLAR 4)
+        </span>
+        <span class="badge bg-red-800 text-white text-[10px] font-mono border border-red-500">100% QUOTA EXHAUSTED</span>
+      </div>
+      <h3 class="text-sm font-bold text-white">
+        Annual Environmental Concession Ceiling Reached — Mineral Dispatch Locked
+      </h3>
+      <p class="text-xs text-red-200 max-w-3xl">
+        Concession <strong>{{ mine.name }}</strong> ({{ mine.mine_code }}) has reached its sanctioned environmental ceiling of <strong>{{ "{:,.1f}".format(mine.authorized_annual_quota_mt or 50000) }} MT</strong> (Current Dispatched: <strong>{{ "{:,.1f}".format(mine.current_dispatch_mt or 0) }} MT</strong>). Under Section 21 of the MMDR Act (1957) and Rule 104 of Haryana Minor Mineral Concession Rules (2012), issuance of further e-Rawaana transit passes is permanently frozen.
+      </p>
+    </div>
+    <div class="flex-shrink-0">
+      <a href="{{ url_for('download_mine_seizure_notice', mine_id=mine.id) }}" class="btn-gov bg-red-600 hover:bg-red-500 text-white font-extrabold px-4 py-2.5 rounded shadow text-xs uppercase flex items-center gap-2 border border-red-400">
+        <span>📄 Download Section 21 Seizure Notice (PDF)</span>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Notification Banner -->
+  <div id="dispatch-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- Key Dispatch Metric Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="gov-card p-4 border-l-4 border-l-amber-600">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Planned Dispatch (Today)</div>
+      <div class="text-2xl font-bold text-amber-800 font-mono mt-1">{{ "{:,.1f}".format(daily_summary.planned_dispatch_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[11px] text-slate-500 mt-1">Authorized e-Rawaana quota</div>
+    </div>
+
+    <div class="gov-card p-4 border-l-4 border-l-emerald-600">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Actual Dispatch (Today)</div>
+      <div class="text-2xl font-bold text-emerald-800 font-mono mt-1">{{ "{:,.1f}".format(daily_summary.actual_dispatch_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[11px] text-slate-500 mt-1">Verified weighbridge departures</div>
+    </div>
+
+    <div class="gov-card p-4 border-l-4 border-l-blue-600">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Remaining Daily Capacity</div>
+      <div class="text-2xl font-bold text-blue-800 font-mono mt-1">{{ "{:,.1f}".format(daily_summary.remaining_dispatch_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[11px] text-slate-500 mt-1">Available today for dispatch</div>
+    </div>
+
+    <div class="gov-card p-4 border-l-4 border-l-purple-600">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Active Concession Fleet</div>
+      <div class="text-2xl font-bold text-purple-900 font-mono mt-1">{{ trucks|length }} <span class="text-xs font-normal text-slate-500">Trucks</span></div>
+      <div class="text-[11px] text-slate-500 mt-1">Assigned commercial carriers</div>
+    </div>
+  </div>
+
+  <!-- Dispatched Transit Trips Table -->
+  <div class="gov-card">
+    <div class="gov-card-header flex flex-wrap justify-between items-center gap-3 bg-slate-50/80 border-b border-slate-200 px-4 py-2.5">
+      <div class="flex items-center gap-2">
+        <h3 class="gov-card-title">Outbound Mineral Dispatch Ledger</h3>
+        <span class="text-xs text-slate-500 font-medium">&bull; Showing <span id="dispatch-count" class="font-bold text-slate-800">{{ trips|length }}</span> of {{ trips|length }} dispatched journeys</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <input type="text" id="dispatch-search" oninput="filterDispatchTable()" placeholder="Search vehicle, driver, permit, destination..." class="gov-input text-xs w-72 pl-8 pr-7 py-1.5 rounded" />
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <button id="dispatch-search-clear" onclick="clearDispatchSearch()" class="hidden absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 font-bold text-xs" title="Clear search">&times;</button>
+        </div>
+      </div>
+    </div>
+    <div class="gov-table-container max-h-[500px] overflow-y-auto">
+      <table class="gov-table text-xs" id="dispatch-table">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr>
+            <th>Trip ID</th>
+            <th>Vehicle Number</th>
+            <th>Driver</th>
+            <th>e-Rawaana Ref</th>
+            <th>Mineral</th>
+            <th>Permitted MT</th>
+            <th>Destination Hub</th>
+            <th>Departure Time</th>
+            <th>Status</th>
+            <th class="text-center">e-Rawana Document</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tr in trips %}
+          <tr>
+            <td class="font-mono font-bold text-slate-900">{{ tr.trip_number }}</td>
+            <td class="font-mono font-bold text-emerald-900">{{ tr.registration_number }}</td>
+            <td>{{ tr.driver_name }}</td>
+            <td class="font-mono font-semibold">{{ tr.permit_number }}</td>
+            <td>{{ tr.mineral }}</td>
+            <td class="font-bold">{{ tr.permitted_weight_mt }} MT</td>
+            <td>{{ tr.destination_name }}</td>
+            <td class="text-slate-600">{{ tr.start_time[:16] }}</td>
+            <td>
+              <span class="badge {% if tr.status == 'IN_TRANSIT' %}badge-high{% elif tr.status == 'DELIVERED' %}badge-low{% else %}badge-medium{% endif %}">
+                {{ tr.status }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="flex items-center justify-center gap-1">
+                <a href="/permits/{{ tr.permit_id }}/view" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-2" title="View Official Pass">
+                  📄 View
+                </a>
+                <a href="/permits/{{ tr.permit_id }}/download-pdf?type=erawana" class="btn-gov btn-gov-primary btn-sm text-[10px] py-0.5 px-2" title="Download Official PDF">
+                  📥 PDF
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="dispatch-empty-row">
+            <td colspan="10" class="text-center py-4 text-slate-500">No active dispatches found for this mine. Use the button above to dispatch a vehicle.</td>
+          </tr>
+          {% endfor %}
+          <tr id="dispatch-no-match-row" class="hidden">
+            <td colspan="10" class="text-center py-4 text-slate-500 font-medium">No dispatch records match your search query.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Initiate Dispatch Trip -->
+<div id="modal-dispatch-trip" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Initiate Vehicle Dispatch</h3>
+      <button onclick="closeDispatchModal()" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitDispatchForm(event)" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Select Valid e-Rawaana Pass *</label>
+        <select name="permit_id" required class="gov-select w-full">
+          {% for p in permits %}
+          <option value="{{ p.id }}">{{ p.permit_number }} — {{ p.registration_number }} ({{ p.mineral }})</option>
+          {% else %}
+          <option value="">No active permits available. Please issue an e-Rawaana first.</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Estimated Route Distance (km) *</label>
+        <input type="number" step="0.1" name="planned_distance_km" required class="gov-input w-full" value="48.5" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeDispatchModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Dispatch Vehicle</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openDispatchModal() {
+    document.getElementById('modal-dispatch-trip').classList.remove('hidden');
+  }
+
+  function closeDispatchModal() {
+    document.getElementById('modal-dispatch-trip').classList.add('hidden');
+  }
+
+  async function submitDispatchForm(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((v, k) => { payload[k] = v; });
+
+    try {
+      const res = await fetch('/api/crud/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeDispatchModal();
+        const b = document.getElementById('dispatch-alert');
+        b.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300';
+        b.innerText = data.message || 'Vehicle dispatched successfully.';
+        b.classList.remove('hidden');
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        alert(data.error || 'Failed to dispatch journey.');
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    }
+  }
+
+  function filterDispatchTable() {
+    const input = document.getElementById("dispatch-search");
+    if (!input) return;
+    const filter = input.value.trim().toUpperCase();
+    const clearBtn = document.getElementById("dispatch-search-clear");
+    if (clearBtn) clearBtn.classList.toggle("hidden", filter.length === 0);
+
+    const table = document.getElementById("dispatch-table");
+    if (!table) return;
+    const rows = table.querySelectorAll("tbody tr:not(#dispatch-empty-row):not(#dispatch-no-match-row)");
+    let visibleCount = 0;
+
+    rows.forEach(tr => {
+      const text = tr.textContent || tr.innerText;
+      if (text.toUpperCase().indexOf(filter) > -1) {
+        tr.style.display = "";
+        visibleCount++;
+      } else {
+        tr.style.display = "none";
+      }
+    });
+
+    const countEl = document.getElementById("dispatch-count");
+    if (countEl) countEl.innerText = visibleCount;
+
+    const noMatchRow = document.getElementById("dispatch-no-match-row");
+    if (noMatchRow) {
+      noMatchRow.classList.toggle("hidden", visibleCount > 0 || rows.length === 0);
+    }
+  }
+
+  function clearDispatchSearch() {
+    const input = document.getElementById("dispatch-search");
+    if (input) {
+      input.value = "";
+      filterDispatchTable();
+      input.focus();
+    }
+  }
+</script>
+{% endblock %}

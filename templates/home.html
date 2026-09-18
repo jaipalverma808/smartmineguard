@@ -1,0 +1,867 @@
+{% extends "base.html" %}
+
+{% block title %}SmartMineGuard — Mining &amp; Mineral Transport Monitoring System{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-7xl mx-auto pb-10">
+
+  <!-- Authenticated Session Banner (Only displayed if an already-logged-in user visits /) -->
+  {% if current_user %}
+  <div class="bg-emerald-950 text-white border border-emerald-800 rounded p-3.5 flex flex-wrap justify-between items-center shadow-sm text-xs">
+    <div class="flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+      <div>
+        <strong>Signed in as:</strong> {{ current_user.full_name }} ({{ current_user.role }} &bull; {{ current_user.department }})
+        <span class="text-emerald-300 ml-1.5">— You are viewing the public informational portal.</span>
+      </div>
+    </div>
+    <div class="mt-2 sm:mt-0 flex items-center gap-2">
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-1 px-3 uppercase">
+        Go to Secured Dashboard &rarr;
+      </a>
+      <a href="{{ url_for('logout') }}" class="btn-gov btn-gov-secondary text-xs py-1 px-2.5">
+        Sign Out
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ============================================================ -->
+  <!-- 1. HERO SECTION WITH REAL MINING PHOTOGRAPHY                  -->
+  <!-- ============================================================ -->
+  <section class="relative rounded overflow-hidden border border-slate-300 shadow-sm">
+    <div class="relative min-h-[380px] sm:min-h-[440px] flex items-center p-6 sm:p-12 text-white"
+         style="background: linear-gradient(180deg, rgba(11, 40, 27, 0.88) 0%, rgba(15, 23, 42, 0.92) 100%), url('{{ url_for('static', filename='images/mining_hero.jpg') }}') center/cover no-repeat;">
+      
+      <div class="max-w-3xl space-y-4 relative z-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-900/90 border border-emerald-600/70 text-emerald-300 rounded text-[11px] font-bold uppercase tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          Mining &amp; Mineral Transport Monitoring System
+        </div>
+
+        <h1 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight uppercase font-sans">
+          SmartMineGuard
+        </h1>
+
+        <p class="text-base sm:text-xl text-emerald-100 font-semibold leading-relaxed">
+          State Directorate Mineral Surveillance, Transit Permit &amp; Dispatch Oversight Portal
+        </p>
+
+        <p class="text-xs sm:text-sm text-slate-200 leading-relaxed max-w-2xl">
+          A dedicated statutory platform engineered for transparent monitoring and verification of mineral production, commercial carrier movements, certified weighbridge dispatches, and electronic transit passes (e-Rawaana).
+        </p>
+
+        <div class="bg-emerald-950/85 border border-emerald-700/80 rounded-lg p-3.5 text-xs text-emerald-100 max-w-2xl shadow-sm">
+          <strong class="text-white block mb-1">Deterministic &amp; Rule-Based Verification System:</strong>
+          Authorized under the Mines and Minerals (Development and Regulation) Act, 1957. Continuous mathematical reconciliation between approved quarry concession quotas, certified electronic weighbridge sensor logs, and official transit passes (e-Rawaana).
+        </div>
+
+        <!-- Hero Actions -->
+        <div class="pt-2 flex flex-wrap items-center gap-3">
+          <a href="#verification" class="btn-gov bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 text-xs uppercase tracking-wider rounded shadow">
+            Verify Transit Permit &darr;
+          </a>
+          <a href="#mine-stats" class="btn-gov bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 font-bold px-4 py-2.5 text-xs uppercase tracking-wider rounded shadow">
+            Public Statistics &darr;
+          </a>
+          <a href="{{ url_for('login') }}" class="btn-gov bg-slate-900/90 hover:bg-slate-800 text-emerald-300 border border-emerald-600 font-bold px-5 py-2.5 text-xs uppercase tracking-wider rounded shadow">
+            Secured Official Login &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Administrative Fact Strip -->
+    <div class="bg-slate-100 border-t border-slate-300 px-6 py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-slate-700">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-700"></span>
+        <span class="font-semibold text-slate-900">National &amp; State Mineral Concession Rules Compliant</span>
+      </div>
+      <div class="flex items-center gap-2 text-slate-600 font-mono text-[11px]">
+        <span>Standard Formats:</span>
+        <strong class="text-slate-800">e-Rawaana &bull; ISTP &bull; AIS-140 &bull; Weight Audit</strong>
+      </div>
+      <div class="text-slate-500 font-medium">
+        Directorate of Mines &amp; Geology
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 1B. 6 CORE STATUTORY STANDARDS OF MINERAL ADMINISTRATION     -->
+  <!-- ============================================================ -->
+  <section class="bg-white border border-slate-300 rounded-xl p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="flex flex-wrap justify-between items-start gap-4 border-b border-slate-200 pb-5">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-xs font-semibold mb-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+          <span>Statutory Governance Architecture</span>
+        </div>
+        <h2 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+          6 Core Strategic Pillars of Mineral Administration &amp; Compliance
+        </h2>
+        <p class="text-xs sm:text-sm text-slate-600 max-w-3xl mt-1 leading-relaxed">
+          6 Core Pillars of Mineral Movement Administration &mdash; Engineered for the <strong>Directorate of Mines &amp; Geology</strong> to ensure transparency, protect state royalty revenues, and enforce the Mines &amp; Minerals (Development and Regulation) Act, 1957.
+        </p>
+      </div>
+      <div class="hidden sm:block text-right">
+        <span class="badge badge-low text-xs font-bold px-3 py-1">
+          MMDR Act (1957) Compliance
+        </span>
+      </div>
+    </div>
+
+    <!-- 6 Pillar Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+      
+      <!-- Pillar 1 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              01
+            </span>
+            <span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded uppercase font-mono">
+              Sec 21 MMDR
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Single-Use e-Rawaana &amp; Destination Verification
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Eliminates duplicate trips on a single pass. Electronic transit passes automatically transition to <strong class="text-slate-800">CONSUMED</strong> upon buyer geofence arrival, preventing the re-use of valid paper passes for unrecorded hauls.
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">Destination Geofence</span>
+          <a href="{{ url_for('officer_verification') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Verify in Portal &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Pillar 2 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              02
+            </span>
+            <span class="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded uppercase font-mono">
+              RTO Baseline
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Automated Weighbridge Deck &amp; Tare Audit
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Optical infrared beams ensure truck axles are 100% on the scale platform. Empty tare weights are cross-audited against registered RTO unladen tare baselines (<strong class="text-slate-800">11.5 MT &plusmn; 8%</strong>) to prevent false tare inflation.
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">IR Position Sensors</span>
+          <a href="{{ url_for('operator_weighbridge') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Weighbridge Desk &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Pillar 3 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              03
+            </span>
+            <span class="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded uppercase font-mono">
+              Royalty Schedule
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Mineral Grade &amp; Royalty Classification
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Cross-checks declared mineral quality against pit concession certifications and physical bulk density, preventing higher-grade mineral (Neela Maal @ ₹375/MT) from being billed as cheaper masonry gravel (Laal Maal @ ₹300/MT).
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">Density Audit</span>
+          <a href="{{ url_for('permits') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Permits Ledger &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Pillar 4 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              04
+            </span>
+            <span class="text-[10px] font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded uppercase font-mono">
+              Mass-Balance
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Processing Plant Inward Reconciliation
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Audits raw mineral feedstock delivered into commercial stone crushers against valid electronic gate passes, uncovering unrecorded cash/token hauls and ensuring 100% statutory royalty collection on processed aggregate.
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">Crusher Facility Ledger</span>
+          <a href="{{ url_for('analytics') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Crusher Analytics &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Pillar 5 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              05
+            </span>
+            <span class="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded uppercase font-mono">
+              EC Sanctioned
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Sanctioned Environmental Quota Control
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Compares 3D drone volumetric quarry elevation models (DEM) with cumulative e-Rawaana tonnage. Automatically suspends pass generation the moment dispatches reach 100% of sanctioned environmental clearance limits.
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">Volumetric DEM Sentry</span>
+          <a href="{{ url_for('operator_dispatch') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Dispatch Limits &rarr;</a>
+        </div>
+      </div>
+
+      <!-- Pillar 6 -->
+      <div class="bg-slate-50 border border-slate-200 hover:border-emerald-500 rounded-lg p-5 space-y-3 transition shadow-xs flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold text-sm">
+              06
+            </span>
+            <span class="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded uppercase font-mono">
+              ISTP / AIS-140
+            </span>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 mb-1">
+            Inter-State Corridor &amp; Pit Dwell Sentry
+          </h3>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Monitors designated inter-state transit corridors (e.g. NH-48) for valid Inter-State Transit Passes (ISTP) and tracks pit turnaround times to detect unrecorded loading or unauthorized vehicle delays beyond 90 minutes.
+          </p>
+        </div>
+        <div class="pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 font-medium">Transit Corridors</span>
+          <a href="{{ url_for('live_map') }}" class="text-emerald-700 hover:text-emerald-900 font-bold hover:underline">Live Corridor Map &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 2. PUBLIC STATISTICS & INTERACTIVE MINE SELECTOR             -->
+  <!-- ============================================================ -->
+  <section id="mine-stats" class="bg-white border border-slate-300 rounded p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="border-b border-slate-200 pb-3 flex flex-wrap justify-between items-center gap-2">
+      <div>
+        <h2 class="text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+          <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <span>Public Operational Statistics</span>
+        </h2>
+        <p class="text-xs text-slate-600 mt-0.5">
+          Real-time aggregated public figures reflecting authorized mining concessions and transit authorizations across the state.
+        </p>
+      </div>
+      <span class="text-[11px] font-semibold bg-emerald-50 text-emerald-900 border border-emerald-200 px-2.5 py-1 rounded">
+        Statewide Public Registry
+      </span>
+    </div>
+
+    <!-- 4 Public KPI Cards (Database Backed) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-slate-50 border border-slate-200 rounded p-4 text-center">
+        <div class="text-slate-500 text-xs uppercase font-bold tracking-wider">Active Mines</div>
+        <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1 font-mono" id="stat-public-mines">{{ total_mines }}</div>
+        <div class="text-[11px] text-slate-500 mt-1">Authorized State Leases</div>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded p-4 text-center">
+        <div class="text-slate-500 text-xs uppercase font-bold tracking-wider">Active Trucks</div>
+        <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1 font-mono" id="stat-public-trucks">{{ total_trucks }}</div>
+        <div class="text-[11px] text-slate-500 mt-1">Dispatched Fleet in Transit</div>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded p-4 text-center">
+        <div class="text-slate-500 text-xs uppercase font-bold tracking-wider">Valid Transit Permits</div>
+        <div class="text-2xl sm:text-3xl font-extrabold text-emerald-800 mt-1 font-mono" id="stat-public-permits">{{ active_permits }}</div>
+        <div class="text-[11px] text-slate-500 mt-1">e-Rawaana Passes Active</div>
+      </div>
+
+      <div class="bg-slate-50 border border-slate-200 rounded p-4 text-center">
+        <div class="text-slate-500 text-xs uppercase font-bold tracking-wider">Active Weighbridges</div>
+        <div class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1 font-mono" id="stat-public-weighbridges">{{ weighbridges_count }}</div>
+        <div class="text-[11px] text-slate-500 mt-1">Certified Checkpoints</div>
+      </div>
+    </div>
+
+    <!-- Mine Selector & Public Concession Details -->
+    <div class="bg-slate-50 border border-slate-200 rounded p-5 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <label for="public_mine_selector" class="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+            Select Mine Leasehold:
+          </label>
+          <p class="text-xs text-slate-500">
+            Choose an authorized lease to view public concession details, mineral type, and dispatch progress.
+          </p>
+        </div>
+        <div class="w-full sm:w-80">
+          <select id="public_mine_selector" onchange="loadPublicMineInfo(this.value)" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-700">
+            <option value="">-- Choose a Mine to Inspect --</option>
+            {% for m in mines %}
+            <option value="{{ m.id }}" {% if loop.first %}selected{% endif %}>
+              {{ m.name }} ({{ m.district }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Selected Mine Safe Details Card -->
+      <div id="mine-detail-card" class="bg-white border border-slate-300 rounded p-4 space-y-3">
+        <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2">
+          <div>
+            <h3 class="font-bold text-sm text-slate-900" id="mine-info-name">Loading mine details...</h3>
+            <span class="text-[11px] text-slate-500 font-mono" id="mine-info-code">—</span>
+          </div>
+          <span id="mine-info-status" class="badge badge-low text-xs font-bold px-2.5 py-0.5 uppercase">OPERATIONAL</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">District / State</div>
+            <div class="font-bold text-slate-800 mt-0.5" id="mine-info-location">—</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Mineral Type</div>
+            <div class="font-bold text-slate-800 mt-0.5" id="mine-info-mineral">—</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Active Trucks</div>
+            <div class="font-bold text-slate-800 mt-0.5" id="mine-info-trucks">—</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Valid Permits</div>
+            <div class="font-bold text-emerald-800 mt-0.5" id="mine-info-permits">—</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Today's Dispatch</div>
+            <div class="font-bold text-slate-800 mt-0.5 font-mono" id="mine-info-dispatch">—</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 rounded border border-slate-100">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Weighbridge Facility</div>
+            <div class="font-bold text-slate-800 mt-0.5" id="mine-info-weighbridge">—</div>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-500 pt-1 flex items-center justify-between">
+          <span>* Safe public statutory disclosure. Internal enforcement analytics, GPS blackouts, and officer audit logs are strictly protected.</span>
+          <span class="font-mono text-slate-400">SMG-DISCLOSURE-OK</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 3. PUBLIC SEARCH / VERIFICATION                              -->
+  <!-- ============================================================ -->
+  <section id="verification" class="bg-white border border-slate-300 rounded p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="border-b border-slate-200 pb-3 flex flex-wrap justify-between items-center gap-2">
+      <div>
+        <h2 class="text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+          <svg class="w-5 h-5 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <span>Search / Verify Mineral Transit Details</span>
+        </h2>
+        <p class="text-xs text-slate-600 mt-0.5">
+          Public Mineral Transit Verification &mdash; e-Rawaana and commercial transit vehicle lookup inspired by official Department of Mines &amp; Geology verification portals.
+        </p>
+      </div>
+      <span class="text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-1 rounded font-mono">
+        Public Pass Verifier
+      </span>
+    </div>
+
+    <!-- Search Form -->
+    <div class="bg-slate-50 border border-slate-200 rounded p-4 sm:p-6 space-y-4">
+      <form onsubmit="event.preventDefault(); executePublicSearch();" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+        
+        <!-- Search Type Dropdown -->
+        <div class="sm:col-span-4">
+          <label for="search_type_select" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Verification Reference
+          </label>
+          <select id="search_type_select" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-700">
+            <option value="e-Rawaana Number" selected>e-Rawaana Number</option>
+            <option value="Vehicle Number">Vehicle Number</option>
+            <option value="ISTP Number">ISTP Number (Inter-State Transit Pass)</option>
+          </select>
+        </div>
+
+        <!-- Input Field -->
+        <div class="sm:col-span-6">
+          <label for="search_query_input" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Enter Number
+          </label>
+          <input type="text" id="search_query_input"
+                 placeholder="e.g. SMG-2026-00125 or HR26AB1234"
+                 class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-700 uppercase">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="sm:col-span-2 flex items-end">
+          <button type="submit" id="search_button" class="btn-gov btn-gov-primary w-full py-2 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <span>Search</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Quick Demo Chips -->
+      <div class="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+        <span class="font-semibold text-slate-700">Sample Demonstration Records:</span>
+        <button type="button" onclick="setQuickSearch('Vehicle Number', 'DL1LA9022')" class="font-mono bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-600 rounded px-2 py-0.5 text-slate-800 transition">
+          DL1LA9022 (Vehicle)
+        </button>
+        <button type="button" onclick="setQuickSearch('Vehicle Number', 'HR26AB1234')" class="font-mono bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-600 rounded px-2 py-0.5 text-slate-800 transition">
+          HR26AB1234 (Vehicle)
+        </button>
+        <button type="button" onclick="setQuickSearch('e-Rawaana Number', 'SMG-2026-00125')" class="font-mono bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-600 rounded px-2 py-0.5 text-slate-800 transition">
+          SMG-2026-00125 (e-Rawaana)
+        </button>
+        <button type="button" onclick="setQuickSearch('ISTP Number', 'ISTP-2026-00412')" class="font-mono bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-600 rounded px-2 py-0.5 text-slate-800 transition">
+          ISTP-2026-00412 (ISTP)
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Results Container -->
+    <div id="search-results-area" class="hidden">
+      <!-- Loading State -->
+      <div id="search-loading" class="hidden text-center py-6 text-xs text-slate-600">
+        <div class="inline-block w-5 h-5 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin mr-2"></div>
+        <span>Querying public transit verification database...</span>
+      </div>
+
+      <!-- Result Card (Strictly Public-Safe Data) -->
+      <div id="search-result-card" class="hidden bg-white border border-emerald-400 rounded p-5 shadow-sm space-y-4">
+        <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-3 gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-emerald-600"></div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wide">
+              MINERAL TRANSIT VERIFICATION RECORD
+            </h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-slate-600" id="res-pass-type-title">e-Rawaana</span>
+            <span id="res-status-badge" class="badge badge-low text-xs font-bold px-2.5 py-0.5 uppercase">
+              VALID
+            </span>
+          </div>
+        </div>
+
+        <!-- 2-Column Verification Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div class="space-y-2 border-r border-slate-100 pr-4">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Vehicle Number:</span>
+              <strong class="font-mono text-slate-900 text-sm" id="res-vehicle-number">—</strong>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">e-Rawaana / Pass Number:</span>
+              <span class="font-mono font-bold text-slate-900" id="res-pass-number">—</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Mineral Cargo:</span>
+              <span class="text-slate-900 font-bold" id="res-mineral">—</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500 font-medium">Permitted Net Weight:</span>
+              <span class="font-mono font-bold text-emerald-900 text-sm" id="res-permitted-weight">—</span>
+            </div>
+          </div>
+
+          <div class="space-y-2 pl-0 sm:pl-2">
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Source Mine:</span>
+              <span class="text-slate-800 font-medium text-right" id="res-source-mine">—</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Destination:</span>
+              <span class="text-slate-800 font-medium text-right" id="res-destination">—</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-slate-100">
+              <span class="text-slate-500 font-medium">Permit Validity (Issued):</span>
+              <span class="font-mono text-slate-700" id="res-issued-date">—</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="text-slate-500 font-medium">Permit Validity (Expires):</span>
+              <span class="font-mono text-slate-700" id="res-valid-until">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clearance Status -->
+        <div class="bg-slate-50 border border-slate-200 rounded p-3 flex items-center justify-between text-xs">
+          <span class="text-slate-600 font-medium">Verification Status:</span>
+          <span class="font-bold text-slate-900" id="res-transit-status">VERIFIED BY STATE PORTAL</span>
+        </div>
+
+        <div class="text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex items-center justify-between">
+          <span>* Public statutory verification output. Risk assessments, GPS coordinates, and enforcement notes are restricted to authorized enforcement personnel.</span>
+          <span class="font-mono text-slate-400">SMG-PUB-VERIFIED</span>
+        </div>
+      </div>
+
+      <!-- Not Found Card -->
+      <div id="search-not-found" class="hidden bg-slate-50 border border-slate-300 rounded p-6 text-center space-y-2">
+        <svg class="w-8 h-8 text-slate-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="text-sm font-bold text-slate-800">No matching public record found.</div>
+        <p class="text-xs text-slate-600 max-w-md mx-auto" id="not-found-message">
+          Please verify the registration number or transit pass code and ensure the pass was issued through the authorized state mining portal.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 4. HOW IT WORKS (5 STATUTORY STEPS)                          -->
+  <!-- ============================================================ -->
+  <section id="how-it-works" class="bg-white border border-slate-300 rounded p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="border-b border-slate-200 pb-3">
+      <h2 class="text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wide">
+        How It Works
+      </h2>
+      <p class="text-xs text-slate-600 mt-0.5">
+        Statutory 5-step operational workflow governing mineral extraction, dispatch, and transit verification.
+      </p>
+    </div>
+
+    <!-- 5 Pipeline Steps -->
+    <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 text-xs">
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded flex flex-col justify-between space-y-3">
+        <div>
+          <div class="w-7 h-7 rounded bg-emerald-800 text-white font-bold flex items-center justify-center text-xs mb-2">
+            01
+          </div>
+          <div class="font-bold text-slate-900 text-sm mb-1">e-Rawaana Issued</div>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Electronic transit permit issued against approved annual concession quota specifying permitted mineral type and net tonnage.
+          </p>
+        </div>
+        <div class="text-[10px] text-emerald-800 font-bold uppercase tracking-wider pt-2 border-t border-slate-200">
+          Quota Concession
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded flex flex-col justify-between space-y-3">
+        <div>
+          <div class="w-7 h-7 rounded bg-emerald-800 text-white font-bold flex items-center justify-center text-xs mb-2">
+            02
+          </div>
+          <div class="font-bold text-slate-900 text-sm mb-1">Carrier Vehicle Assigned</div>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Commercial haulage truck registered with verified unladen tare weight, driver credentials, and AIS-140 GPS telematics.
+          </p>
+        </div>
+        <div class="text-[10px] text-emerald-800 font-bold uppercase tracking-wider pt-2 border-t border-slate-200">
+          Carrier Registration
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded flex flex-col justify-between space-y-3">
+        <div>
+          <div class="w-7 h-7 rounded bg-emerald-800 text-white font-bold flex items-center justify-center text-xs mb-2">
+            03
+          </div>
+          <div class="font-bold text-slate-900 text-sm mb-1">Weighbridge Weighment</div>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Truck passes electronic weighbridge at lease perimeter. Gross, tare, and net weights are logged automatically.
+          </p>
+        </div>
+        <div class="text-[10px] text-emerald-800 font-bold uppercase tracking-wider pt-2 border-t border-slate-200">
+          Weight Verification
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded flex flex-col justify-between space-y-3">
+        <div>
+          <div class="w-7 h-7 rounded bg-emerald-800 text-white font-bold flex items-center justify-center text-xs mb-2">
+            04
+          </div>
+          <div class="font-bold text-slate-900 text-sm mb-1">Corridor Transit</div>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Consignment moves along designated highway transport corridors to the authorized processing plant or crusher destination.
+          </p>
+        </div>
+        <div class="text-[10px] text-emerald-800 font-bold uppercase tracking-wider pt-2 border-t border-slate-200">
+          Corridor Movement
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded flex flex-col justify-between space-y-3">
+        <div>
+          <div class="w-7 h-7 rounded bg-emerald-800 text-white font-bold flex items-center justify-center text-xs mb-2">
+            05
+          </div>
+          <div class="font-bold text-slate-900 text-sm mb-1">Public &amp; Field Audit</div>
+          <p class="text-slate-600 leading-relaxed text-[11px]">
+            Citizens verify pass authenticity publicly, while field squads perform statutory mobile inspections with digital QR scanners.
+          </p>
+        </div>
+        <div class="text-[10px] text-emerald-800 font-bold uppercase tracking-wider pt-2 border-t border-slate-200">
+          Transparent Audit
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 5. ABOUT SMARTMINEGUARD                                      -->
+  <!-- ============================================================ -->
+  <section id="about" class="bg-white border border-slate-300 rounded p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="border-b border-slate-200 pb-3">
+      <h2 class="text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wide">
+        About SmartMineGuard
+      </h2>
+      <p class="text-xs text-slate-600 mt-0.5">
+        Platform overview and architecture supporting transparent mineral transport accounting
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+      <div class="md:col-span-5">
+        <div class="rounded overflow-hidden border border-slate-300 shadow-sm">
+          <img src="{{ url_for('static', filename='images/mining_excavation.jpg') }}"
+               alt="Quarry Excavation & Haulage Operations"
+               class="w-full h-64 sm:h-72 object-cover">
+        </div>
+        <div class="text-[10px] text-slate-500 text-center mt-1.5 font-medium">
+          Quarry Pit &amp; Haulage Loading Operations
+        </div>
+      </div>
+
+      <div class="md:col-span-7 space-y-3 text-xs text-slate-700 leading-relaxed">
+        <div class="font-bold text-sm text-slate-900">
+          Connecting the Mineral Transport Lifecycle Across the State
+        </div>
+
+        <p>
+          SmartMineGuard is an integrated digital monitoring platform developed to support state mining departments and leaseholders in maintaining rigorous compliance with the Mines and Minerals (Development and Regulation) Act.
+        </p>
+
+        <div class="bg-slate-50 border border-slate-200 rounded p-3 flex flex-wrap items-center justify-between gap-1 text-[11px] font-bold text-slate-800 font-mono text-center">
+          <span class="px-2 py-1 bg-white border border-slate-300 rounded">Lease Quota</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2 py-1 bg-white border border-slate-300 rounded">e-Rawaana Pass</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2 py-1 bg-white border border-slate-300 rounded">Weighbridge Ticket</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2 py-1 bg-white border border-slate-300 rounded">Corridor Transit</span>
+          <span class="text-slate-400">&rarr;</span>
+          <span class="px-2 py-1 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded">Public Verification</span>
+        </div>
+
+        <p>
+          By uniting transit permits, vehicle registrations, electronic weighment tickets, and corridor geofences into a unified ledger, the system provides transparent reconciliation between opening quarry stock, extraction volumes, and final dispatch.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-[11px]">
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <strong class="text-slate-900 block mb-0.5">Strict Mass-Balance Formula</strong>
+            <span>Direct arithmetic verification: Opening Stock + Today's Production - Today's Dispatch = Available Stock.</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+            <strong class="text-slate-900 block mb-0.5">Role-Based Security Model</strong>
+            <span>Complete isolation between public statutory lookups and secured law enforcement command centers.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 6. CONTACT & PUBLIC HELPDESK                                 -->
+  <!-- ============================================================ -->
+  <section id="contact" class="bg-white border border-slate-300 rounded p-6 sm:p-8 shadow-sm space-y-6">
+    <div class="border-b border-slate-200 pb-3">
+      <h2 class="text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wide">
+        Contact &amp; Grievance Helpdesk
+      </h2>
+      <p class="text-xs text-slate-600 mt-0.5">
+        Directorate of Mines &amp; Geology institutional assistance lines and zonal mining offices.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded space-y-2">
+        <div class="font-bold text-slate-900 text-sm">Directorate Headquarters</div>
+        <div class="text-slate-600 leading-relaxed text-[11px]">
+          Khanij Bhawan, Directorate of Mines &amp; Geology<br>
+          Government Secretariat Complex<br>
+          Toll-Free Helpline: <span class="font-mono font-bold text-emerald-800">1800-180-6463</span><br>
+          Office: +91 141 2227100 / 2227104
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded space-y-2">
+        <div class="font-bold text-slate-900 text-sm">e-Rawaana Technical Support</div>
+        <div class="text-slate-600 leading-relaxed text-[11px]">
+          IT Cell &bull; Directorate of Mines &amp; Geology<br>
+          Technical Desk: <span class="font-mono text-slate-800">support-erawaana@gov.in</span><br>
+          Public Queries: <span class="font-mono text-slate-800">helpdesk-mines@gov.in</span><br>
+          Operating Hours: Mon–Sat 09:30 to 18:00 IST
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border border-slate-200 rounded space-y-2">
+        <div class="font-bold text-slate-900 text-sm">Zonal Mining Offices</div>
+        <div class="text-slate-600 leading-relaxed text-[11px]">
+          &bull; <strong>Alwar Zone:</strong> Mining Office, Old Secretariat, Alwar<br>
+          &bull; <strong>Rewari Zone:</strong> District Mineral Office, Bawal Road<br>
+          &bull; <strong>Kotputli Zone:</strong> Mining Circle Post, NH-48 Bypass<br>
+          &bull; <strong>Jhunjhunu Zone:</strong> Assistant Mining Engineer Post
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 7. PUBLIC PORTAL FOOTER                                      -->
+  <!-- ============================================================ -->
+  <footer class="bg-slate-900 text-slate-400 text-xs rounded p-6 border border-slate-800 space-y-4">
+    <div class="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 gap-4">
+      <div>
+        <div class="text-white font-bold text-sm tracking-wide uppercase">SmartMineGuard</div>
+        <p class="text-slate-400 text-[11px] mt-0.5">Mining &amp; Mineral Transport Monitoring System</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4 text-xs">
+        <a href="{{ url_for('index') }}" class="hover:text-white transition">Home</a>
+        <a href="#mine-stats" class="hover:text-white transition">Public Statistics</a>
+        <a href="#verification" class="hover:text-white transition">Public Verification</a>
+        <a href="#how-it-works" class="hover:text-white transition">How It Works</a>
+        <a href="#about" class="hover:text-white transition">About</a>
+        <a href="#contact" class="hover:text-white transition">Contact</a>
+        <a href="{{ url_for('login') }}" class="text-emerald-400 hover:text-emerald-300 font-bold transition">Official Login</a>
+      </div>
+    </div>
+
+    <div class="p-3 bg-slate-950/80 border border-slate-800 rounded text-[11px] text-slate-400 leading-relaxed">
+      <strong class="text-slate-300">Statutory Surveillance System:</strong>
+      SmartMineGuard is an integrated mining surveillance and electronic transit monitoring platform engineered under Haryana State Minor Mineral Concession Rules and Section 21 of the MMDR Act (1957).
+    </div>
+  </footer>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- JAVASCRIPT: PUBLIC MINE SELECTOR & SEARCH CONTROLLER         -->
+<!-- ============================================================ -->
+<script>
+// Load first mine's details on page load
+document.addEventListener("DOMContentLoaded", () => {
+  const selector = document.getElementById("public_mine_selector");
+  if (selector && selector.value) {
+    loadPublicMineInfo(selector.value);
+  }
+});
+
+async function loadPublicMineInfo(mineId) {
+  if (!mineId) return;
+  try {
+    const res = await fetch(`/api/public/mine-stats?mine_id=${mineId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById("mine-info-name").textContent = data.name || "Mining Concession";
+    document.getElementById("mine-info-code").textContent = data.mine_code || "";
+    document.getElementById("mine-info-status").textContent = data.status || "OPERATIONAL";
+    document.getElementById("mine-info-location").textContent = `${data.district || '—'}, ${data.state || 'India'}`;
+    document.getElementById("mine-info-mineral").textContent = data.mineral || "—";
+    document.getElementById("mine-info-trucks").textContent = `${data.active_trucks || 0} Registered Trucks`;
+    document.getElementById("mine-info-permits").textContent = `${data.active_permits || 0} Active e-Rawaana`;
+    document.getElementById("mine-info-dispatch").textContent = data.today_dispatch_mt || "0.0 MT";
+    document.getElementById("mine-info-weighbridge").textContent = data.weighbridge_status || "Operational";
+  } catch (err) {
+    console.error("Failed to fetch public mine info:", err);
+  }
+}
+
+function setQuickSearch(searchType, queryValue) {
+  document.getElementById('search_type_select').value = searchType;
+  document.getElementById('search_query_input').value = queryValue;
+  executePublicSearch();
+}
+
+async function executePublicSearch() {
+  const searchType = document.getElementById('search_type_select').value;
+  const query = document.getElementById('search_query_input').value.trim();
+
+  if (!query) {
+    alert("Please enter a registration or transit pass number to search.");
+    return;
+  }
+
+  const resultsArea = document.getElementById('search-results-area');
+  const loading = document.getElementById('search-loading');
+  const resultCard = document.getElementById('search-result-card');
+  const notFoundCard = document.getElementById('search-not-found');
+
+  resultsArea.classList.remove('hidden');
+  loading.classList.remove('hidden');
+  resultCard.classList.add('hidden');
+  notFoundCard.classList.add('hidden');
+
+  try {
+    const url = `/api/public/search?search_type=${encodeURIComponent(searchType)}&q=${encodeURIComponent(query)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    loading.classList.add('hidden');
+
+    if (data.found && data.record) {
+      const rec = data.record;
+      document.getElementById('res-pass-type-title').textContent = rec.pass_type || 'e-Rawaana Electronic Pass';
+      document.getElementById('res-vehicle-number').textContent = rec.vehicle_number || '—';
+      document.getElementById('res-pass-number').textContent = rec.pass_number || '—';
+      document.getElementById('res-mineral').textContent = rec.mineral || '—';
+      document.getElementById('res-permitted-weight').textContent = rec.permitted_quantity_mt || '—';
+      document.getElementById('res-source-mine').textContent = rec.source_mine || '—';
+      document.getElementById('res-destination').textContent = rec.destination || '—';
+      document.getElementById('res-issued-date').textContent = rec.issued_date || '—';
+      document.getElementById('res-valid-until').textContent = rec.valid_until || '—';
+      document.getElementById('res-transit-status').textContent = rec.transit_status || 'VERIFIED BY STATE PORTAL';
+
+      const statusBadge = document.getElementById('res-status-badge');
+      statusBadge.textContent = rec.status || 'ACTIVE';
+      if (rec.status === 'ACTIVE' || rec.status === 'IN_TRANSIT') {
+        statusBadge.className = 'badge badge-low text-xs font-bold px-2.5 py-0.5';
+      } else {
+        statusBadge.className = 'badge badge-medium text-xs font-bold px-2.5 py-0.5';
+      }
+
+      resultCard.classList.remove('hidden');
+    } else {
+      document.getElementById('not-found-message').textContent = data.message || 'No matching public record found.';
+      notFoundCard.classList.remove('hidden');
+    }
+  } catch (err) {
+    loading.classList.add('hidden');
+    document.getElementById('not-found-message').textContent = 'Unable to perform public verification at this time. Please try again.';
+    notFoundCard.classList.remove('hidden');
+  }
+}
+</script>
+{% endblock %}

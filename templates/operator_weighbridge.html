@@ -1,0 +1,1347 @@
+{% extends "base.html" %}
+
+{% block title %}Weighbridge &amp; Axle Load Records — Operator Console{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Card -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+        </svg>
+        <span>Weighbridge Gross/Tare Audit Records</span>
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        {{ mine.name }} &bull; Electronic weigh station records &bull; Automated statutory overload detection
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openWeighmentModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-semibold shadow-sm">
+        <span>⚖️ + Record Scale Weighment</span>
+      </button>
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-secondary btn-sm">
+        &larr; Operations Hub
+      </a>
+    </div>
+  </div>
+
+  <!-- AUTO-DISPATCH COMMAND BAR -->
+  <div class="bg-slate-900 text-white rounded-lg p-4 border border-slate-700 shadow-sm">
+    <div class="flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div id="auto-dispatch-indicator-light" class="w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse"></div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="auto-dispatch-status-title" class="font-bold text-sm tracking-wide text-emerald-400">
+              [● AUTO-DISPATCH MODE: ON]
+            </span>
+            <span class="badge bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px] uppercase font-bold">
+              Zero-Touch M2M Gate Clearance (Automated Boom Barrier)
+            </span>
+            <span id="scale-com-status-badge" class="badge bg-blue-950 text-blue-300 border border-blue-700 text-[10px] font-mono">
+              COM3 / WebSerial Ready
+            </span>
+          </div>
+          <p class="text-slate-300 text-xs mt-1">
+            Automated boom-barrier raises and e-Rawaana is generated upon verified legal weight stabilization within approved quota limits.
+          </p>
+        </div>
+      </div>
+      
+      <!-- Actions: Register Truck & Toggle Switch Control -->
+      <div class="flex flex-wrap items-center gap-3">
+        <button type="button" onclick="openTruckRegisterModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1.5 font-bold shadow-xs py-2 px-3">
+          <span>🚛 + Register Vehicle</span>
+        </button>
+        <div class="flex items-center gap-3 bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 shadow-inner">
+          <div class="text-right">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Auto-Dispatch Gate</div>
+            <div id="auto-dispatch-toggle-label" class="text-xs font-mono font-bold text-emerald-400">ACTIVATED (AUTO)</div>
+          </div>
+          <button type="button" id="btn-toggle-auto-dispatch" onclick="toggleAutoDispatchMode()" 
+                  class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-emerald-600 shadow" 
+                  role="switch" aria-checked="true" title="Toggle Auto-Dispatch Mode">
+            <span id="auto-dispatch-toggle-knob" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-5"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Banner -->
+  <div id="weigh-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- Weighment Summary Cards -->
+  {% set overweight_count = weighments | selectattr('is_overweight', 'equalto', true) | list | length %}
+  {% set clean_count = weighments | length - overweight_count %}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="gov-card p-4 border-l-4 border-l-blue-600">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Scale Records</div>
+      <div class="text-2xl font-bold text-slate-900 font-mono mt-1">{{ weighments|length }} <span class="text-xs font-normal text-slate-500">Audits</span></div>
+      <div class="text-[11px] text-slate-500 mt-1">Concession outbound scale logs</div>
+    </div>
+
+    <div class="gov-card p-4 border-l-4 border-l-emerald-600">
+      <div class="text-xs text-emerald-800 font-semibold uppercase tracking-wider">Verified Within Tolerance</div>
+      <div class="text-2xl font-bold text-emerald-800 font-mono mt-1">{{ clean_count }} <span class="text-xs font-normal text-slate-500">Legal Loads</span></div>
+      <div class="text-[11px] text-emerald-700 mt-1">Net weight &le; Permitted quota &bull; Barrier Lifted</div>
+    </div>
+
+    <div class="gov-card p-4 border-l-4 border-l-red-600">
+      <div class="text-xs text-red-800 font-semibold uppercase tracking-wider">Overweight Load Exceptions</div>
+      <div class="text-2xl font-bold text-red-800 font-mono mt-1">{{ overweight_count }} <span class="text-xs font-normal text-slate-500">Violations</span></div>
+      <div class="text-[11px] text-red-700 mt-1">Barrier locked down &bull; Flagged for enforcement</div>
+    </div>
+  </div>
+
+  <!-- Weighment History Table -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <h3 class="gov-card-title">Scale Log &amp; Net Weight Reconciliation</h3>
+      <span class="text-xs text-slate-500">{{ weighments|length }} weighment records</span>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs">
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Vehicle Number</th>
+            <th>Trip Ref</th>
+            <th>e-Rawaana Ref</th>
+            <th>Weighbridge Station</th>
+            <th>Gross MT</th>
+            <th>Tare MT (RTO Audit)</th>
+            <th>Net Weight MT</th>
+            <th>Permitted MT</th>
+            <th>Excess / Diff MT</th>
+            <th>Statutory Status &amp; Integrity</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in weighments %}
+          <tr class="{% if w.is_overweight or (w.tare_weight_mt > 12.5 or w.tare_weight_mt < 10.5) %}bg-red-50/40{% endif %}">
+            <td class="text-slate-600 text-[11px] font-mono">{{ w.timestamp[:16] }}</td>
+            <td class="font-mono font-bold text-slate-900">{{ w.registration_number }}</td>
+            <td class="font-mono">{{ w.trip_number }}</td>
+            <td class="font-mono text-xs">
+              <div class="font-semibold text-slate-900">{{ w.permit_number }}</div>
+              <div class="flex items-center gap-1 mt-0.5">
+                <a href="/permits/{{ w.permit_id }}/view?tab=weighment" class="text-[10px] text-emerald-800 font-bold hover:underline">⚖️ Slip</a>
+                <span class="text-slate-300">|</span>
+                <a href="/permits/{{ w.permit_id }}/download-pdf?type=weighment" class="text-[10px] text-blue-700 hover:underline">📥 PDF</a>
+              </div>
+            </td>
+            <td class="text-slate-700">{{ w.weighbridge_name }}</td>
+            <td class="font-mono">{{ w.gross_weight_mt }} MT</td>
+            <td class="font-mono">
+              <span class="font-semibold text-slate-800">{{ w.tare_weight_mt }} MT</span>
+              {% if w.tare_weight_mt > 12.5 or w.tare_weight_mt < 10.5 %}
+              <div class="text-[9px] font-bold text-red-700 bg-red-100 border border-red-300 px-1 py-0.5 rounded mt-0.5 inline-block">
+                ⚠️ Tare Anomaly (RTO: 11.5)
+              </div>
+              {% else %}
+              <div class="text-[10px] text-slate-400 font-mono">RTO Base: 11.5 MT</div>
+              {% endif %}
+            </td>
+            <td class="font-mono font-bold text-slate-900">{{ w.net_weight_mt }} MT</td>
+            <td class="font-mono text-slate-600">{{ w.permitted_weight_mt }} MT</td>
+            <td class="font-mono font-bold {% if w.difference_mt > 0 %}text-red-700{% else %}text-emerald-700{% endif %}">
+              {% if w.difference_mt > 0 %}+{% endif %}{{ w.difference_mt }} MT
+            </td>
+            <td>
+              {% if w.is_overweight %}
+              <span class="badge badge-critical font-bold">OVERLOAD FLAGGED</span>
+              <div class="text-[10px] text-red-700 font-mono font-semibold mt-0.5">⛔ Barrier Locked Down</div>
+              {% else %}
+              <span class="badge badge-low">LEGAL COMPLIANT</span>
+              <div class="text-[10px] text-emerald-800 font-mono font-semibold mt-0.5">🟢 Barrier Auto-Lifted</div>
+              {% endif %}
+              {% if w.is_manual_override %}
+              <div class="text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1 py-0.5 rounded mt-0.5 inline-block">
+                ⚠️ Manual Override Flagged
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-4 text-slate-500">No weighbridge audit records found for this mine. Use the button above to record a scale reading.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Record Weighment with IoT Digital Weight Indicator -->
+<div id="modal-record-weighment" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+  <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-300 max-h-[95vh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b pb-3">
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <span>⚖️ Certified Scale Measurement &amp; M2M Auto-Dispatch</span>
+        </h3>
+        <p class="text-[11px] text-slate-500">Live RS-232 / USB scale telemetry connected to automated statutory barrier gate</p>
+      </div>
+      <button onclick="closeWeighmentModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold">&times;</button>
+    </div>
+
+    <!-- Active Vehicle Selection -->
+    <div>
+      <label class="block font-semibold mb-1 text-xs text-slate-800">Select Active Transit Trip *</label>
+      <select name="trip_id" id="wb-trip-select" required class="gov-select w-full text-xs" onchange="onTripSelect()">
+        {% for tr in active_trips %}
+        <option value="{{ tr.id }}" 
+                data-truck-id="{{ tr.truck_id }}" 
+                data-permit-id="{{ tr.permit_id }}"
+                data-reg="{{ tr.registration_number }}"
+                data-tare="{{ tr.tare_weight_mt }}"
+                data-permitted="{{ tr.permitted_weight_mt }}">
+          {{ tr.trip_number }} — {{ tr.registration_number }} (Permit: {{ tr.permit_number }} &bull; Quota: {{ tr.permitted_weight_mt }} MT)
+        </option>
+        {% else %}
+        <option value="">No active trips requiring weighment.</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- IOT DIGITAL SCALE INDICATOR WIDGET (Avery / Essae Industrial Style) -->
+    <div class="bg-slate-950 rounded-xl p-4 border-2 border-slate-800 shadow-2xl space-y-3 text-white">
+      <!-- Terminal Bezel Header -->
+      <div class="flex justify-between items-center border-b border-slate-800 pb-2 text-[11px]">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-slate-300 uppercase tracking-wider font-mono">AVERY WEIGH-TRONIX E1310 / ESSAE IoT</span>
+          <span class="badge bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-mono">RS-232 COM3 9600-8N1</span>
+        </div>
+        <div class="flex items-center gap-2 font-mono text-[10px]">
+          <span id="scale-flag-zero" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold">ZERO</span>
+          <span id="scale-flag-motion" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold">MOTION</span>
+          <span id="scale-flag-stable" class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500 font-bold shadow-[0_0_8px_#10b981]">● STABLE</span>
+          <span class="px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-600 font-bold">GROSS</span>
+        </div>
+      </div>
+
+      <!-- Large 7-Segment Style LED Readout -->
+      <div class="bg-black/90 rounded-lg p-4 border border-emerald-950 flex items-center justify-between shadow-inner">
+        <div>
+          <div class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Gross Scale Reading</div>
+          <div class="flex items-baseline gap-2">
+            <span id="digital-scale-value" class="font-mono text-4xl md:text-5xl font-black text-emerald-400 tracking-wider drop-shadow-[0_0_12px_rgba(52,211,153,0.6)]">
+              36.50
+            </span>
+            <span class="text-xl font-mono text-emerald-500 font-bold">MT</span>
+          </div>
+        </div>
+
+        <div class="text-right space-y-1 font-mono text-xs">
+          <div class="text-slate-300 text-[11px]">Tare: <span id="disp-tare" class="text-white font-bold">11.5 MT</span></div>
+          <div class="text-slate-300 text-[11px]">Net: <span id="disp-net" class="text-emerald-300 font-bold">25.0 MT</span></div>
+          <div class="text-[10px] text-slate-400 font-mono">Continuous Sensor Stream Active</div>
+        </div>
+      </div>
+
+      <!-- Raw Stream Monitor Strip & IR Axle Alignment Strip -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 bg-slate-900 px-3 py-1.5 rounded border border-slate-800 text-[10px] font-mono">
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400">M2M RS-232 TELEMETRY:</span>
+          <span id="scale-raw-stream" class="text-emerald-400 font-bold">ST,GS,+036.50MT,00</span>
+        </div>
+        <div class="flex justify-between items-center border-l border-slate-800 pl-2">
+          <span class="text-slate-400">OPTICAL IR ALIGNMENT:</span>
+          <span id="ir-beam-status" class="text-emerald-400 font-bold">● DUAL BEAMS CLEAR &amp; ALIGNED</span>
+        </div>
+      </div>
+
+      <!-- Scale Control Buttons -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="btn-connect-com" onclick="connectWebSerialScale()" class="px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-mono text-[11px] flex items-center gap-1 transition">
+            <span>🔌 Connect Scale (WebSerial)</span>
+          </button>
+          <button type="button" onclick="simulateTruckScaleDrive(false)" class="px-2.5 py-1.5 rounded bg-emerald-900 hover:bg-emerald-800 text-emerald-100 border border-emerald-700 font-medium text-[11px] flex items-center gap-1 shadow-sm transition">
+            <span>🧪 Simulate Scale (Legal Load)</span>
+          </button>
+          <button type="button" onclick="simulateTruckScaleDrive(true)" class="px-2.5 py-1.5 rounded bg-red-950 hover:bg-red-900 text-red-200 border border-red-800 font-medium text-[11px] flex items-center gap-1 shadow-sm transition">
+            <span>⚠️ Simulate Scale (Overload)</span>
+          </button>
+          <button type="button" onclick="simulateKantaCheatingDrive()" class="px-2.5 py-1.5 rounded bg-amber-950 hover:bg-amber-900 text-amber-200 border border-amber-800 font-medium text-[11px] flex items-center gap-1 shadow-sm transition">
+            <span>⚠️ Simulate Kanta Cheating (Axle Off Scale Ramp)</span>
+          </button>
+          <button type="button" onclick="simulateTareTamperingDrive()" class="px-2.5 py-1.5 rounded bg-purple-950 hover:bg-purple-900 text-purple-200 border border-purple-800 font-medium text-[11px] flex items-center gap-1 shadow-sm transition">
+            <span>⚖️ Simulate Tare Inflation Anomaly</span>
+          </button>
+        </div>
+        <button type="button" onclick="zeroScale()" class="px-2.5 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-mono">
+          <span>🔄 Zero Tare</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Auto-Dispatch Active State Banner inside Modal -->
+    <div id="modal-auto-dispatch-banner" class="p-3 rounded-lg border bg-gradient-to-r from-emerald-950/80 to-slate-900 border-emerald-500/50 text-emerald-200 text-xs flex items-center justify-between shadow-sm">
+      <div class="flex items-center gap-2.5">
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse"></div>
+        <div>
+          <span class="font-bold font-mono tracking-wide text-white">● AUTO-DISPATCH MODE ACTIVE</span>
+          <p class="text-[11px] text-emerald-300/90 mt-0.5">Scale weight stabilization will automatically mint statutory e-Rawaana pass &amp; lift boom barrier.</p>
+        </div>
+      </div>
+      <div id="auto-dispatch-countdown-box" class="hidden font-mono font-bold text-xs bg-emerald-500 text-slate-950 px-2 py-1 rounded animate-pulse">
+        MINTING IN <span id="auto-dispatch-countdown-sec">2</span>s...
+      </div>
+    </div>
+
+    <form id="form-weighment" onsubmit="submitWeighmentForm(event)" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1 text-slate-700">Weighbridge Facility Outpost *</label>
+        <select name="weighbridge_code" id="wb-code-select" required class="gov-select w-full">
+          {% for wb in weighbridges %}
+          <option value="{{ wb.code }}" data-name="{{ wb.name }}">{{ wb.code }} — {{ wb.name }} ({{ wb.location }})</option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="weighbridge_name" id="wb-name-hidden" value="{{ weighbridges[0].name if weighbridges else 'Scale Outpost' }}" />
+      </div>
+
+      <!-- Optical IR Sensor Platform Alignment Interlock Banner -->
+      <div id="wb-position-interlock" class="p-2.5 bg-emerald-50 border border-emerald-300 rounded text-[11px] flex flex-wrap items-center justify-between gap-2 font-semibold text-emerald-950">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" id="wb-interlock-dot"></span>
+          <span id="wb-interlock-text">🟢 Optical IR Positioning: All Axles Centered On Scale Platform</span>
+        </div>
+        <span id="wb-interlock-badge" class="font-mono text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold border border-emerald-400">
+          PLATFORM CLEAR &amp; LOCKED
+        </span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Tare Weight Field (RTO VAHAN Locked) -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-semibold text-slate-700 flex items-center gap-1">
+              <span>Tare Weight (Empty) MT *</span>
+            </label>
+            <span class="text-[10px] bg-slate-200 text-slate-800 border border-slate-300 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1">
+              🔒 RTO VAHAN LOCKED
+            </span>
+          </div>
+          <div class="relative">
+            <input type="number" step="0.1" name="tare_weight_mt" id="wb-tare" required readonly class="gov-input w-full font-mono bg-slate-100 text-slate-700 cursor-not-allowed border-slate-300 font-bold" value="11.5" />
+            <span class="absolute right-2.5 top-2 text-slate-400 text-xs select-none" title="Direct from vehicle RTO registration — manual editing disabled to prevent tare fraud">🔒</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px] mt-1">
+            <span class="text-slate-500">RTO Baseline: <strong id="wb-rto-baseline">11.5 MT</strong></span>
+            <span id="wb-tare-integrity-badge" class="font-bold text-emerald-700">✓ Anti-Inflation Certified</span>
+          </div>
+        </div>
+
+        <!-- Gross Weight Field (M2M Load Cell Transducer Locked) -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="font-semibold text-slate-700 flex items-center gap-1">
+              <span>Gross Scale Weight MT *</span>
+            </label>
+            <span class="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-1.5 py-0.2 rounded font-mono font-bold flex items-center gap-1 shadow-2xs">
+              🔒 M2M TRANSDUCER LOCKED
+            </span>
+          </div>
+          <div class="relative">
+            <input type="number" step="0.1" name="gross_weight_mt" id="wb-gross" required readonly class="gov-input w-full font-mono font-black text-slate-900 bg-emerald-50 border-2 border-emerald-500 cursor-not-allowed shadow-inner text-sm" value="36.5" />
+            <span class="absolute right-2.5 top-2 text-emerald-600 text-xs select-none" title="Streamed directly from RS-232 load cell digitizer — manual editing disabled to prevent under-reporting">🔒</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px] mt-1 text-emerald-800 font-medium">
+            <span>⚡ Automated Load Cell Sensor Feed</span>
+            <span class="text-[9px] bg-emerald-200 text-emerald-900 px-1 rounded font-mono">Anti-Cheat Active</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Mass-Balance Reconciliation Preview -->
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5 text-xs">
+        <div class="flex justify-between">
+          <span class="text-slate-600">Calculated Net Mineral Weight:</span>
+          <span id="wb-net-preview" class="font-bold text-slate-900 font-mono text-sm">25.0 MT</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-600">Permitted e-Rawaana Quota:</span>
+          <span id="wb-permitted-preview" class="font-bold text-slate-900 font-mono">25.0 MT</span>
+        </div>
+        <div class="flex justify-between border-t pt-1.5">
+          <span class="font-semibold text-slate-700">Variance / Excess Axle Weight:</span>
+          <span id="wb-diff-preview" class="font-bold text-emerald-700 font-mono text-sm">0.0 MT</span>
+        </div>
+        <div id="wb-warning" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-800 rounded font-semibold text-[11px] leading-relaxed">
+          &bull; STATUTORY OVERLOAD ALERT: Net weight exceeds authorized quota. Auto-dispatch will be inhibited and the automated barrier locked until inspected.
+        </div>
+      </div>
+
+      <!-- Statutory Emergency Manual Override Accordion (Hardware Failure Only) -->
+      <div class="border border-slate-300 rounded p-2.5 bg-slate-100/70 text-xs space-y-2">
+        <button type="button" onclick="toggleManualOverrideSection()" class="text-[11px] text-amber-900 hover:text-amber-950 font-bold flex items-center justify-between w-full">
+          <span class="flex items-center gap-1.5">
+            <span>⚠️ Need Emergency Manual Override?</span>
+            <span class="font-normal text-slate-500">(Hardware Cable / Sensor Failure Only)</span>
+          </span>
+          <span id="manual-override-arrow" class="text-slate-500 font-mono">&darr;</span>
+        </button>
+
+        <div id="manual-override-box" class="hidden pt-2 border-t border-slate-300 space-y-2 text-[11px]">
+          <div class="p-2.5 bg-amber-100 border border-amber-300 text-amber-950 rounded text-[10px] leading-relaxed">
+            <strong>STATUTORY MMDR NOTICE:</strong> Manual entry bypasses automated load cell tamper protection. This weighment will be permanently stamped as <strong>MANUAL_OVERRIDE</strong>, recorded in the Anti-Corruption audit log, and automatically flagged for <strong>MANDATORY Physical Weighing by the Enforcement Squad</strong> at the next highway checkpoint.
+          </div>
+          <div>
+            <label class="block font-semibold mb-1 text-slate-800">Reason for Manual Entry (Required) *</label>
+            <input type="text" id="manual-override-reason" placeholder="e.g. Load cell #2 surge damage / RS-232 cable severed" class="gov-input w-full text-xs" />
+          </div>
+          <div class="flex justify-end">
+            <button type="button" onclick="enableEmergencyManualOverride()" class="btn-gov bg-amber-700 hover:bg-amber-600 text-white font-bold py-1 px-3 text-[11px] rounded shadow-xs">
+              Unlock Fields for Manual Entry (Audited)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" name="is_manual_override" id="is-manual-override-input" value="0" />
+      <input type="hidden" name="override_reason" id="override-reason-input" value="" />
+
+      <div class="flex justify-end gap-2 pt-3 border-t">
+        <button type="button" onclick="closeWeighmentModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" id="btn-submit-weighment" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-bold">
+          <span>⚡ Certify &amp; Auto-Dispatch e-Rawaana</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Auto-Dispatch Clearance Dossier (Barrier Lifted & Statutory Pass) -->
+<div id="modal-auto-dispatch-success" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 border-2 border-emerald-500 text-slate-900 text-xs">
+    
+    <!-- Animated Barrier Status Banner -->
+    <div class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-xl p-4 text-center shadow-lg space-y-2">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white text-emerald-700 font-bold text-2xl shadow">
+        ✓
+      </div>
+      <h3 class="text-base font-black tracking-wide uppercase">
+        🟢 Automated Boom Barrier Lifted!
+      </h3>
+      <div class="font-mono text-xs text-emerald-100 bg-emerald-800/60 py-1 px-3 rounded-full inline-block border border-emerald-400/30">
+        BARRIER_LIFTED_AUTOMATICALLY &bull; GREEN CLEARANCE SIGNAL
+      </div>
+    </div>
+
+    <!-- Official e-Rawaana Pass Certificate -->
+    <div class="border border-slate-300 rounded-xl p-4 bg-slate-50/80 space-y-3">
+      <div class="flex justify-between items-start border-b border-slate-200 pb-2">
+        <div>
+          <div class="text-[10px] uppercase font-bold tracking-wider text-slate-500">Official Statutory Mineral Transit Pass</div>
+          <div id="ad-permit-number" class="text-base font-black font-mono text-slate-900">RCO26041</div>
+        </div>
+        <span class="badge badge-low text-[10px] font-bold">M2M VERIFIED</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+        <div>
+          <span class="text-slate-500 text-[11px] block">Vehicle Registration</span>
+          <strong id="ad-truck-number" class="text-slate-900 font-bold">RJ-14-GB-9921</strong>
+        </div>
+        <div>
+          <span class="text-slate-500 text-[11px] block">Certified Net Weight</span>
+          <strong id="ad-net-weight" class="text-emerald-800 font-bold">25.0 MT</strong>
+        </div>
+        <div>
+          <span class="text-slate-500 text-[11px] block">Clearance Mode</span>
+          <strong class="text-slate-800">Zero-Touch Autonomous</strong>
+        </div>
+        <div>
+          <span class="text-slate-500 text-[11px] block">Audit Integrity</span>
+          <strong class="text-slate-800">Tamper-Proof SHA-256</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="space-y-2 pt-1">
+      <a id="ad-pdf-btn" href="#" target="_blank" class="w-full btn-gov btn-gov-primary py-2.5 text-center font-bold flex items-center justify-center gap-2 shadow text-xs">
+        <span>📥 Download Official Weighment Slip (PDF)</span>
+      </a>
+      <div class="grid grid-cols-2 gap-2">
+        <a id="ad-view-btn" href="#" class="btn-gov btn-gov-secondary text-center py-2 flex items-center justify-center gap-1 font-semibold">
+          <span>⚖️ View Permit Slip</span>
+        </a>
+        <button type="button" onclick="closeSuccessModalAndReload()" class="btn-gov btn-gov-secondary text-center py-2 font-semibold">
+          <span>Done &bull; Refresh Station</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // State variables
+  let autoDispatchEnabled = true;
+  let isSimulating = false;
+  let simTimer = null;
+  let countdownTimer = null;
+  let currentGrossWeight = 36.5;
+  let currentTareWeight = 11.5;
+  let currentPermittedWeight = 25.0;
+  let isKantaCheatingActive = false;
+  let isManualOverrideActive = false;
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    // Restore saved Auto-Dispatch setting from localStorage, default true
+    const saved = localStorage.getItem('smg_auto_dispatch_mode');
+    if (saved !== null) {
+      autoDispatchEnabled = (saved === 'true');
+    }
+    updateAutoDispatchUI();
+  });
+
+  // Toggle Auto-Dispatch Mode
+  function toggleAutoDispatchMode() {
+    autoDispatchEnabled = !autoDispatchEnabled;
+    localStorage.setItem('smg_auto_dispatch_mode', autoDispatchEnabled ? 'true' : 'false');
+    updateAutoDispatchUI();
+  }
+
+  function updateAutoDispatchUI() {
+    const light = document.getElementById('auto-dispatch-indicator-light');
+    const title = document.getElementById('auto-dispatch-status-title');
+    const label = document.getElementById('auto-dispatch-toggle-label');
+    const toggleBtn = document.getElementById('btn-toggle-auto-dispatch');
+    const knob = document.getElementById('auto-dispatch-toggle-knob');
+    const modalBanner = document.getElementById('modal-auto-dispatch-banner');
+    const submitBtn = document.getElementById('btn-submit-weighment');
+
+    if (isKantaCheatingActive) {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        submitBtn.innerHTML = '<span>⛔ Scale Interlock: Position Vehicle on Platform</span>';
+      }
+      return;
+    }
+
+    if (autoDispatchEnabled) {
+      if (light) light.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_14px_#34d399] animate-pulse';
+      if (title) {
+        title.innerText = '[● AUTO-DISPATCH MODE: ON]';
+        title.className = 'font-mono font-bold text-sm tracking-wide text-emerald-400';
+      }
+      if (label) {
+        label.innerText = 'ACTIVATED (AUTO)';
+        label.className = 'text-xs font-mono font-bold text-emerald-400';
+      }
+      if (toggleBtn) toggleBtn.className = 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-emerald-600 shadow';
+      if (knob) knob.className = 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-5';
+      if (modalBanner) modalBanner.classList.remove('hidden');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        submitBtn.innerHTML = '<span>⚡ Certify &amp; Auto-Dispatch e-Rawaana</span>';
+      }
+    } else {
+      if (light) light.className = 'w-3.5 h-3.5 rounded-full bg-slate-500';
+      if (title) {
+        title.innerText = '[○ AUTO-DISPATCH MODE: OFF]';
+        title.className = 'font-mono font-bold text-sm tracking-wide text-slate-400';
+      }
+      if (label) {
+        label.innerText = 'MANUAL CLEARANCE';
+        label.className = 'text-xs font-mono font-bold text-slate-400';
+      }
+      if (toggleBtn) toggleBtn.className = 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-700 shadow';
+      if (knob) knob.className = 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0';
+      if (modalBanner) modalBanner.classList.add('hidden');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        submitBtn.innerHTML = '<span>Certify &amp; Save Weighment</span>';
+      }
+    }
+  }
+
+  // Synthesized Web Audio Alerts
+  function playAudioSignal(type) {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      if (type === 'success') {
+        // High-pitched pleasant dual chime
+        const now = ctx.currentTime;
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now); // D5
+        osc1.frequency.setValueAtTime(880, now + 0.12); // A5
+        osc1.frequency.setValueAtTime(1174.66, now + 0.24); // D6
+        gain1.gain.setValueAtTime(0.18, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.65);
+      } else if (type === 'warning' || type === 'critical') {
+        // Lower warning beep
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(type === 'critical' ? 220 : 440, now);
+        osc.frequency.setValueAtTime(type === 'critical' ? 180 : 329.63, now + 0.16);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.55);
+      }
+    } catch (e) {
+      console.log('Web Audio feedback:', e);
+    }
+  }
+
+  // Optical IR Platform Interlock Banner Controls
+  function resetInterlockBanner(isViolated = false) {
+    const interlockBox = document.getElementById('wb-position-interlock');
+    const interlockDot = document.getElementById('wb-interlock-dot');
+    const interlockText = document.getElementById('wb-interlock-text');
+    const interlockBadge = document.getElementById('wb-interlock-badge');
+    const irStatus = document.getElementById('ir-beam-status');
+    const submitBtn = document.getElementById('btn-submit-weighment');
+
+    if (isViolated) {
+      isKantaCheatingActive = true;
+      if (interlockBox) {
+        interlockBox.className = 'p-2.5 bg-red-50 border-2 border-red-400 rounded text-[11px] flex flex-wrap items-center justify-between gap-2 font-semibold text-red-950 animate-pulse';
+      }
+      if (interlockDot) interlockDot.className = 'w-2.5 h-2.5 rounded-full bg-red-600 animate-ping';
+      if (interlockText) interlockText.innerHTML = '🔴 INTERLOCK ENGAGED: AXLE OFF SCALE RAMP DETECTED! (Optical IR Beam Interrupted)';
+      if (interlockBadge) {
+        interlockBadge.className = 'font-mono text-[10px] bg-red-200 text-red-900 px-2 py-0.5 rounded font-bold border border-red-400';
+        interlockBadge.innerText = 'DISPATCH INHIBITED';
+      }
+      if (irStatus) {
+        irStatus.className = 'text-red-400 font-bold animate-pulse';
+        irStatus.innerHTML = '⚠️ IR BEAM BROKEN — TIRES ON APPROACH RAMP';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        submitBtn.innerHTML = '<span>⛔ Scale Interlock: Position Vehicle on Platform</span>';
+      }
+    } else {
+      isKantaCheatingActive = false;
+      if (interlockBox) {
+        interlockBox.className = 'p-2.5 bg-emerald-50 border border-emerald-300 rounded text-[11px] flex flex-wrap items-center justify-between gap-2 font-semibold text-emerald-950';
+      }
+      if (interlockDot) interlockDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse';
+      if (interlockText) interlockText.innerHTML = '🟢 Optical IR Positioning: All Axles Centered On Scale Platform';
+      if (interlockBadge) {
+        interlockBadge.className = 'font-mono text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold border border-emerald-400';
+        interlockBadge.innerText = 'PLATFORM CLEAR &amp; LOCKED';
+      }
+      if (irStatus) {
+        irStatus.className = 'text-emerald-400 font-bold';
+        irStatus.innerHTML = '● DUAL BEAMS CLEAR &amp; ALIGNED';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+        updateAutoDispatchUI();
+      }
+    }
+  }
+
+  // Audited Emergency Manual Override Handlers
+  function resetManualOverride() {
+    isManualOverrideActive = false;
+    const tareInput = document.getElementById('wb-tare');
+    const grossInput = document.getElementById('wb-gross');
+    const overrideBox = document.getElementById('manual-override-box');
+    const overrideArrow = document.getElementById('manual-override-arrow');
+    const overrideReason = document.getElementById('manual-override-reason');
+    const hiddenOverride = document.getElementById('is-manual-override-input');
+    const hiddenReason = document.getElementById('override-reason-input');
+
+    if (tareInput) {
+      tareInput.readOnly = true;
+      tareInput.className = 'gov-input w-full font-mono bg-slate-100 text-slate-700 cursor-not-allowed border-slate-300 font-bold';
+    }
+    if (grossInput) {
+      grossInput.readOnly = true;
+      grossInput.className = 'gov-input w-full font-mono font-black text-slate-900 bg-emerald-50 border-2 border-emerald-500 cursor-not-allowed shadow-inner text-sm';
+    }
+    if (overrideBox) overrideBox.classList.add('hidden');
+    if (overrideArrow) overrideArrow.innerHTML = '&darr;';
+    if (overrideReason) overrideReason.value = '';
+    if (hiddenOverride) hiddenOverride.value = '0';
+    if (hiddenReason) hiddenReason.value = '';
+  }
+
+  function toggleManualOverrideSection() {
+    const box = document.getElementById('manual-override-box');
+    const arrow = document.getElementById('manual-override-arrow');
+    if (!box) return;
+    if (box.classList.contains('hidden')) {
+      box.classList.remove('hidden');
+      if (arrow) arrow.innerHTML = '&uarr;';
+    } else {
+      box.classList.add('hidden');
+      if (arrow) arrow.innerHTML = '&darr;';
+    }
+  }
+
+  function enableEmergencyManualOverride() {
+    const reasonInput = document.getElementById('manual-override-reason');
+    const reason = reasonInput ? reasonInput.value.trim() : '';
+    if (!reason || reason.length < 5) {
+      alert("⚠️ STATUTORY MMDR COMPLIANCE:\nPlease enter a detailed justification for emergency manual weight entry (minimum 5 characters, e.g. 'RS-232 digitizer line severed' or 'Load cell #3 lightning surge failure').");
+      if (reasonInput) reasonInput.focus();
+      return;
+    }
+
+    isManualOverrideActive = true;
+    const hiddenOverride = document.getElementById('is-manual-override-input');
+    const hiddenReason = document.getElementById('override-reason-input');
+    if (hiddenOverride) hiddenOverride.value = '1';
+    if (hiddenReason) hiddenReason.value = reason;
+
+    const tareInput = document.getElementById('wb-tare');
+    const grossInput = document.getElementById('wb-gross');
+
+    if (tareInput) {
+      tareInput.readOnly = false;
+      tareInput.className = 'gov-input w-full font-mono bg-amber-50 text-amber-900 border-2 border-amber-500 font-bold';
+      tareInput.oninput = onManualWeightChange;
+    }
+    if (grossInput) {
+      grossInput.readOnly = false;
+      grossInput.className = 'gov-input w-full font-mono font-black text-amber-950 bg-amber-50 border-2 border-amber-600 shadow-inner text-sm';
+      grossInput.oninput = onManualWeightChange;
+    }
+
+    playAudioSignal('warning');
+    alert(`⚠️ AUDITED EMERGENCY OVERRIDE ENGAGED!\n\nReason: "${reason}"\n\n• Tare & Gross inputs unlocked for manual typing.\n• This transaction will be permanently stamped: MANUAL_OPERATOR_OVERRIDE.\n• Status set to PENDING_AUDIT.\n• High-Severity Alert dispatched to Mining Enforcement Officer for mandatory physical weighing at next highway checkpoint.`);
+  }
+
+  // Modal Open / Close
+  function openWeighmentModal() {
+    document.getElementById('modal-record-weighment').classList.remove('hidden');
+    resetInterlockBanner(false);
+    resetManualOverride();
+    onTripSelect();
+  }
+
+  function closeWeighmentModal() {
+    if (simTimer) clearInterval(simTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    document.getElementById('modal-record-weighment').classList.add('hidden');
+    const cdBox = document.getElementById('auto-dispatch-countdown-box');
+    if (cdBox) cdBox.classList.add('hidden');
+    resetInterlockBanner(false);
+    resetManualOverride();
+  }
+
+  function closeSuccessModalAndReload() {
+    document.getElementById('modal-auto-dispatch-success').classList.add('hidden');
+    window.location.reload();
+  }
+
+  // Trip Selection Changed
+  function onTripSelect() {
+    const sel = document.getElementById('wb-trip-select');
+    if (!sel || !sel.options || sel.selectedIndex < 0) return;
+    const opt = sel.options[sel.selectedIndex];
+    if (opt) {
+      currentTareWeight = parseFloat(opt.getAttribute('data-tare')) || 11.5;
+      currentPermittedWeight = parseFloat(opt.getAttribute('data-permitted')) || 25.0;
+      currentGrossWeight = currentTareWeight + currentPermittedWeight;
+
+      document.getElementById('wb-tare').value = currentTareWeight.toFixed(1);
+      document.getElementById('wb-gross').value = currentGrossWeight.toFixed(1);
+      document.getElementById('disp-tare').innerText = currentTareWeight.toFixed(1) + ' MT';
+      document.getElementById('wb-permitted-preview').innerText = currentPermittedWeight.toFixed(1) + ' MT';
+
+      updateDigitalIndicator(currentGrossWeight, true);
+      calcNetWeight();
+    }
+  }
+
+  function onManualWeightChange() {
+    const gross = parseFloat(document.getElementById('wb-gross').value) || 0;
+    const tare = parseFloat(document.getElementById('wb-tare').value) || 0;
+    currentGrossWeight = gross;
+    currentTareWeight = tare;
+    updateDigitalIndicator(gross, true);
+    calcNetWeight();
+  }
+
+  function zeroScale() {
+    resetInterlockBanner(false);
+    updateDigitalIndicator(0.0, true);
+    document.getElementById('wb-gross').value = "0.0";
+    calcNetWeight();
+  }
+
+  function updateDigitalIndicator(weight, isStable = true) {
+    const valEl = document.getElementById('digital-scale-value');
+    const streamEl = document.getElementById('scale-raw-stream');
+    const flagStable = document.getElementById('scale-flag-stable');
+    const flagMotion = document.getElementById('scale-flag-motion');
+    const flagZero = document.getElementById('scale-flag-zero');
+
+    if (valEl) valEl.innerText = weight.toFixed(2);
+    
+    // Status flags
+    if (isStable) {
+      if (flagStable) flagStable.className = 'px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500 font-bold shadow-[0_0_8px_#10b981]';
+      if (flagMotion) flagMotion.className = 'px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold';
+    } else {
+      if (flagStable) flagStable.className = 'px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold';
+      if (flagMotion) flagMotion.className = 'px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-500 font-bold animate-pulse shadow-[0_0_8px_#f59e0b]';
+    }
+
+    if (weight <= 0.05) {
+      if (flagZero) flagZero.className = 'px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500 font-bold';
+    } else {
+      if (flagZero) flagZero.className = 'px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 font-bold';
+    }
+
+    // RS-232 telemetry string
+    const statusPrefix = isStable ? 'ST' : 'US';
+    const sign = weight >= 0 ? '+' : '-';
+    const padded = Math.abs(weight).toFixed(2).padStart(6, '0');
+    if (streamEl) streamEl.innerText = `${statusPrefix},GS,${sign}${padded}MT,00`;
+  }
+
+  function calcNetWeight() {
+    const gross = parseFloat(document.getElementById('wb-gross').value) || 0;
+    const tare = parseFloat(document.getElementById('wb-tare').value) || 0;
+    const net = Math.max(0, gross - tare);
+
+    document.getElementById('wb-net-preview').innerText = net.toFixed(1) + ' MT';
+    document.getElementById('disp-net').innerText = net.toFixed(1) + ' MT';
+
+    const diff = net - currentPermittedWeight;
+    const diffEl = document.getElementById('wb-diff-preview');
+    const warnEl = document.getElementById('wb-warning');
+
+    // Idea 2: Tare-Weight Integrity Check against RTO baseline (11.5 MT)
+    const tareBadge = document.getElementById('wb-tare-integrity-badge');
+    if (tareBadge) {
+      const tareDiff = tare - 11.5;
+      if (Math.abs(tareDiff) > 1.0) {
+        tareBadge.className = 'font-bold text-red-600 animate-pulse text-[10px]';
+        tareBadge.innerText = `⚠️ Tare Anomaly (${tareDiff > 0 ? '+' : ''}${tareDiff.toFixed(1)} MT vs RTO)`;
+      } else {
+        tareBadge.className = 'font-bold text-emerald-700 text-[10px]';
+        tareBadge.innerText = '✓ RTO Baseline Matched';
+      }
+    }
+
+    if (diff > 0.5) {
+      diffEl.className = 'font-bold text-red-700 font-mono text-sm';
+      diffEl.innerText = '+' + diff.toFixed(1) + ' MT';
+      warnEl.classList.remove('hidden');
+      return { isOverweight: true, diff, net };
+    } else {
+      diffEl.className = 'font-bold text-emerald-700 font-mono text-sm';
+      diffEl.innerText = (diff > 0 ? '+' : '') + diff.toFixed(1) + ' MT';
+      warnEl.classList.add('hidden');
+      return { isOverweight: false, diff, net };
+    }
+  }
+
+  function simulateTareTamperingDrive() {
+    if (simTimer) clearInterval(simTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    // Spoof tare weight to 17.5 MT (+6.0 MT vs standard 11.5 MT)
+    const spoofedTare = 17.5;
+    const disguisedGross = 42.5; // (17.5 tare + 25.0 net) -> looks like 25 MT net on paper, but truck carries 31 MT of real stone
+    
+    currentTareWeight = spoofedTare;
+    currentGrossWeight = disguisedGross;
+    document.getElementById('wb-tare').value = spoofedTare.toFixed(1);
+    document.getElementById('wb-gross').value = disguisedGross.toFixed(1);
+    document.getElementById('disp-tare').innerText = spoofedTare.toFixed(1) + ' MT';
+    
+    updateDigitalIndicator(disguisedGross, true);
+    calcNetWeight();
+    playAudioSignal('warning');
+    
+    alert("⚖️ STATUTORY AUDIT: TARE-WEIGHT TAMPERING SIMULATION (Idea 2)\n\n" +
+          "• Recorded Tare: 17.5 MT\n" +
+          "• Official RTO Vahan Baseline: 11.5 MT\n" +
+          "• Discrepancy: +6.0 MT (+52.2% empty-weight inflation)\n\n" +
+          "Under Rule 11 of SmartMineGuard, this empty-weight inflation attempt is flagged as fraudulent tare inflation used to secretly transport +6.0 MT of untaxed mineral payload.");
+  }
+
+  function simulateKantaCheatingDrive() {
+    if (simTimer) clearInterval(simTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    const cdBox = document.getElementById('auto-dispatch-countdown-box');
+    if (cdBox) cdBox.classList.add('hidden');
+
+    // Tires stopped on approach ramp: Recorded Gross 38.0 MT instead of actual 42.0 MT
+    const cheatGross = 38.0;
+    const actualGross = 42.0;
+    const tare = 11.5;
+    const fakeNet = 26.5;
+    const actualNet = 30.5;
+    const unaccounted = actualNet - fakeNet;
+
+    currentGrossWeight = cheatGross;
+    currentTareWeight = tare;
+    document.getElementById('wb-gross').value = cheatGross.toFixed(1);
+    document.getElementById('wb-tare').value = tare.toFixed(1);
+
+    // Update IR sensor and position interlock banner to red broken / platform locked
+    resetInterlockBanner(true);
+
+    updateDigitalIndicator(cheatGross, false);
+    calcNetWeight();
+    playAudioSignal('critical');
+
+    // Trigger backend alert
+    fetch('/api/simulator/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'trigger_kanta_cheating', truck_reg: 'HR26AB1234' })
+    }).catch(e => console.warn(e));
+
+    alert("🚨 WEIGHBRIDGE MANIPULATION (KANTA CHEATING) INTERCEPTED!\n\n" +
+          "• Scale Position: Dual Infrared Axle Beam BROKEN!\n" +
+          "• Physical Positioning: Vehicle rear wheels resting on concrete ramp.\n" +
+          "• Registered Gross Weight: 38.0 MT (Actual Mass: 42.0 MT)\n" +
+          "• Unbilled Off-The-Record Mineral: +4.0 MT stolen mineral\n\n" +
+          "Automated Action:\n" +
+          "⛔ Platform Interlock Engaged: Dispatch Button Disabled\n" +
+          "⛔ Automated Exit Boom Barrier LOCKED DOWN\n" +
+          "⚖️ MMDR Rule 104 Violation Alert dispatched to Officer Command Center.");
+  }
+
+  // WebSerial Hardware Connection
+  async function connectWebSerialScale() {
+    const comBadge = document.getElementById('scale-com-status-badge');
+    const comBtn = document.getElementById('btn-connect-com');
+    const rawStream = document.getElementById('scale-raw-stream');
+
+    if (!('serial' in navigator)) {
+      alert("Hardware Scale WebSerial Connection:\n\n• WebSerial is natively supported in Google Chrome & Microsoft Edge.\n• Standard Baud: 9600, Data Bits: 8, Parity: None, Stop: 1.\n• Scale Stream: Continuous ASCII (ST,GS,+036.50 MT).\n\nUse the 'Simulate Scale' buttons to test the live streaming telemetry and Auto-Dispatch mode in any browser!");
+      return;
+    }
+
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      if (comBadge) {
+        comBadge.className = 'badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono';
+        comBadge.innerText = 'COM Port Connected (9600-8N1)';
+      }
+      if (comBtn) {
+        comBtn.innerHTML = '<span>🟢 Scale Hardware Online</span>';
+        comBtn.classList.add('bg-emerald-800');
+      }
+
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable);
+      const reader = textDecoder.readable.getReader();
+
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        const lines = buffer.split(/[\r\n]+/);
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          if (rawStream) rawStream.innerText = line.trim();
+          const match = line.match(/([0-9]+\.?[0-9]*)/);
+          if (match) {
+            let val = parseFloat(match[1]);
+            if (val > 500) val = val / 1000.0; // convert KG to MT
+            const isStable = line.startsWith('ST') || !line.startsWith('US');
+            updateDigitalIndicator(val, isStable);
+            document.getElementById('wb-gross').value = val.toFixed(1);
+            calcNetWeight();
+            if (isStable && autoDispatchEnabled && !isKantaCheatingActive) {
+              triggerAutoDispatchCountdown();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Serial connection canceled or closed:", err);
+    }
+  }
+
+  // Realistic Scale Truck Drive-On Simulation
+  function simulateTruckScaleDrive(isOverload = false) {
+    if (simTimer) clearInterval(simTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    // Repositioning vehicle on platform resets Kanta cheating interlock
+    resetInterlockBanner(false);
+
+    const targetGross = isOverload 
+      ? (currentTareWeight + currentPermittedWeight + 6.2) 
+      : (currentTareWeight + currentPermittedWeight);
+
+    let currentVal = 0.0;
+    const steps = [
+      targetGross * 0.22,
+      targetGross * 0.54,
+      targetGross * 0.81,
+      targetGross * 0.96,
+      targetGross + (Math.random() * 0.5 - 0.25),
+      targetGross
+    ];
+    let stepIndex = 0;
+
+    // Start with scale in MOTION
+    updateDigitalIndicator(0.0, false);
+
+    simTimer = setInterval(() => {
+      if (stepIndex < steps.length) {
+        currentVal = steps[stepIndex];
+        const isFinal = (stepIndex === steps.length - 1);
+        updateDigitalIndicator(currentVal, isFinal);
+        document.getElementById('wb-gross').value = currentVal.toFixed(1);
+        calcNetWeight();
+        stepIndex++;
+      } else {
+        clearInterval(simTimer);
+        simTimer = null;
+        updateDigitalIndicator(targetGross, true);
+        document.getElementById('wb-gross').value = targetGross.toFixed(1);
+        const res = calcNetWeight();
+
+        if (res.isOverweight) {
+          playAudioSignal('warning');
+        } else {
+          playAudioSignal('success');
+        }
+
+        // Check if Auto-Dispatch should kick in (only when not cheating and not manual override)
+        if (autoDispatchEnabled && !isKantaCheatingActive && !isManualOverrideActive) {
+          if (!res.isOverweight) {
+            triggerAutoDispatchCountdown();
+          } else {
+            const cdBox = document.getElementById('auto-dispatch-countdown-box');
+            if (cdBox) {
+              cdBox.className = 'font-mono font-bold text-xs bg-red-600 text-white px-2.5 py-1 rounded shadow';
+              cdBox.innerText = '⛔ AUTO-DISPATCH INHIBITED (OVERLOAD)';
+              cdBox.classList.remove('hidden');
+            }
+          }
+        }
+      }
+    }, 280);
+  }
+
+  function triggerAutoDispatchCountdown() {
+    if (isKantaCheatingActive || isManualOverrideActive) return;
+    const cdBox = document.getElementById('auto-dispatch-countdown-box');
+    const cdSec = document.getElementById('auto-dispatch-countdown-sec');
+    if (!cdBox || !cdSec) return;
+
+    let remaining = 2;
+    cdSec.innerText = remaining;
+    cdBox.className = 'font-mono font-bold text-xs bg-emerald-500 text-slate-950 px-2.5 py-1 rounded animate-pulse shadow';
+    cdBox.innerHTML = `LIFTING BARRIER IN <span id="auto-dispatch-countdown-sec">${remaining}</span>s...`;
+    cdBox.classList.remove('hidden');
+
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      remaining--;
+      const secEl = document.getElementById('auto-dispatch-countdown-sec');
+      if (secEl) secEl.innerText = remaining;
+      if (remaining <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        cdBox.classList.add('hidden');
+        submitWeighmentForm(null, true);
+      }
+    }, 1000);
+  }
+
+  // Submit Weighment & Gate Clearance
+  async function submitWeighmentForm(event, isAutoDispatch = false) {
+    if (event && event.preventDefault) {
+      event.preventDefault();
+    }
+
+    if (isKantaCheatingActive) {
+      alert("⛔ DISPATCH BLOCKED BY HARDWARE INTERLOCK:\n\nOptical IR Beam indicates vehicle wheels are resting on the approach ramp (Kanta Cheating / Ramp Tampering).\n\nThe truck must be completely driven onto the center of the scale platform before clearance can be certified.");
+      return;
+    }
+
+    const tripSel = document.getElementById('wb-trip-select');
+    if (!tripSel || !tripSel.options || tripSel.selectedIndex < 0) {
+      alert("Please select an active transit trip.");
+      return;
+    }
+    const opt = tripSel.options[tripSel.selectedIndex];
+    const tripId = parseInt(opt.value);
+    const truckId = parseInt(opt.getAttribute('data-truck-id'));
+    const permitId = parseInt(opt.getAttribute('data-permit-id'));
+    const regNumber = opt.getAttribute('data-reg');
+
+    const wbSel = document.getElementById('wb-code-select');
+    const wbCode = wbSel ? wbSel.value : 'WB-01';
+    const wbName = wbSel && wbSel.options[wbSel.selectedIndex] 
+      ? wbSel.options[wbSel.selectedIndex].getAttribute('data-name') 
+      : 'Scale Outpost';
+
+    const tare = parseFloat(document.getElementById('wb-tare').value) || 11.5;
+    const gross = parseFloat(document.getElementById('wb-gross').value) || 36.5;
+
+    const isOverride = isManualOverrideActive || (document.getElementById('is-manual-override-input') && document.getElementById('is-manual-override-input').value === '1');
+    const overrideReason = document.getElementById('override-reason-input') ? document.getElementById('override-reason-input').value : '';
+
+    const useAutoDispatch = !isOverride && (isAutoDispatch || autoDispatchEnabled);
+
+    const payload = {
+      trip_id: tripId,
+      truck_id: truckId,
+      permit_id: permitId,
+      weighbridge_code: wbCode,
+      weighbridge_name: wbName,
+      tare_weight_mt: tare,
+      gross_weight_mt: gross,
+      is_manual_override: isOverride,
+      override_reason: overrideReason,
+      measurement_source: isOverride ? 'MANUAL_OPERATOR_OVERRIDE' : 'AUTOMATED_M2M_LOADCELL_TELEMETRY',
+      auto_dispatch: useAutoDispatch
+    };
+
+    const submitBtn = document.getElementById('btn-submit-weighment');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>Processing M2M Gate Clearance...</span>';
+    }
+
+    try {
+      const res = await fetch('/api/crud/weighments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        closeWeighmentModal();
+
+        if (data.barrier_status === 'BARRIER_HELD_FOR_INSPECTION') {
+          playAudioSignal('warning');
+          alert(`⚠️ MANUAL OVERRIDE RECORDED:\n\n${data.message}\n\nAutomated boom barrier is HELD FOR PHYSICAL INSPECTION. Mandatory physical weighing scheduled at highway checkpoint.`);
+          window.location.reload();
+        } else if (data.auto_dispatch && data.barrier_status === 'BARRIER_LIFTED_AUTOMATICALLY') {
+          // Play positive celebratory fanfare
+          playAudioSignal('success');
+
+          // Show Auto-Dispatch Success Dossier Modal
+          document.getElementById('ad-permit-number').innerText = data.permit_number || `PERMIT-${permitId}`;
+          document.getElementById('ad-truck-number').innerText = regNumber || 'Commercial Carrier';
+          document.getElementById('ad-net-weight').innerText = `${data.net_weight_mt.toFixed(1)} MT`;
+          
+          const pdfBtn = document.getElementById('ad-pdf-btn');
+          if (pdfBtn) {
+            pdfBtn.href = data.pdf_url || `/permits/${permitId}/download-pdf?type=weighment`;
+          }
+          const viewBtn = document.getElementById('ad-view-btn');
+          if (viewBtn) {
+            viewBtn.href = `/permits/${permitId}/view?tab=weighment`;
+          }
+
+          document.getElementById('modal-auto-dispatch-success').classList.remove('hidden');
+        } else if (data.is_overweight) {
+          playAudioSignal('warning');
+          alert(`⛔ STATUTORY OVERLOAD DETECTED!\n\n${data.message}\n\nAutomated boom barrier is LOCKED DOWN. Enforcement alert has been logged.`);
+          window.location.reload();
+        } else {
+          playAudioSignal('success');
+          const b = document.getElementById('weigh-alert');
+          b.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300';
+          b.innerText = data.message || 'Scale weighment logged successfully.';
+          b.classList.remove('hidden');
+          setTimeout(() => window.location.reload(), 1200);
+        }
+      } else {
+        alert(data.error || 'Failed to record scale reading.');
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        updateAutoDispatchUI();
+      }
+    }
+  }
+
+  function openTruckRegisterModal() {
+    document.getElementById('modal-register-truck').classList.remove('hidden');
+    document.getElementById('modal-reg-error').classList.add('hidden');
+    const input = document.getElementById('truck-reg-no');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+
+  function closeTruckRegisterModal() {
+    document.getElementById('modal-register-truck').classList.add('hidden');
+  }
+
+  async function handleTruckRegisterSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('btn-submit-truck-reg');
+    const errBox = document.getElementById('modal-reg-error');
+    errBox.classList.add('hidden');
+    
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((val, key) => { payload[key] = val; });
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>Saving Vehicle...</span>';
+
+    try {
+      const res = await fetch('/api/crud/trucks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeTruckRegisterModal();
+        const alertBox = document.getElementById('weigh-alert');
+        if (alertBox) {
+          alertBox.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 border border-emerald-300 text-emerald-900 block';
+          alertBox.innerHTML = `✓ ${data.message} Vehicle has been registered and is now ready for scale weighment.`;
+          alertBox.classList.remove('hidden');
+        }
+        form.reset();
+        setTimeout(() => { window.location.reload(); }, 1000);
+      } else {
+        errBox.textContent = data.error || 'Failed to register vehicle. Please verify details.';
+        errBox.classList.remove('hidden');
+      }
+    } catch (err) {
+      errBox.textContent = 'Network or server error: ' + err.message;
+      errBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>✓ Complete Vehicle Registration</span>';
+    }
+  }
+</script>
+
+<!-- Modal: Register Fleet Transport Vehicle (Weighbridge Console Operator Desk) -->
+<div id="modal-register-truck" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2.5">
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+          <span>🚛 Register Commercial Transport Vehicle</span>
+        </h3>
+        <p class="text-[11px] text-slate-500">
+          Weighbridge Inbound Scale Registry &bull; Auto-assigned to {{ active_mine.name if active_mine else 'Assigned Scale Concession' }}
+        </p>
+      </div>
+      <button type="button" onclick="closeTruckRegisterModal()" class="text-slate-400 hover:text-slate-700 font-bold text-lg leading-none">&times;</button>
+    </div>
+
+    <form id="form-register-truck" onsubmit="handleTruckRegisterSubmit(event)" class="space-y-3 text-xs">
+      <div id="modal-reg-error" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-800 rounded font-medium text-[11px]"></div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Vehicle Registration *</label>
+          <input type="text" name="registration_number" id="truck-reg-no" required class="gov-input w-full font-mono uppercase" placeholder="e.g. HR26AB5678" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Vehicle Type *</label>
+          <select name="vehicle_type" class="gov-select w-full">
+            <option value="10-Wheeler Tipper Truck">10-Wheeler Tipper Truck</option>
+            <option value="12-Wheeler Dump Truck">12-Wheeler Dump Truck</option>
+            <option value="14-Wheeler Multi-Axle">14-Wheeler Multi-Axle</option>
+            <option value="6-Wheeler Dumper">6-Wheeler Dumper</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Registered Owner / Transporter *</label>
+          <input type="text" name="registered_owner" required class="gov-input w-full" placeholder="e.g. Sharma Logistics Pvt Ltd" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Assigned Mine Concession *</label>
+          {% if active_mine %}
+            <input type="hidden" name="assigned_mine_id" value="{{ active_mine.id }}">
+            <div class="gov-input w-full bg-slate-100 text-slate-800 font-medium py-1.5 flex items-center gap-1">
+              <span>⛏ {{ active_mine.name }}</span>
+            </div>
+          {% else %}
+            <input type="hidden" name="assigned_mine_id" value="1">
+            <div class="gov-input w-full bg-slate-100 text-slate-800 font-medium py-1.5">Primary Concession</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Driver Name *</label>
+          <input type="text" name="driver_name" required class="gov-input w-full" placeholder="Full Name" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Driver Contact Mobile *</label>
+          <input type="text" name="driver_phone" required class="gov-input w-full" placeholder="+91 98123 45678" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Tare Weight (MT) *</label>
+          <input type="number" step="0.1" name="tare_weight_mt" required class="gov-input w-full font-mono" value="11.5" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Max Permitted Axle Capacity (MT) *</label>
+          <input type="number" step="0.1" name="max_capacity_mt" required class="gov-input w-full font-mono" value="28.0" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">RFID Fastag ID (Optional)</label>
+          <input type="text" name="rfid_tag" class="gov-input w-full font-mono" placeholder="Auto-generated if blank" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">GPS AIS-140 IMEI (Optional)</label>
+          <input type="text" name="gps_imei" class="gov-input w-full font-mono" placeholder="Auto-generated if blank" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+        <button type="button" onclick="closeTruckRegisterModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" id="btn-submit-truck-reg" class="btn-gov btn-gov-primary btn-sm font-bold">
+          <span>✓ Complete Vehicle Registration</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

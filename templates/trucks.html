@@ -1,0 +1,763 @@
+{% extends "base.html" %}
+
+{% block title %}Trucks Fleet Management{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  {% if is_detail %}
+  <!-- Truck Detail Inspector -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('trucks') }}" class="btn-gov btn-gov-secondary btn-sm">&larr; Back to Fleet</a>
+      <h2 class="text-base font-bold text-slate-900 font-mono">{{ truck.registration_number }}</h2>
+      <span class="badge {% if truck.current_risk_score >= 80 %}badge-critical{% elif truck.current_risk_score >= 60 %}badge-high{% else %}badge-low{% endif %}">
+        Risk: {{ truck.current_risk_score }}/100 ({{ truck.current_risk_level }})
+      </span>
+    </div>
+    <a href="{{ url_for('live_map') }}" class="btn-gov btn-gov-primary btn-sm">
+      Track on Live Map &rarr;
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-2">Registration & Owner Profile</h3>
+      <div class="space-y-2 text-xs">
+        <div><span class="text-slate-500">Vehicle Type:</span> <strong>{{ truck.vehicle_type }}</strong></div>
+        <div><span class="text-slate-500">Registered Owner:</span> <strong>{{ truck.registered_owner }}</strong></div>
+        <div><span class="text-slate-500">Tare Weight:</span> <strong>{{ truck.tare_weight_mt }} MT</strong></div>
+        <div><span class="text-slate-500">Max Axle Capacity:</span> <strong>{{ truck.max_capacity_mt }} MT</strong></div>
+        <div><span class="text-slate-500">RFID Fastag:</span> <span class="font-mono">{{ truck.rfid_tag or 'N/A' }}</span></div>
+        <div><span class="text-slate-500">GPS AIS-140 IMEI:</span> <span class="font-mono">{{ truck.gps_imei or 'N/A' }}</span></div>
+      </div>
+    </div>
+
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-2">Assigned Driver & Telemetry</h3>
+      <div class="space-y-2 text-xs">
+        <div><span class="text-slate-500">Driver Name:</span> <strong>{{ truck.driver_name }}</strong></div>
+        <div><span class="text-slate-500">Contact Number:</span> <strong>{{ truck.driver_phone }}</strong></div>
+        <div><span class="text-slate-500">Current Status:</span> <span class="font-bold text-emerald-800">{{ truck.status }}</span></div>
+        <div><span class="text-slate-500">Last GPS Lat/Lng:</span> <span class="font-mono">{{ truck.current_lat }}, {{ truck.current_lng }}</span></div>
+        <div><span class="text-slate-500">Last Telemetry Ping:</span> <strong>{{ truck.last_gps_time or 'Active' }}</strong></div>
+      </div>
+    </div>
+
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-2">Enforcement History</h3>
+      <div class="space-y-2 text-xs">
+        <div><span class="text-slate-500">Total Trips Logged:</span> <strong>{{ trips|length }}</strong></div>
+        <div><span class="text-slate-500">Permits Issued:</span> <strong>{{ permits|length }}</strong></div>
+        <div><span class="text-slate-500">Violations / Alerts:</span> <strong class="text-red-700">{{ alerts|length }}</strong></div>
+        <div><span class="text-slate-500">Weighment Audits:</span> <strong>{{ weighments|length }}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  {% if cumulative_profile %}
+  <!-- Automatic Truck Round & Trip Counter (Requirements 6 & 7) -->
+  <div class="gov-card p-4 bg-emerald-950 text-white border border-emerald-800 space-y-3">
+    <div class="flex flex-wrap justify-between items-center border-b border-emerald-800/80 pb-2">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span>Automated Geofence Trip Counter &amp; Material Dispatch Telemetry</span>
+      </h3>
+      <span class="badge badge-low text-xs font-bold">
+        UNRESTRICTED FLEET DISPATCH ({{ cumulative_profile.rounds.completed_rounds }} TRIPS TODAY)
+      </span>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-center text-xs">
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Dispatch Policy</div>
+        <div class="text-sm font-extrabold text-white mt-1">Unrestricted</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Trips Completed</div>
+        <div class="text-base font-extrabold text-white mt-0.5">{{ cumulative_profile.rounds.completed_rounds }}</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Current Trip</div>
+        <div class="text-base font-extrabold text-white mt-0.5">#{{ cumulative_profile.rounds.current_round }}</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Permit Status</div>
+        <div class="text-sm font-extrabold text-emerald-300 mt-1">Continuous</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Today's Permitted</div>
+        <div class="text-base font-extrabold text-white mt-0.5">{{ cumulative_profile.today.permitted_mt }} MT</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-emerald-300">Today's Dispatched</div>
+        <div class="text-base font-extrabold text-emerald-200 mt-0.5">{{ cumulative_profile.today.material_mt }} MT</div>
+      </div>
+      <div class="p-2.5 bg-emerald-900/60 rounded border border-emerald-800/60">
+        <div class="text-[10px] uppercase font-bold text-amber-300">Excess Payload</div>
+        <div class="text-base font-extrabold text-amber-400 mt-0.5">{% if cumulative_profile.today.excess_mt > 0 %}+{{ cumulative_profile.today.excess_mt }} MT{% else %}0.0 MT{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Period Cumulative Material Profile (Requirement 12) -->
+  <div class="gov-card p-4 space-y-3">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+      <h3 class="gov-card-title flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span>Multi-Period Cumulative Material Surveillance &bull; Material Payload &amp; Cumulative Weighment Audit</span>
+      </h3>
+      {% if cumulative_profile.total_excess_detected_mt > 0 %}
+      <span class="badge badge-critical text-xs font-bold">
+        LIFETIME EXCESS: +{{ cumulative_profile.total_excess_detected_mt }} MT
+      </span>
+      {% else %}
+      <span class="badge badge-low text-xs font-bold">
+        NO REPEATED OVERWEIGHT VIOLATIONS
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded space-y-1.5">
+        <div class="font-bold text-slate-800 uppercase tracking-wider text-[11px] border-b border-slate-200 pb-1">Today</div>
+        <div class="flex justify-between"><span>Trips Completed:</span> <strong class="font-mono">{{ cumulative_profile.today.trips }}</strong></div>
+        <div class="flex justify-between"><span>Actual Transported:</span> <strong class="font-mono text-emerald-900">{{ cumulative_profile.today.material_mt }} MT</strong></div>
+        <div class="flex justify-between"><span>Permitted Total:</span> <strong class="font-mono">{{ cumulative_profile.today.permitted_mt }} MT</strong></div>
+        <div class="flex justify-between"><span>Excess:</span> <strong class="font-mono {% if cumulative_profile.today.excess_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %}">{% if cumulative_profile.today.excess_mt > 0 %}+{{ cumulative_profile.today.excess_mt }} MT{% else %}0.0 MT{% endif %}</strong></div>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded space-y-1.5">
+        <div class="font-bold text-slate-800 uppercase tracking-wider text-[11px] border-b border-slate-200 pb-1">This Week</div>
+        <div class="flex justify-between"><span>Trips Completed:</span> <strong class="font-mono">{{ cumulative_profile.week.trips }}</strong></div>
+        <div class="flex justify-between"><span>Actual Transported:</span> <strong class="font-mono text-emerald-900">{{ cumulative_profile.week.material_mt }} MT</strong></div>
+        <div class="flex justify-between"><span>Excess Detected:</span> <strong class="font-mono {% if cumulative_profile.week.excess_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %}">{% if cumulative_profile.week.excess_mt > 0 %}+{{ cumulative_profile.week.excess_mt }} MT{% else %}0.0 MT{% endif %}</strong></div>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded space-y-1.5">
+        <div class="font-bold text-slate-800 uppercase tracking-wider text-[11px] border-b border-slate-200 pb-1">This Month</div>
+        <div class="flex justify-between"><span>Trips Completed:</span> <strong class="font-mono">{{ cumulative_profile.month.trips }}</strong></div>
+        <div class="flex justify-between"><span>Dispatched:</span> <strong class="font-mono text-emerald-900">{{ cumulative_profile.month.material_mt }} MT</strong></div>
+        <div class="flex justify-between"><span>Excess Detected:</span> <strong class="font-mono {% if cumulative_profile.month.excess_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %}">{% if cumulative_profile.month.excess_mt > 0 %}+{{ cumulative_profile.month.excess_mt }} MT{% else %}0.0 MT{% endif %}</strong></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Chronological Trip Timeline (Requirement 9) -->
+  {% if timeline %}
+  <div class="gov-card p-4 space-y-3">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+      <h3 class="gov-card-title flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Chronological Dispatch &amp; Transit Audit Timeline</span>
+      </h3>
+      <span class="text-xs text-slate-500 font-mono">Trip #{{ active_trip.trip_number if active_trip else 'Active' }} &bull; Trip Sequence: #{{ cumulative_profile.rounds.current_round if cumulative_profile else 1 }} (Unrestricted)</span>
+    </div>
+    <div class="relative pl-6 border-l-2 border-emerald-700 space-y-3 text-xs">
+      {% for evt in timeline %}
+      <div class="relative">
+        <div class="absolute -left-[31px] top-1 w-3 h-3 rounded-full bg-emerald-700 border-2 border-white shadow"></div>
+        <div class="flex items-center gap-2 font-semibold text-slate-800">
+          <span class="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{{ evt.timestamp }}</span>
+          <span class="text-emerald-900 font-bold">{{ evt.title }}</span>
+        </div>
+        <div class="text-slate-600 mt-0.5">{{ evt.description }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+
+  <!-- Trips History Table -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <h3 class="gov-card-title">Transit Trip Ledger</h3>
+    </div>
+    <div class="gov-table-container max-h-[420px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr>
+            <th>Trip ID</th>
+            <th>Permit</th>
+            <th>Mineral</th>
+            <th>Leasehold Source</th>
+            <th>Start Time</th>
+            <th>Avg Speed</th>
+            <th>Risk Score</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tr in trips %}
+          <tr>
+            <td class="font-mono font-bold">{{ tr.trip_number }}</td>
+            <td class="font-mono">{{ tr.permit_number }}</td>
+            <td>{{ tr.mineral }}</td>
+            <td>{{ tr.mine_name }}</td>
+            <td>{{ tr.start_time }}</td>
+            <td>{{ tr.avg_speed_kmh }} km/h</td>
+            <td>
+              <span class="badge {% if tr.risk_score >= 80 %}badge-critical{% elif tr.risk_score >= 60 %}badge-high{% else %}badge-low{% endif %}">
+                {{ tr.risk_score }}/100
+              </span>
+            </td>
+            <td><span class="font-semibold">{{ tr.status }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center py-3 text-slate-500">No transit records found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Fleet Directory Header & Role Action Bar -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+        <span>Transport Fleet &amp; Driver Registry</span>
+        {% if current_user.role == 'OPERATOR' %}
+        <span class="badge bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-semibold">Operator Ground Console</span>
+        {% elif current_user.role == 'OFFICER' %}
+        <span class="badge bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-semibold">Officer Surveillance &amp; Audit</span>
+        {% else %}
+        <span class="badge bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-semibold">Master Admin Registry</span>
+        {% endif %}
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        {% if current_user.role == 'OPERATOR' %}
+          Ground registration desk for incoming carrier tippers and commercial heavy vehicle drivers
+        {% elif current_user.role == 'OFFICER' %}
+          Continuous AIS-140 GPS surveillance, overload history, and transit audit ledger
+        {% else %}
+          Statewide monitored vehicle fleet and certified drivers registry
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="relative">
+        <input type="text" id="truck-search-input" oninput="filterFleetDirectory()" placeholder="Search Registration, Driver, Owner, DL..." class="gov-input text-xs w-72 pl-8 pr-7 py-1.5 rounded" />
+        <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <button id="truck-search-clear" onclick="clearFleetSearch()" class="hidden absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 font-bold text-xs" title="Clear search">&times;</button>
+      </div>
+      
+      {% if current_user.role == 'OPERATOR' %}
+      <button type="button" onclick="openTruckRegisterModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1.5 font-bold shadow-xs">
+        <span>🚛 + Register Vehicle</span>
+      </button>
+      <button type="button" onclick="openDriverRegisterModal()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1.5 font-semibold text-slate-700 hover:text-slate-900 border border-slate-300">
+        <span>👨‍✈️ + Register Driver</span>
+      </button>
+      {% elif current_user.role == 'ADMIN' %}
+      <span class="badge bg-purple-100 text-purple-900 border border-purple-300 text-xs font-semibold py-1 px-2.5 flex items-center gap-1">
+        <span>🏛️ Statewide Carrier Registry (Audit Mode)</span>
+      </span>
+      {% else %}
+      <span class="badge badge-low text-xs font-semibold py-1 px-2.5 flex items-center gap-1">
+        <span>🛡️ Officer Surveillance Mode (Read-Only)</span>
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tabs: Transport Fleet vs Registered Drivers -->
+  <div class="flex flex-wrap items-center justify-between border-b border-slate-300 pb-1 text-xs font-semibold gap-2">
+    <div class="flex items-center gap-2">
+      <button type="button" id="tab-btn-fleet" onclick="switchFleetTab('fleet')" class="px-3.5 py-1.5 rounded-t bg-emerald-800 text-white font-bold transition flex items-center gap-1.5 shadow-xs">
+        <span>🚛 Transport Fleet</span>
+        <span class="bg-emerald-950 text-emerald-200 text-[10px] px-1.5 py-0.2 rounded font-mono">{{ trucks|length }}</span>
+      </button>
+      <button type="button" id="tab-btn-drivers" onclick="switchFleetTab('drivers')" class="px-3.5 py-1.5 rounded-t bg-slate-200 text-slate-700 hover:bg-slate-300 transition flex items-center gap-1.5">
+        <span>👨‍✈️ Registered Drivers</span>
+        <span class="bg-slate-300 text-slate-800 text-[10px] px-1.5 py-0.2 rounded font-mono">{{ drivers|length if drivers else 0 }}</span>
+      </button>
+    </div>
+    <div class="text-[11px] text-slate-500 font-medium mr-1" id="fleet-live-counter">
+      Showing <span id="fleet-visible-count" class="font-bold text-slate-800">{{ trucks|length }}</span> of {{ trucks|length }} vehicles
+    </div>
+  </div>
+
+  <!-- Notification Banner for Registrations -->
+  <div id="truck-reg-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- TAB 1: FLEET TABLE CONTAINER -->
+  <div id="pane-fleet" class="gov-card">
+    <div class="gov-table-container max-h-[520px] overflow-y-auto">
+      <table class="gov-table text-xs" id="trucks-table">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr>
+            <th>Vehicle Registration</th>
+            <th>Type</th>
+            <th>Registered Owner</th>
+            <th>Driver &amp; Contact</th>
+            <th>Payload Cap.</th>
+            <th>Active e-Rawaana</th>
+            <th>Current Risk Score</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="trucks-tbody">
+          {% for t in trucks %}
+          <tr id="truck-row-{{ t.id }}">
+            <td class="font-mono font-bold text-slate-900 text-sm">
+              <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="text-emerald-900 hover:underline">
+                {{ t.registration_number }}
+              </a>
+            </td>
+            <td>{{ t.vehicle_type }}</td>
+            <td>{{ t.registered_owner }}</td>
+            <td>
+              <div>{{ t.driver_name }}</div>
+              <div class="text-[11px] text-slate-500">{{ t.driver_phone }}</div>
+            </td>
+            <td>{{ t.max_capacity_mt }} MT</td>
+            <td class="font-mono text-xs">
+              {{ t.permit_number or 'No Active Permit' }}
+            </td>
+            <td>
+              <span class="badge {% if t.current_risk_score >= 80 %}badge-critical{% elif t.current_risk_score >= 60 %}badge-high{% elif t.current_risk_score >= 30 %}badge-medium{% else %}badge-low{% endif %}">
+                {{ t.current_risk_score }} / 100
+              </span>
+            </td>
+            <td>
+              <span class="font-semibold text-xs {% if t.status == 'IN_TRANSIT' %}text-emerald-800{% elif t.status == 'SUSPICIOUS' %}text-red-700{% else %}text-slate-600{% endif %}">
+                {{ t.status }}
+              </span>
+            </td>
+            <td>
+              <div class="flex gap-1.5">
+                <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="btn-gov btn-gov-secondary btn-sm">
+                  Audit
+                </a>
+                <a href="{{ url_for('live_map') }}" class="btn-gov btn-gov-secondary btn-sm">
+                  Track
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="trucks-empty-row">
+            <td colspan="9" class="text-center py-6 text-slate-500 text-xs">No registered transport vehicles found in this concession fleet.</td>
+          </tr>
+          {% endfor %}
+          <tr id="trucks-no-match-row" class="hidden">
+            <td colspan="9" class="text-center py-6 text-slate-500 font-medium text-xs">No vehicles match your search query.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: REGISTERED DRIVERS TABLE CONTAINER -->
+  <div id="pane-drivers" class="gov-card hidden">
+    <div class="gov-table-container max-h-[520px] overflow-y-auto">
+      <table class="gov-table text-xs" id="drivers-table">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr>
+            <th>Driver Name</th>
+            <th>Driving License (DL)</th>
+            <th>Contact Phone</th>
+            <th>Assigned Vehicle</th>
+            <th>Daily Shift Status</th>
+            <th>Operational Status</th>
+          </tr>
+        </thead>
+        <tbody id="drivers-tbody">
+          {% for d in drivers %}
+          <tr id="driver-row-{{ d.id }}">
+            <td class="font-bold text-slate-900 text-sm">
+              <div class="flex items-center gap-1.5">
+                <span>👨‍✈️</span>
+                <span>{{ d.driver_name }}</span>
+              </div>
+            </td>
+            <td class="font-mono text-xs font-semibold text-slate-800">
+              {{ d.license_number }}
+            </td>
+            <td class="font-mono text-xs text-slate-700">
+              {{ d.contact_phone }}
+            </td>
+            <td>
+              {% if d.registration_number %}
+              <span class="font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                🚛 {{ d.registration_number }}
+              </span>
+              {% else %}
+              <span class="text-slate-400 italic text-xs">Unassigned (Pool)</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="text-xs text-slate-700">
+                {{ d.completed_rounds_today }} of {{ d.allowed_rounds_per_day }} runs today
+              </span>
+            </td>
+            <td>
+              <span class="badge {% if d.status == 'ACTIVE' %}badge-low{% else %}badge-medium{% endif %} text-[11px]">
+                {{ d.status }}
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="drivers-empty-row">
+            <td colspan="6" class="text-center py-6 text-slate-500 text-xs">No registered drivers found for this concession.</td>
+          </tr>
+          {% endfor %}
+          <tr id="drivers-no-match-row" class="hidden">
+            <td colspan="6" class="text-center py-6 text-slate-500 font-medium text-xs">No drivers match your search query.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal: Register Fleet Transport Vehicle (Operator & Admin Authority) -->
+<div id="modal-register-truck" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2.5">
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+          <span>🚛 Register Commercial Transport Vehicle</span>
+        </h3>
+        <p class="text-[11px] text-slate-500">
+          {% if current_user.role == 'OPERATOR' %}
+            Operator Ground Registry &bull; Auto-assigned to {{ active_mine.name if active_mine else 'Assigned Mine Leasehold' }}
+          {% else %}
+            Statutory Fleet Carrier Registry
+          {% endif %}
+        </p>
+      </div>
+      <button type="button" onclick="closeTruckRegisterModal()" class="text-slate-400 hover:text-slate-700 font-bold text-lg leading-none">&times;</button>
+    </div>
+
+    <form id="form-register-truck" onsubmit="handleTruckRegisterSubmit(event)" class="space-y-3 text-xs">
+      <div id="modal-reg-error" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-800 rounded font-medium text-[11px]"></div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Vehicle Registration *</label>
+          <input type="text" name="registration_number" id="truck-reg-no" required class="gov-input w-full font-mono uppercase" placeholder="e.g. HR26AB5678" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Vehicle Type *</label>
+          <select name="vehicle_type" class="gov-select w-full">
+            <option value="10-Wheeler Tipper Truck">10-Wheeler Tipper Truck</option>
+            <option value="12-Wheeler Dump Truck">12-Wheeler Dump Truck</option>
+            <option value="14-Wheeler Multi-Axle">14-Wheeler Multi-Axle</option>
+            <option value="6-Wheeler Dumper">6-Wheeler Dumper</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Registered Owner / Transporter *</label>
+          <input type="text" name="registered_owner" required class="gov-input w-full" placeholder="e.g. Sharma Logistics Pvt Ltd" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Assigned Mine Concession *</label>
+          {% if current_user.role == 'OPERATOR' and active_mine %}
+            <input type="hidden" name="assigned_mine_id" value="{{ active_mine.id }}">
+            <div class="gov-input w-full bg-slate-100 text-slate-800 font-medium py-1.5 flex items-center gap-1">
+              <span>⛏ {{ active_mine.name }}</span>
+            </div>
+          {% elif all_mines %}
+            <select name="assigned_mine_id" class="gov-select w-full">
+              {% for m in all_mines %}
+              <option value="{{ m.id }}" {% if active_mine and active_mine.id == m.id %}selected{% endif %}>{{ m.name }} ({{ m.mine_code }})</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="hidden" name="assigned_mine_id" value="1">
+            <div class="gov-input w-full bg-slate-100 text-slate-800 font-medium py-1.5">Primary Concession</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Driver Name *</label>
+          <input type="text" name="driver_name" required class="gov-input w-full" placeholder="Full Name" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Driver Contact Mobile *</label>
+          <input type="text" name="driver_phone" required class="gov-input w-full" placeholder="+91 98123 45678" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Driver License No. (DL)</label>
+          <input type="text" name="driver_license" class="gov-input w-full font-mono uppercase" placeholder="e.g. DL-0420210098765" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Tare Weight (MT) *</label>
+          <input type="number" step="0.1" name="tare_weight_mt" required class="gov-input w-full font-mono" value="11.5" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">Max Permitted Axle Capacity (MT) *</label>
+          <input type="number" step="0.1" name="max_capacity_mt" required class="gov-input w-full font-mono" value="28.0" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700">GPS AIS-140 IMEI (Optional)</label>
+          <input type="text" name="gps_imei" class="gov-input w-full font-mono" placeholder="Auto-generated if blank" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+        <button type="button" onclick="closeTruckRegisterModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" id="btn-submit-truck-reg" class="btn-gov btn-gov-primary btn-sm font-bold">
+          <span>✓ Complete Vehicle Registration</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Register Heavy Driver (Operator & Admin Authority) -->
+<div id="modal-register-driver" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2.5">
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+          <span>👨‍✈️ Register Commercial Heavy Driver</span>
+        </h3>
+        <p class="text-[11px] text-slate-500">
+          Operator Ground Registry &bull; Certified transport driver roster
+        </p>
+      </div>
+      <button type="button" onclick="closeDriverRegisterModal()" class="text-slate-400 hover:text-slate-700 font-bold text-lg leading-none">&times;</button>
+    </div>
+
+    <form id="form-register-driver" onsubmit="handleDriverRegisterSubmit(event)" class="space-y-3 text-xs">
+      <div id="modal-driver-reg-error" class="hidden p-2.5 bg-red-100 border border-red-300 text-red-800 rounded font-medium text-[11px]"></div>
+
+      <div>
+        <label class="block font-semibold mb-1 text-slate-700">Driver Full Name *</label>
+        <input type="text" name="driver_name" id="driver-full-name" required class="gov-input w-full" placeholder="e.g. Ramesh Kumar Gurjar" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1 text-slate-700">Driving License Number (DL) *</label>
+        <input type="text" name="license_number" required class="gov-input w-full font-mono uppercase" placeholder="e.g. DL-0420220087654" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1 text-slate-700">Contact Mobile Phone *</label>
+        <input type="text" name="contact_phone" required class="gov-input w-full" placeholder="+91 98123 45678" />
+      </div>
+
+      <div>
+        <label class="block font-semibold mb-1 text-slate-700">Assign to Transport Vehicle (Optional)</label>
+        <select name="assigned_truck_id" class="gov-select w-full">
+          <option value="">-- No vehicle assigned (Spare Driver Pool) --</option>
+          {% for t in trucks %}
+          <option value="{{ t.id }}">{{ t.registration_number }} ({{ t.vehicle_type }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-200">
+        <button type="button" onclick="closeDriverRegisterModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" id="btn-submit-driver-reg" class="btn-gov btn-gov-primary btn-sm font-bold">
+          <span>✓ Complete Driver Registration</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/trucks.js') }}"></script>
+<script>
+  let currentTab = 'fleet';
+
+  function switchFleetTab(tabName) {
+    currentTab = tabName;
+    const btnFleet = document.getElementById('tab-btn-fleet');
+    const btnDrivers = document.getElementById('tab-btn-drivers');
+    const paneFleet = document.getElementById('pane-fleet');
+    const paneDrivers = document.getElementById('pane-drivers');
+    const liveCounter = document.getElementById('fleet-live-counter');
+
+    if (tabName === 'fleet') {
+      paneFleet.classList.remove('hidden');
+      paneDrivers.classList.add('hidden');
+      btnFleet.className = 'px-3.5 py-1.5 rounded-t bg-emerald-800 text-white font-bold transition flex items-center gap-1.5 shadow-xs';
+      btnDrivers.className = 'px-3.5 py-1.5 rounded-t bg-slate-200 text-slate-700 hover:bg-slate-300 transition flex items-center gap-1.5';
+      if (liveCounter) {
+        liveCounter.innerHTML = 'Showing <span id="fleet-visible-count" class="font-bold text-slate-800">' + (document.querySelectorAll('#trucks-tbody tr:not(#trucks-empty-row):not(#trucks-no-match-row)').length) + '</span> of {{ trucks|length }} vehicles';
+      }
+    } else {
+      paneFleet.classList.add('hidden');
+      paneDrivers.classList.remove('hidden');
+      btnDrivers.className = 'px-3.5 py-1.5 rounded-t bg-emerald-800 text-white font-bold transition flex items-center gap-1.5 shadow-xs';
+      btnFleet.className = 'px-3.5 py-1.5 rounded-t bg-slate-200 text-slate-700 hover:bg-slate-300 transition flex items-center gap-1.5';
+      if (liveCounter) {
+        liveCounter.innerHTML = 'Showing <span id="fleet-visible-count" class="font-bold text-slate-800">' + (document.querySelectorAll('#drivers-tbody tr:not(#drivers-empty-row):not(#drivers-no-match-row)').length) + '</span> of {{ drivers|length if drivers else 0 }} drivers';
+      }
+    }
+    filterFleetDirectory();
+  }
+
+  function filterFleetDirectory() {
+    const input = document.getElementById('truck-search-input');
+    const q = (input ? input.value : '').toLowerCase().trim();
+    const clearBtn = document.getElementById('truck-search-clear');
+    if (clearBtn) clearBtn.classList.toggle('hidden', q.length === 0);
+
+    if (currentTab === 'fleet') {
+      const rows = document.querySelectorAll('#trucks-tbody tr:not(#trucks-empty-row):not(#trucks-no-match-row)');
+      let visible = 0;
+      rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        const match = text.includes(q);
+        r.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      const counter = document.getElementById('fleet-visible-count');
+      if (counter) counter.innerText = visible;
+      const noMatch = document.getElementById('trucks-no-match-row');
+      if (noMatch) noMatch.classList.toggle('hidden', visible > 0 || rows.length === 0);
+    } else {
+      const rows = document.querySelectorAll('#drivers-tbody tr:not(#drivers-empty-row):not(#drivers-no-match-row)');
+      let visible = 0;
+      rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        const match = text.includes(q);
+        r.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      const counter = document.getElementById('fleet-visible-count');
+      if (counter) counter.innerText = visible;
+      const noMatch = document.getElementById('drivers-no-match-row');
+      if (noMatch) noMatch.classList.toggle('hidden', visible > 0 || rows.length === 0);
+    }
+  }
+
+  function clearFleetSearch() {
+    const input = document.getElementById('truck-search-input');
+    if (input) {
+      input.value = '';
+      filterFleetDirectory();
+      input.focus();
+    }
+  }
+
+  function openTruckRegisterModal() {
+    document.getElementById('modal-register-truck').classList.remove('hidden');
+    document.getElementById('modal-reg-error').classList.add('hidden');
+    const input = document.getElementById('truck-reg-no');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+
+  function closeTruckRegisterModal() {
+    document.getElementById('modal-register-truck').classList.add('hidden');
+  }
+
+  function openDriverRegisterModal() {
+    document.getElementById('modal-register-driver').classList.remove('hidden');
+    document.getElementById('modal-driver-reg-error').classList.add('hidden');
+    const input = document.getElementById('driver-full-name');
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+
+  function closeDriverRegisterModal() {
+    document.getElementById('modal-register-driver').classList.add('hidden');
+  }
+
+  async function handleTruckRegisterSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('btn-submit-truck-reg');
+    const errBox = document.getElementById('modal-reg-error');
+    errBox.classList.add('hidden');
+    
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((val, key) => { payload[key] = val; });
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>Saving Vehicle...</span>';
+
+    try {
+      const res = await fetch('/api/crud/trucks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeTruckRegisterModal();
+        const alertBox = document.getElementById('truck-reg-alert');
+        if (alertBox) {
+          alertBox.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 border border-emerald-300 text-emerald-900 block';
+          alertBox.innerHTML = `✓ ${data.message} Vehicle and driver have been assigned to your active mining fleet.`;
+        }
+        form.reset();
+        setTimeout(() => { window.location.reload(); }, 900);
+      } else {
+        errBox.textContent = data.error || 'Failed to register vehicle. Please verify details.';
+        errBox.classList.remove('hidden');
+      }
+    } catch (err) {
+      errBox.textContent = 'Network or server error: ' + err.message;
+      errBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>✓ Complete Vehicle Registration</span>';
+    }
+  }
+
+  async function handleDriverRegisterSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('btn-submit-driver-reg');
+    const errBox = document.getElementById('modal-driver-reg-error');
+    errBox.classList.add('hidden');
+    
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((val, key) => { payload[key] = val; });
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>Saving Driver...</span>';
+
+    try {
+      const res = await fetch('/api/crud/drivers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeDriverRegisterModal();
+        const alertBox = document.getElementById('truck-reg-alert');
+        if (alertBox) {
+          alertBox.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 border border-emerald-300 text-emerald-900 block';
+          alertBox.innerHTML = `✓ ${data.message} Driver has been registered to your active fleet registry.`;
+        }
+        form.reset();
+        setTimeout(() => { window.location.reload(); }, 900);
+      } else {
+        errBox.textContent = data.error || 'Failed to register driver. Please verify details.';
+        errBox.classList.remove('hidden');
+      }
+    } catch (err) {
+      errBox.textContent = 'Network or server error: ' + err.message;
+      errBox.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>✓ Complete Driver Registration</span>';
+    }
+  }
+</script>
+{% endblock %}

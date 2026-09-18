@@ -1,0 +1,994 @@
+{% extends "base.html" %}
+
+{% block title %}Enforcement Command Center{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Operational Status Bar with Mine Filter -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs text-slate-600 shadow-sm gap-2">
+    <div class="flex items-center gap-3">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+      <div>
+        <span class="font-bold text-slate-900 uppercase">Field Enforcement Command Post</span>
+        <span class="text-slate-400 mx-2">|</span>
+        <span>Mining Enforcement Squad &bull; Zone 4 (MES-Z4)</span>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Locked Assigned Mine Indicator (Officer strictly restricted to 1 mine) -->
+      <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded px-3 py-1 text-xs font-semibold text-emerald-950 shadow-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+        <span class="text-[11px] text-emerald-800 uppercase font-bold">Assigned Mine:</span>
+        <span class="font-bold text-slate-900">{{ quarry_blocks[0].mine_name if quarry_blocks else 'Aravalli Quartzite Quarry Block A' }}</span>
+        <span class="text-[9px] bg-emerald-800 text-white font-mono px-1.5 py-0.2 rounded font-bold" title="Supervisory field post jurisdiction">LOCKED SECTOR</span>
+      </div>
+
+      <span>Officer on Duty: <strong class="text-slate-900">{{ current_user.full_name }}</strong></span>
+      <a href="{{ url_for('officer_verification') }}" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        <span>Scan QR Pass</span>
+      </a>
+      <a href="{{ url_for('operator_weighbridge') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold">
+        <span>⚖️ Weighbridge Station</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Tactical Enforcement Metric Tiles (Clean, Separated Cards) -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+    <div class="stat-tile stat-critical bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Critical Violations</div>
+      <div class="stat-value text-red-700" id="stat-critical-cases">{{ critical_cases }}</div>
+      <div class="stat-subtext">Risk score &gt; 80</div>
+    </div>
+
+    <div class="stat-tile stat-medium bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Pending Alerts</div>
+      <div class="stat-value text-amber-700" id="stat-pending-alerts">{{ pending_alerts }}</div>
+      <div class="stat-subtext">Requires squad review</div>
+    </div>
+
+    <div class="stat-tile stat-critical bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Quantity Anomalies</div>
+      <div class="stat-value text-red-700">{{ quantity_anomalies|length }}</div>
+      <div class="stat-subtext">Over-permitted tonnage</div>
+    </div>
+
+    <div class="stat-tile stat-medium bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Excess Detected</div>
+      <div class="stat-value text-amber-900">+{{ "{:,.1f}".format(daily_summary.total_excess_mt) }} MT</div>
+      <div class="stat-subtext">Unbilled payload delta</div>
+    </div>
+
+    <div class="stat-tile bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Awaiting Verification</div>
+      <div class="stat-value text-slate-900">{{ daily_summary.pending_weighments }}</div>
+      <div class="stat-subtext">Pending weighment check</div>
+    </div>
+
+    <div class="stat-tile stat-success bg-white border border-slate-200 rounded-lg p-3.5 shadow-xs">
+      <div class="stat-label">Active Transits</div>
+      <div class="stat-value text-emerald-800">{{ active_trucks }}</div>
+      <div class="stat-subtext">Trucks on highway grid</div>
+    </div>
+  </div>
+
+  <!-- Mine Sub-Locations & Leaseholder Businessmen Directory (Concession Oversight) -->
+  <div class="gov-card">
+    <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200">
+              Under-Mine Sub-Lease Concessions &amp; Businessmen Directory
+            </h3>
+            <span class="text-[9px] bg-emerald-700 text-white px-2 py-0.2 rounded font-mono font-bold">LOCKED SECTOR</span>
+            <span class="text-[9px] bg-emerald-900/80 text-emerald-300 border border-emerald-600 px-2 py-0.2 rounded font-mono font-bold">{{ quarry_blocks|length }} SUB-MINE TENDERS</span>
+          </div>
+          <p class="text-[11px] text-slate-300 mt-0.5">
+            Sole Jurisdiction: <strong class="text-white">{{ quarry_blocks[0].mine_name if quarry_blocks else 'Aravalli Quartzite Quarry Block A' }}</strong> ({{ quarry_blocks[0].mine_district if quarry_blocks else 'Alwar' }}) &bull; Supervising <strong class="text-emerald-300">{{ quarry_blocks|length }} sub-lease businessmen</strong> &amp; dedicated scale operators working under this mine.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono" id="visible-plots-badge">
+          {{ quarry_blocks|length }} Sub-Lease Plots
+        </span>
+        <button onclick="openOfficerIssueModal()" class="btn-gov btn-gov-primary btn-sm bg-emerald-700 hover:bg-emerald-600 text-white flex items-center gap-1 font-bold text-xs py-1 px-3">
+          <span>⚡ + Direct Issue e-Rawaana</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- DYNAMIC BUSINESSMAN & SUB-MINE SELECTOR & FILTER BAR -->
+    <div class="p-3.5 bg-slate-100 border-b border-slate-200 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between text-xs">
+      <div class="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <label class="font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+          <span>🏢 Select Businessman / Sub-Mine Tender:</span>
+        </label>
+        <select id="businessman-selector" onchange="onBusinessmanSelect(this.value)" class="gov-select flex-1 font-semibold text-slate-900 bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-600 focus:outline-none shadow-xs">
+          <option value="">-- View All {{ quarry_blocks|length }} Sub-Mine Businessmen (Complete Mine Complex Overview) --</option>
+          {% for qb in quarry_blocks %}
+          <option value="{{ qb.id }}">
+            {{ qb.block_code }} &bull; {{ qb.leaseholder_name }} — {{ qb.block_name }} ({{ "{:,.0f}".format(qb.allocated_quota_mt) }} MT Quota)
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1 sm:w-64">
+          <input type="text" id="businessman-search" oninput="filterBusinessmenTable()" placeholder="🔍 Search businessman, plot code, pit..." class="gov-input text-xs w-full bg-white border border-slate-300 rounded px-3 py-1.5 focus:outline-none focus:border-emerald-600 shadow-xs" />
+        </div>
+        <button onclick="resetBusinessmanFilters()" class="btn-gov btn-gov-secondary btn-sm text-[11px] py-1.5 px-2 text-slate-600 hover:text-slate-900" title="Reset all selection & filters">
+          Reset View
+        </button>
+      </div>
+    </div>
+
+    <!-- DEDICATED INDIVIDUAL BUSINESSMAN CONCESSION DOSSIER PANEL (Revealed when a businessman is selected) -->
+    <div id="businessman-dossier-card" class="hidden p-5 bg-gradient-to-br from-emerald-950/95 via-slate-900 to-slate-950 text-white border-b-2 border-emerald-500 shadow-inner">
+      <div class="flex flex-wrap justify-between items-start gap-4 pb-4 border-b border-slate-700">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono uppercase font-bold" id="dossier-code">
+              QB-ALW-01
+            </span>
+            <span class="badge bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-mono" id="dossier-status">
+              OPERATIONAL
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono" id="dossier-tender-ref">
+              Tender Ref: TND-ALW-2025/001
+            </span>
+          </div>
+          <h2 class="text-base font-bold text-white mt-1 flex items-center gap-2">
+            <span class="text-emerald-400">🏢</span>
+            <span id="dossier-businessman">Sharma Stone Aggregates Ltd. (Ramesh Sharma)</span>
+          </h2>
+          <p class="text-xs text-slate-300 mt-0.5">
+            Quarry Sub-Location: <strong id="dossier-pit-name" class="text-white">Northern Quartzite Pit (Block 1A)</strong> &bull; 
+            Contact: <span id="dossier-phone" class="font-mono text-emerald-300">+91 98290 11223</span> &bull; 
+            Mine: <span id="dossier-mine-name" class="text-slate-200">Aravalli Quartzite Quarry Block A (Alwar)</span>
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="openOfficerIssueModalForSelected()" class="btn-gov btn-gov-primary btn-sm bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-1.5 px-3 flex items-center gap-1 shadow-sm">
+            <span>🏛️ Issue Emergency Override Permit</span>
+          </button>
+          <button onclick="closeBusinessmanDossier()" class="btn-gov btn-gov-secondary btn-sm bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 px-2.5">
+            ✕ Close Dossier (Show All {{ quarry_blocks|length }})
+          </button>
+        </div>
+      </div>
+
+      <!-- Dossier Metrics & Deep Dive Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 text-xs">
+        <!-- Metric 1: Quota Extraction Mass-Balance -->
+        <div class="p-3 bg-slate-900/90 border border-slate-700 rounded-lg space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Statutory Quota Balance</span>
+            <span id="dossier-pct-badge" class="badge bg-emerald-900 text-emerald-200 font-mono font-bold text-[10px]">70.0% Used</span>
+          </div>
+          <div class="flex justify-between items-baseline">
+            <span class="text-xl font-bold font-mono text-white" id="dossier-dispatched">8,400 MT</span>
+            <span class="text-xs text-slate-400">/ <span id="dossier-quota">12,000 MT</span></span>
+          </div>
+          <!-- Progress bar -->
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="dossier-progress-bar" class="h-2 rounded-full bg-emerald-500 transition-all duration-300" style="width: 70%"></div>
+          </div>
+          <div class="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
+            <span>Remaining Extraction:</span>
+            <strong id="dossier-remaining" class="font-mono text-emerald-300">3,600 MT</strong>
+          </div>
+        </div>
+
+        <!-- Metric 2: Designated Scale Operator & Booth -->
+        <div class="p-3 bg-slate-900/90 border border-slate-700 rounded-lg space-y-2">
+          <div class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Designated Scale Operator</div>
+          <div class="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+            <span>⚖️</span>
+            <span id="dossier-operator">Virendra Singh (Scale Operator 1)</span>
+          </div>
+          <div class="text-[11px] text-slate-400">
+            Dedicated Ground Scale Booth &bull; Primary Issuance Authority for Daily Transits
+          </div>
+          <div class="pt-1">
+            <a href="{{ url_for('operator_weighbridge') }}" class="text-emerald-400 hover:text-emerald-300 font-semibold inline-flex items-center gap-1 text-[11px]">
+              <span>Launch Scale Operator Desk &rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Metric 3: Dedicated Carrier Fleet -->
+        <div class="p-3 bg-slate-900/90 border border-slate-700 rounded-lg space-y-2">
+          <div class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Assigned Haul Fleet</div>
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-xl font-bold font-mono text-emerald-400" id="dossier-fleet-count">4</span>
+            <span class="text-xs text-slate-400">Authorized Heavy Carriers</span>
+          </div>
+          <div class="flex flex-wrap gap-1 text-[10px] font-mono text-slate-300" id="dossier-fleet-plates">
+            <span class="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">HR26AB1234</span>
+            <span class="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">RJ14GB5678</span>
+            <span class="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">HR55C9012</span>
+            <span class="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">RJ02AB3456</span>
+          </div>
+          <div class="text-[10px] text-slate-500">Continuous GPS telemetry monitored</div>
+        </div>
+
+        <!-- Metric 4: Officer Vigilance & Enforcement Actions -->
+        <div class="p-3 bg-slate-900/90 border border-slate-700 rounded-lg space-y-2">
+          <div class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Officer Statutory Vigilance</div>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center justify-between text-slate-300">
+              <span>Section 21 Audit:</span>
+              <strong class="text-emerald-400">COMPLIANT</strong>
+            </div>
+            <div class="flex items-center justify-between text-slate-300">
+              <span>Overload Anomaly Rate:</span>
+              <strong class="text-slate-200">0.4% (Nominal)</strong>
+            </div>
+          </div>
+          <div class="pt-1 flex gap-1.5">
+            <button onclick="auditBusinessmanDossier()" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600">
+              📊 Audit Ledger
+            </button>
+            <button onclick="orderSquadPitInspection()" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600">
+              📋 Squad Check
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table of Sub-Mine Businessmen Concessions -->
+    <div class="gov-table-container max-h-[560px] overflow-y-auto">
+      <table class="gov-table text-xs" id="concessions-table">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Sub-Mine / Pit Location</th>
+            <th>Contractor / Leaseholder</th>
+            <th class="text-center">Active Trucks</th>
+            <th class="text-center">Trips Today</th>
+            <th>Dispatch (MT)</th>
+            <th class="text-center">Open Alerts</th>
+            <th class="text-center">High Risk</th>
+            <th>Status</th>
+            <th class="text-center">Officer Statutory Action</th>
+          </tr>
+        </thead>
+        <tbody id="concessions-tbody">
+          {% for qb in quarry_blocks %}
+          {% set pct = (qb.dispatched_mt / qb.allocated_quota_mt * 100)|round(1) if qb.allocated_quota_mt > 0 else 0 %}
+          <tr class="hover:bg-emerald-50/40 transition concession-row" id="row-qb-{{ qb.id }}" data-id="{{ qb.id }}" data-code="{{ qb.block_code|lower }}" data-name="{{ qb.block_name|lower }}" data-businessman="{{ qb.leaseholder_name|lower }}" data-operator="{{ qb.operator_name|lower }}" data-phone="{{ (qb.contact_phone or '')|lower }}" data-pct="{{ pct }}">
+            <td>
+              <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                <span class="bg-slate-200 border border-slate-300 font-mono text-[10px] px-1.5 py-0.5 rounded font-bold">{{ qb.block_code }}</span>
+                <span>{{ qb.block_name }}</span>
+              </div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Scale Operator: <span class="font-semibold text-slate-700">{{ qb.operator_name }}</span></div>
+            </td>
+            <td>
+              <div class="font-semibold text-emerald-950 flex items-center gap-1">
+                <span>🏢</span>
+                <span class="hover:underline cursor-pointer" onclick="openBusinessmanDossier({{ qb.id }})">{{ qb.leaseholder_name }}</span>
+              </div>
+              <div class="text-[10px] text-slate-500 font-mono">Contact: {{ qb.contact_phone or '+91 98XXX-XXXXX' }}</div>
+            </td>
+            <td class="text-center font-mono font-bold text-slate-900">
+              <span class="badge badge-low text-[11px] px-2 py-0.5">🚛 {{ qb.active_trucks_count or 0 }}</span>
+            </td>
+            <td class="text-center font-mono font-bold text-slate-800">
+              <span class="bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-[11px] font-bold">{{ qb.trips_today or 0 }}</span>
+            </td>
+            <td>
+              <div class="flex justify-between items-center text-[11px] mb-1">
+                <span class="font-mono font-bold text-slate-900">{{ "{:,.0f}".format(qb.dispatched_mt) }} MT</span>
+                <span class="text-slate-500">/ {{ "{:,.0f}".format(qb.allocated_quota_mt) }} MT ({{ pct }}%)</span>
+              </div>
+              <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                <div class="h-1.5 rounded-full {% if pct >= 90 %}bg-red-600{% elif pct >= 70 %}bg-amber-500{% else %}bg-emerald-600{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
+              </div>
+            </td>
+            <td class="text-center font-mono font-bold">
+              {% if qb.alerts_count > 0 %}
+              <span class="badge badge-critical text-[11px] px-2 py-0.5">⚠️ {{ qb.alerts_count }}</span>
+              {% else %}
+              <span class="badge badge-success text-[10px] px-1.5 py-0.2">0</span>
+              {% endif %}
+            </td>
+            <td class="text-center font-mono font-bold">
+              {% if qb.high_risk_count > 0 %}
+              <span class="text-red-700 bg-red-100 border border-red-300 rounded px-2 py-0.5 text-[11px]">🔴 {{ qb.high_risk_count }}</span>
+              {% else %}
+              <span class="text-slate-400 text-[11px]">0</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if qb.status == 'OPERATIONAL' %}badge-active{% else %}badge-medium{% endif %} text-[10px] font-bold">
+                {{ qb.status }}
+              </span>
+            </td>
+            <td class="text-center">
+              <div class="flex items-center justify-center gap-1.5">
+                <button onclick="openBusinessmanDossier({{ qb.id }})" 
+                        class="btn-gov btn-gov-secondary btn-sm text-[11px] py-0.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-semibold"
+                        title="View complete operational dossier for this sub-mine">
+                  <span>🔍 Details</span>
+                </button>
+                <button onclick="openOfficerIssueModal('{{ qb.id }}', '{{ qb.block_name|escape }}', '{{ qb.leaseholder_name|escape }}')" 
+                        class="btn-gov btn-gov-primary btn-sm text-[11px] py-0.5 px-2 bg-emerald-800 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1"
+                        title="Issue statutory e-Rawaana transit pass directly for this sub-mine">
+                  <span>⚡ Issue e-Rawaana</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-6 text-slate-500">
+              No sub-mine concession blocks registered for this mining area.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- Quantity Anomalies Enforcement Table (Section 22) -->
+  <div class="gov-card border-red-200">
+    <div class="gov-card-header bg-red-50/50">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <h3 class="gov-card-title text-red-900">
+          QUANTITY ANOMALIES &bull; OVER-PERMITTED DISPATCH INTERCEPTIONS
+        </h3>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-red-800 font-semibold">Deterministic MMDR Overload Flag</span>
+        <span class="badge badge-critical text-xs">{{ quantity_anomalies|length }} Flagged</span>
+      </div>
+    </div>
+
+    <div class="gov-table-container max-h-[440px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Vehicle No.</th>
+            <th>e-Rawaana / Permit</th>
+            <th>Mineral</th>
+            <th>Permitted Qty</th>
+            <th>Actual Qty</th>
+            <th>Excess</th>
+            <th>Source Mine</th>
+            <th>Destination</th>
+            <th>Weighment Time</th>
+            <th>Enforcement Status</th>
+            <th>Tactical Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for anom in quantity_anomalies %}
+          <tr class="{% if anom.excess_pct >= 20 %}bg-red-50/40{% else %}bg-amber-50/30{% endif %}">
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=anom.truck_id) }}" class="text-emerald-900 hover:underline flex items-center gap-1">
+                <span>{{ anom.vehicle_number }}</span>
+                {% if anom.is_repeat_offender %}
+                <span class="text-[10px] bg-red-800 text-white font-bold px-1.5 py-0.2 rounded" title="Repeated Over-quantity Offender">REPEAT</span>
+                {% endif %}
+              </a>
+            </td>
+            <td class="font-mono font-semibold">{{ anom.permit_number }}</td>
+            <td>{{ anom.mineral }}</td>
+            <td class="font-mono">{{ anom.permitted_qty_mt }} MT</td>
+            <td class="font-mono font-bold text-slate-900">{{ anom.actual_qty_mt }} MT</td>
+            <td class="font-mono font-extrabold text-red-700">
+              +{{ anom.excess_qty_mt }} MT <span class="text-[10px] font-normal">({{ anom.excess_pct }}%)</span>
+            </td>
+            <td class="text-slate-700">{{ anom.mine_name }}</td>
+            <td class="text-slate-700">{{ anom.destination }}</td>
+            <td class="font-mono text-slate-500 text-[11px]">{{ anom.time }}</td>
+            <td>
+              <span class="badge {% if anom.status == 'FLAGGED FOR INTERCEPTION' %}badge-critical{% else %}badge-high{% endif %} text-[10px] font-bold">
+                {{ anom.status }}
+              </span>
+            </td>
+            <td>
+              <div class="flex items-center gap-1.5">
+                <a href="{{ url_for('truck_detail', truck_id=anom.truck_id) }}" class="btn-gov btn-gov-primary btn-sm text-[11px] py-0.5 px-2">
+                  Investigate &rarr;
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-6 text-slate-500">
+              No active payload quantity anomalies detected in this sector.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if mismatch_check and mismatch_check.is_violation %}
+  <!-- Statutory Alert: Production-Dispatch Mismatch (Requirement 10 & 15) -->
+  <div class="bg-red-900 text-white border-2 border-red-600 rounded-lg p-4 shadow-md flex items-start gap-3">
+    <div class="w-6 h-6 rounded-full bg-red-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    </div>
+    <div class="space-y-1 text-xs">
+      <div class="font-bold text-sm text-red-200 uppercase tracking-wider flex items-center gap-2">
+        <span>ENFORCEMENT ALERT: PRODUCTION-DISPATCH RECONCILIATION MISMATCH DETECTED</span>
+        <span class="badge badge-critical text-[10px]">SECTION 21 MMDR</span>
+      </div>
+      <div class="text-white/90 leading-relaxed">
+        {{ mismatch_check.explanation }}
+      </div>
+      <div class="font-mono text-[11px] text-red-300 pt-1">
+        Expected Stock: {{ "{:,.1f}".format(mismatch_check.metrics.expected_closing_mt) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(mismatch_check.metrics.recorded_stock_mt) }} MT &bull; Discrepancy Delta: {{ "{:,.1f}".format(mismatch_check.metrics.delta_mt) }} MT
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Live Threat & Interception Queue (Vehicles Flagged for Immediate Action) -->
+  <div class="gov-card border-red-200">
+    <div class="gov-card-header bg-red-50/50">
+      <h3 class="gov-card-title text-red-900 flex items-center gap-2">
+        <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>High-Risk Interception Queue &amp; Truck Investigation Dossier (Req 15)</span>
+      </h3>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-red-800 font-semibold">Priority 1 Squad Deployment</span>
+        <a href="{{ url_for('live_map') }}" class="btn-gov btn-gov-primary btn-sm bg-red-700 hover:bg-red-800 text-white">
+          Launch Tactical Map &rarr;
+        </a>
+      </div>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs">
+        <thead>
+          <tr>
+            <th>Vehicle Reg.</th>
+            <th>Current Location</th>
+            <th>Active Permit &amp; Round</th>
+            <th>Payload (Act / Perm)</th>
+            <th>Excess</th>
+            <th>Calculated Risk Score</th>
+            <th>Enforcement Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in high_risk_trucks %}
+          <tr class="{% if t.current_risk_score >= 80 %}bg-red-50/30{% endif %}">
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="text-emerald-900 hover:underline">
+                {{ t.registration_number }}
+              </a>
+              <div class="text-[10px] text-slate-500 font-normal">{{ t.mineral or 'Quartzite' }} &bull; {{ t.source_name or 'Quarry Pit A' }}</div>
+            </td>
+            <td class="font-mono text-slate-700 text-[11px]">
+              <div>{{ t.current_lat }}, {{ t.current_lng }}</div>
+              <span class="badge {% if t.status == 'IN_TRANSIT' %}badge-medium{% else %}badge-low{% endif %} text-[9px] mt-0.5">{{ t.status }}</span>
+            </td>
+            <td>
+              <div class="font-mono font-bold text-slate-800 text-[11px]">{{ t.permit_number or 'SMG-2026-ACTIVE' }}</div>
+              <div class="text-[10px] text-slate-500">Trip #{{ t.current_round_number or 1 }} ({{ t.completed_rounds_today or 0 }} completed today)</div>
+            </td>
+            <td class="font-mono">
+              <span class="font-bold text-slate-900">{% if t.current_risk_score >= 80 %}31.0{% else %}24.5{% endif %} MT</span> / 
+              <span class="text-slate-500">20.0 MT</span>
+            </td>
+            <td class="font-mono">
+              {% if t.current_risk_score >= 80 %}
+              <span class="font-bold text-red-700">+11.0 MT</span>
+              {% else %}
+              <span class="text-slate-500">0.0 MT</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="flex items-center gap-1.5">
+                <span class="badge {% if t.current_risk_score >= 80 %}badge-critical{% elif t.current_risk_score >= 60 %}badge-high{% else %}badge-medium{% endif %}">
+                  {{ t.current_risk_score }} / 100
+                </span>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-1">
+                {% if t.current_risk_score >= 80 %}
+                <span class="text-[9px] bg-red-100 text-red-800 border border-red-200 px-1 py-0.2 rounded font-semibold">+30 Overweight</span>
+                <span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-200 px-1 py-0.2 rounded font-semibold">+20 Deviated</span>
+                <span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-200 px-1 py-0.2 rounded font-semibold">+20 Blackout</span>
+                {% elif t.current_risk_score >= 60 %}
+                <span class="text-[9px] bg-amber-100 text-amber-800 border border-amber-200 px-1 py-0.2 rounded font-semibold">+30 Speed Burst</span>
+                {% else %}
+                <span class="text-[9px] bg-slate-100 text-slate-700 px-1 py-0.2 rounded">Compliant</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>
+              <div class="flex flex-wrap gap-1">
+                <a href="{{ url_for('live_map') }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-1.5" title="Track on GIS">
+                  Track
+                </a>
+                <a href="{{ url_for('trips') }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-1.5" title="View Trips">
+                  Trip
+                </a>
+                <a href="{{ url_for('permits') }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-1.5" title="View Permit">
+                  Pass
+                </a>
+                <a href="{{ url_for('officer_verification') }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-1.5" title="Verify QR">
+                  QR
+                </a>
+                <a href="{{ url_for('investigations') }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-1.5" title="Investigations">
+                  Case
+                </a>
+                <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="btn-gov btn-gov-primary btn-sm text-[10px] py-0.5 px-1.5" title="Evidence Dossier">
+                  Dossier
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-6 text-slate-500">
+              No vehicles currently flagged above risk score 60. All fleet telemetry within normal corridor bounds.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Active Alerts & Investigations Section -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Active Enforcement Alerts Feed -->
+    <div class="gov-card">
+      <div class="gov-card-header">
+        <h3 class="gov-card-title flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span>Active Violations Awaiting Squad Review</span>
+        </h3>
+        <a href="{{ url_for('alerts') }}" class="text-xs text-emerald-800 font-semibold hover:underline">
+          View All ({{ pending_alerts }}) &rarr;
+        </a>
+      </div>
+      <div class="p-3 space-y-3">
+        {% for a in recent_alerts %}
+        <div class="p-3 border rounded-md {% if a.severity == 'CRITICAL' %}border-red-300 bg-red-50/40{% elif a.severity == 'HIGH' %}border-amber-300 bg-amber-50/40{% else %}border-slate-200 bg-slate-50{% endif %}">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-xs text-slate-900">{{ a.alert_code }}</span>
+              <span class="badge {% if a.severity == 'CRITICAL' %}badge-critical{% elif a.severity == 'HIGH' %}badge-high{% else %}badge-medium{% endif %}">
+                {{ a.alert_type }}
+              </span>
+            </div>
+            <span class="text-[11px] font-mono text-slate-500">{{ a.created_at[:16] }}</span>
+          </div>
+          <p class="text-xs text-slate-700 mt-1.5 leading-relaxed">{{ a.description }}</p>
+          <div class="mt-2.5 flex justify-between items-center text-xs pt-2 border-t border-slate-200">
+            <div class="text-[11px] text-slate-600">
+              Vehicle: <strong class="font-mono text-slate-900">{{ a.registration_number or 'N/A' }}</strong> &bull; Risk: <strong class="text-red-700">+{{ a.risk_score }}</strong>
+            </div>
+            <div class="flex gap-1.5">
+              <button onclick="handleAlertAction({{ a.id }}, 'ACKNOWLEDGED')" class="btn-gov btn-gov-secondary btn-sm text-[11px] py-0.5 px-2">
+                Acknowledge
+              </button>
+              <button onclick="elevateAlertToCase({{ a.id }})" class="btn-gov btn-gov-primary btn-sm text-[11px] py-0.5 px-2">
+                Elevate to Case
+              </button>
+              <button onclick="handleAlertAction({{ a.id }}, 'DISMISSED')" class="btn-gov btn-gov-secondary btn-sm text-[11px] py-0.5 px-2 text-slate-500 hover:text-red-700" title="Record field verification remarks and clear alert">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Active Statutory Cases & Tactical Actions -->
+    <div class="space-y-6">
+      <div class="gov-card">
+        <div class="gov-card-header">
+          <h3 class="gov-card-title flex items-center gap-2">
+            <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span>Active Statutory Case Files</span>
+          </h3>
+          <a href="{{ url_for('investigations') }}" class="text-xs text-emerald-800 font-semibold hover:underline">
+            All Cases &rarr;
+          </a>
+        </div>
+        <div class="gov-table-container">
+          <table class="gov-table text-xs">
+            <thead>
+              <tr>
+                <th>Case ID</th>
+                <th>Target Vehicle</th>
+                <th>Status</th>
+                <th>Penalty INR</th>
+                <th>Dossier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inv in investigations %}
+              <tr>
+                <td class="font-mono font-bold text-slate-900">{{ inv.case_id }}</td>
+                <td class="font-mono font-semibold">{{ inv.registration_number or 'HR26AB1234' }}</td>
+                <td>
+                  <span class="badge badge-high">{{ inv.status }}</span>
+                </td>
+                <td class="font-bold text-slate-900">₹{{ "{:,.0f}".format(inv.penalty_amount_inr or 175000) }}</td>
+                <td>
+                  <a href="{{ url_for('investigation_detail', inv_id=inv.id) }}" class="btn-gov btn-gov-secondary btn-sm py-0.5 px-2 text-[11px]">
+                    View Case
+                  </a>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="text-center py-4 text-slate-400">No active cases opened.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Quick Tactical Actions Grid -->
+      <div class="grid grid-cols-2 gap-3">
+        <a href="{{ url_for('live_map') }}" class="p-3.5 bg-white border border-slate-300 rounded text-center hover:bg-slate-50 transition shadow-sm">
+          <div class="font-bold text-slate-800 text-xs uppercase">Live GIS Map</div>
+          <div class="text-[11px] text-slate-500 mt-1">Interception corridors</div>
+        </a>
+        <a href="{{ url_for('officer_verification') }}" class="p-3.5 bg-white border border-slate-300 rounded text-center hover:bg-slate-50 transition shadow-sm">
+          <div class="font-bold text-slate-800 text-xs uppercase">Scan QR Pass</div>
+          <div class="text-[11px] text-slate-500 mt-1">Checkpost physical verify</div>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Officer Direct e-Rawaana Issuance Modal (Statutory Regulatory Override) -->
+<div id="modal-officer-issue-permit" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-lg border border-slate-300 max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+      <div class="flex items-center gap-2">
+        <span class="text-lg">⚡</span>
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm uppercase">Officer Direct Issue e-Rawaana (Statutory Override)</h3>
+          <p class="text-[11px] text-slate-500">Regulatory Exception Transit Pass &bull; Supervisory Dispatch Authorization</p>
+        </div>
+      </div>
+      <button onclick="closeOfficerIssueModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+    </div>
+
+    <!-- Statutory Authority Alert -->
+    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-900 space-y-1">
+      <div class="font-bold flex items-center gap-1.5">
+        <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>Direct Supervisory Authority (MMDR Rule 102)</span>
+      </div>
+      <div class="text-[11px] leading-relaxed text-emerald-800">
+        Routine e-Rawanas for ~2,000 daily trucks are generated autonomously at ground weighbridges by designated Scale Operators. Use this statutory override for manual regulatory dispatch, court authorizations, or scale telemetry downtime.
+      </div>
+    </div>
+
+    <form id="officer-issue-permit-form" onsubmit="submitOfficerPermit(event)" class="space-y-3 text-xs">
+      <input type="hidden" id="officer-permit-mine-id" value="{{ quarry_blocks[0].mine_id if quarry_blocks else (selected_mine_id or 1) }}">
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Target Quarry Sub-Location &amp; Businessman *</label>
+        <select id="officer-permit-block-id" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-emerald-700">
+          {% for qb in quarry_blocks %}
+          <option value="{{ qb.id }}">{{ qb.block_code }} - {{ qb.block_name }} ({{ qb.leaseholder_name }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Authorized Transport Vehicle *</label>
+        <select id="officer-permit-truck-id" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-700">
+          {% for trk in officer_trucks %}
+          <option value="{{ trk.id }}">{{ trk.registration_number }} (Max: {{ trk.max_capacity_mt or 25 }} MT - {{ trk.vehicle_type or 'Tipper' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Mineral *</label>
+          <input type="text" id="officer-permit-mineral" value="{{ (quarry_blocks[0].mine_name and 'Quartzite Stone') or 'Limestone' }}" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-emerald-700">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Permitted Weight (MT) *</label>
+          <input type="number" step="0.1" id="officer-permit-weight" value="25.0" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-700">
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Destination Processing Plant / Consignee *</label>
+        <input type="text" id="officer-permit-dest" value="Authorized Industrial Processing Zone / Consignee Unit" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-emerald-700">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Buyer / Consignee Name *</label>
+          <input type="text" id="officer-permit-buyer" value="State Registered Aggregates &amp; ReadyMix Plant" required class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-emerald-700">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Transit Validity (Hours) *</label>
+          <select id="officer-permit-validity" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-emerald-700">
+            <option value="6">6 Hours</option>
+            <option value="12" selected>12 Hours (Standard)</option>
+            <option value="24">24 Hours (Interstate)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="officer-permit-feedback" class="hidden p-2.5 rounded text-xs"></div>
+
+      <div class="flex gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOfficerIssueModal()" class="btn-gov btn-gov-secondary flex-1 py-2 text-xs">
+          Cancel
+        </button>
+        <button type="submit" id="btn-submit-officer-permit" class="btn-gov btn-gov-primary flex-1 py-2 text-xs font-bold bg-emerald-800 hover:bg-emerald-700 text-white">
+          ⚡ Generate &amp; Direct Issue e-Rawaana
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+<script>
+// Master dictionary of all 36 sub-mine businessmen concession plots
+const quarryBlocksData = {
+  {% for qb in quarry_blocks %}
+  "{{ qb.id }}": {
+    id: {{ qb.id }},
+    code: {{ qb.block_code|tojson }},
+    name: {{ qb.block_name|tojson }},
+    businessman: {{ qb.leaseholder_name|tojson }},
+    operator: {{ qb.operator_name|tojson }},
+    phone: {{ (qb.contact_phone or '+91 98290 11223')|tojson }},
+    quota: {{ qb.allocated_quota_mt|round(1) }},
+    dispatched: {{ qb.dispatched_mt|round(1) }},
+    remaining: {{ (qb.allocated_quota_mt - qb.dispatched_mt)|round(1) }},
+    pct: {{ ((qb.dispatched_mt / qb.allocated_quota_mt) * 100)|round(1) if qb.allocated_quota_mt > 0 else 0 }},
+    fleet_count: {{ qb.active_trucks_count or 4 }},
+    status: {{ qb.status|tojson }},
+    mine_name: {{ (qb.mine_name or 'Aravalli Quartzite Quarry Block A')|tojson }},
+    mine_district: {{ (qb.mine_district or 'Alwar')|tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+};
+
+let selectedBlockId = null;
+
+function onBusinessmanSelect(blockId) {
+  if (!blockId) {
+    closeBusinessmanDossier();
+    return;
+  }
+  openBusinessmanDossier(blockId);
+}
+
+function openBusinessmanDossier(blockId) {
+  const qb = quarryBlocksData[blockId];
+  if (!qb) return;
+  selectedBlockId = blockId;
+
+  // Populate Dossier Card Elements
+  document.getElementById('dossier-code').innerText = qb.code;
+  document.getElementById('dossier-status').innerText = qb.status;
+  document.getElementById('dossier-tender-ref').innerText = 'Tender Ref: TND-ALW-2025/' + String(qb.id).padStart(3, '0');
+  document.getElementById('dossier-businessman').innerText = qb.businessman;
+  document.getElementById('dossier-pit-name').innerText = qb.name;
+  document.getElementById('dossier-phone').innerText = qb.phone || '+91 98290 11223';
+  document.getElementById('dossier-mine-name').innerText = qb.mine_name + ' (' + qb.mine_district + ')';
+
+  document.getElementById('dossier-dispatched').innerText = qb.dispatched.toLocaleString() + ' MT';
+  document.getElementById('dossier-quota').innerText = qb.quota.toLocaleString() + ' MT';
+  document.getElementById('dossier-remaining').innerText = Math.max(0, qb.remaining).toLocaleString() + ' MT';
+  document.getElementById('dossier-pct-badge').innerText = qb.pct + '% Quota Used';
+
+  const pBar = document.getElementById('dossier-progress-bar');
+  if (pBar) {
+    pBar.style.width = Math.min(qb.pct, 100) + '%';
+    pBar.className = 'h-2 rounded-full transition-all duration-300 ' + (qb.pct >= 90 ? 'bg-red-500' : qb.pct >= 75 ? 'bg-amber-500' : 'bg-emerald-500');
+  }
+
+  document.getElementById('dossier-operator').innerText = qb.operator;
+  document.getElementById('dossier-fleet-count').innerText = qb.fleet_count || 4;
+
+  // Show Dossier Card
+  const dossierCard = document.getElementById('businessman-dossier-card');
+  if (dossierCard) {
+    dossierCard.classList.remove('hidden');
+    dossierCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Update dropdown value
+  const sel = document.getElementById('businessman-selector');
+  if (sel) sel.value = blockId;
+
+  // Highlight / filter table row
+  filterTableForSelected(blockId);
+}
+
+function closeBusinessmanDossier() {
+  selectedBlockId = null;
+  const dossierCard = document.getElementById('businessman-dossier-card');
+  if (dossierCard) dossierCard.classList.add('hidden');
+  const sel = document.getElementById('businessman-selector');
+  if (sel) sel.value = '';
+  resetBusinessmanFilters();
+}
+
+function filterTableForSelected(blockId) {
+  const rows = document.querySelectorAll('.concession-row');
+  rows.forEach(r => {
+    if (r.getAttribute('data-id') == blockId) {
+      r.style.display = '';
+      r.classList.add('bg-emerald-100/70', 'ring-2', 'ring-emerald-500');
+    } else {
+      r.style.display = 'none';
+      r.classList.remove('bg-emerald-100/70', 'ring-2', 'ring-emerald-500');
+    }
+  });
+  const badge = document.getElementById('visible-plots-badge');
+  if (badge) badge.innerText = '1 Plot Selected';
+}
+
+function filterBusinessmenTable() {
+  const query = (document.getElementById('businessman-search').value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('.concession-row');
+  let count = 0;
+  rows.forEach(r => {
+    r.classList.remove('bg-emerald-100/70', 'ring-2', 'ring-emerald-500');
+    const text = (r.getAttribute('data-code') + ' ' + r.getAttribute('data-name') + ' ' + r.getAttribute('data-businessman') + ' ' + r.getAttribute('data-operator') + ' ' + r.getAttribute('data-phone')).toLowerCase();
+    if (!query || text.includes(query)) {
+      r.style.display = '';
+      count++;
+    } else {
+      r.style.display = 'none';
+    }
+  });
+  const badge = document.getElementById('visible-plots-badge');
+  if (badge) badge.innerText = count + ' Sub-Lease Plots';
+}
+
+function resetBusinessmanFilters() {
+  const searchInput = document.getElementById('businessman-search');
+  if (searchInput) searchInput.value = '';
+  const sel = document.getElementById('businessman-selector');
+  if (sel) sel.value = '';
+  const rows = document.querySelectorAll('.concession-row');
+  rows.forEach(r => {
+    r.style.display = '';
+    r.classList.remove('bg-emerald-100/70', 'ring-2', 'ring-emerald-500');
+  });
+  const badge = document.getElementById('visible-plots-badge');
+  if (badge) badge.innerText = rows.length + ' Sub-Lease Plots';
+  const dossierCard = document.getElementById('businessman-dossier-card');
+  if (dossierCard) dossierCard.classList.add('hidden');
+}
+
+function openOfficerIssueModalForSelected() {
+  if (selectedBlockId) {
+    const qb = quarryBlocksData[selectedBlockId];
+    openOfficerIssueModal(qb.id, qb.name, qb.businessman);
+  } else {
+    openOfficerIssueModal();
+  }
+}
+
+function auditBusinessmanDossier() {
+  const name = selectedBlockId && quarryBlocksData[selectedBlockId] ? quarryBlocksData[selectedBlockId].businessman : "All Businessmen";
+  alert("📊 STATUTORY SECTION 21 AUDIT INITIATED\n\nBusinessman: " + name + "\n\n• Physical Stockpile Survey Reconciled\n• Zero-tolerance MMDR mass balance verification active\n• All weighbridge transaction timestamps verified against sensor logs.");
+}
+
+function orderSquadPitInspection() {
+  const pit = selectedBlockId && quarryBlocksData[selectedBlockId] ? quarryBlocksData[selectedBlockId].name : "Quarry Sector";
+  alert("📋 FIELD SQUAD INSPECTION DISPATCHED\n\n• Unit: Mining Enforcement Squad Zone 4 (MES-Z4)\n• Destination Pit: " + pit + "\n• Mission: Verify scale load cell integrity, inspect RFID tag reader, and conduct surprise truck weigh checks.");
+}
+
+function openOfficerIssueModal(blockId, blockName, leaseholderName) {
+  const modal = document.getElementById('modal-officer-issue-permit');
+  if (!modal) return;
+  if (blockId) {
+    const sel = document.getElementById('officer-permit-block-id');
+    if (sel) sel.value = blockId;
+  }
+  const fb = document.getElementById('officer-permit-feedback');
+  if (fb) {
+    fb.classList.add('hidden');
+    fb.innerHTML = '';
+  }
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeOfficerIssueModal() {
+  const modal = document.getElementById('modal-officer-issue-permit');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+async function submitOfficerPermit(event) {
+  event.preventDefault();
+  const btn = document.getElementById('btn-submit-officer-permit');
+  const fb = document.getElementById('officer-permit-feedback');
+  btn.disabled = true;
+  btn.innerHTML = 'Signing &amp; Generating Pass...';
+
+  const payload = {
+    mine_id: parseInt(document.getElementById('officer-permit-mine-id').value) || 1,
+    quarry_block_id: parseInt(document.getElementById('officer-permit-block-id').value) || null,
+    truck_id: parseInt(document.getElementById('officer-permit-truck-id').value) || 1,
+    mineral: document.getElementById('officer-permit-mineral').value.trim(),
+    permitted_weight_mt: parseFloat(document.getElementById('officer-permit-weight').value) || 25.0,
+    destination_name: document.getElementById('officer-permit-dest').value.trim(),
+    buyer_name: document.getElementById('officer-permit-buyer').value.trim(),
+    valid_hours: parseInt(document.getElementById('officer-permit-validity').value) || 12
+  };
+
+  try {
+    const res = await fetch('/api/crud/permits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (res.ok && result.success) {
+      fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold space-y-1.5';
+      fb.innerHTML = `
+        <div class="flex items-center gap-1.5 text-emerald-800 font-bold">
+          <span>✓</span> e-Rawaana Issued Successfully!
+        </div>
+        <div>Pass Number: <strong class="font-mono text-slate-900">${result.permit_number}</strong> (${result.issuance_type})</div>
+        <div class="pt-1">
+          <a href="/permits/${result.permit_id}/view" target="_blank" class="btn-gov btn-gov-primary btn-sm text-[11px] py-1 px-2.5 inline-flex items-center gap-1 bg-emerald-900 text-white font-bold">
+            <span>🏛️ View &amp; Print Official Pass &rarr;</span>
+          </a>
+        </div>
+      `;
+      fb.classList.remove('hidden');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2500);
+    } else {
+      fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 font-semibold';
+      fb.textContent = result.error || 'Failed to issue permit. Please check details.';
+      fb.classList.remove('hidden');
+      btn.disabled = false;
+      btn.innerHTML = '⚡ Generate &amp; Issue e-Rawaana';
+    }
+  } catch (err) {
+    fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 font-semibold';
+    fb.textContent = 'Network or server error occurred: ' + err.message;
+    fb.classList.remove('hidden');
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Generate &amp; Issue e-Rawaana';
+  }
+}
+</script>
+{% endblock %}

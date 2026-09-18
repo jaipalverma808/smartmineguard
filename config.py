@@ -1,0 +1,49 @@
+"""
+SmartMineGuard - Configuration Module
+"""
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
+class Config:
+    BASE_DIR = BASE_DIR
+    SECRET_KEY = os.getenv("SECRET_KEY", "smartmineguard-secure-secret-key-2026")
+    
+    # PostgreSQL Configuration
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL", 
+        "postgresql://postgres:postgres@localhost:5432/smartmineguard"
+    )
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = int(os.getenv("DB_PORT", 5432))
+    DB_NAME = os.getenv("DB_NAME", "smartmineguard")
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+    
+    # SQLite Fallback Path (enables zero-friction local run)
+    SQLITE_PATH = BASE_DIR / "database" / "smartmineguard.db"
+    
+    # Server configuration
+    PORT = int(os.getenv("PORT", 5000))
+    DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+    
+    # Detection Engine Thresholds (Rule-Based, Deterministic)
+    WEIGHT_TOLERANCE_PERCENT = float(os.getenv("WEIGHT_TOLERANCE_PERCENT", 5.0))
+    ROUTE_CORRIDOR_METERS = float(os.getenv("ROUTE_CORRIDOR_METERS", 350.0))
+    GPS_BLACKOUT_SECONDS = int(os.getenv("GPS_BLACKOUT_SECONDS", 60))
+    MAX_REASONABLE_SPEED_KMH = float(os.getenv("MAX_REASONABLE_SPEED_KMH", 85.0))
+    
+    # Risk Scoring Weights (Normalized to 0 - 100)
+    WEIGHT_ANOMALY_RISK = 30
+    ROUTE_DEVIATION_RISK = 20
+    GPS_BLACKOUT_RISK = 20
+    PERMIT_REUSE_RISK = 30
+    IMPOSSIBLE_TRANSIT_RISK = 30
+    PRODUCTION_MISMATCH_RISK = 30
+    SUSPICIOUS_ZONE_RISK = 15
+    
+    # Upload and Reports directory
+    REPORTS_DIR = BASE_DIR / "static" / "reports"

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Operational Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- Operational Status Bar -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2 text-xs text-slate-600 shadow-sm">
+    <div class="flex items-center gap-4">
+      <div><span class="font-bold text-slate-800">State Mining Command Center</span> • Northern Mining Region</div>
+      <div class="hidden sm:inline text-slate-300">|</div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span class="font-semibold text-emerald-800">Telemetry Feeds: ONLINE</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span>Active Session: <strong class="text-slate-800">{{ current_user.full_name }}</strong></span>
+      <button onclick="window.location.reload()" class="btn-gov btn-gov-secondary btn-sm">
+        Refresh Status
+      </button>
+    </div>
+  </div>
+
+  <!-- Key Operational Metric Tiles (Real Database Numbers) -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    
+    <div class="stat-tile">
+      <div class="stat-label">Active Trucks</div>
+      <div class="stat-value text-slate-900" id="stat-active-trucks">{{ active_trucks }}</div>
+      <div class="stat-subtext">of {{ total_trucks }} registered fleet</div>
+    </div>
+
+    <div class="stat-tile">
+      <div class="stat-label">Active Permits</div>
+      <div class="stat-value text-slate-900">{{ active_permits }}</div>
+      <div class="stat-subtext">e-Rawaana in circulation</div>
+    </div>
+
+    <div class="stat-tile">
+      <div class="stat-label">Operational Mines</div>
+      <div class="stat-value text-slate-900">{{ total_mines }}</div>
+      <div class="stat-subtext">Authorized leaseholds</div>
+    </div>
+
+    <div class="stat-tile stat-medium">
+      <div class="stat-label">Pending Alerts</div>
+      <div class="stat-value text-amber-700" id="stat-pending-alerts">{{ pending_alerts }}</div>
+      <div class="stat-subtext">Awaiting verification</div>
+    </div>
+
+    <div class="stat-tile stat-critical">
+      <div class="stat-label">Critical Cases</div>
+      <div class="stat-value text-red-700" id="stat-critical-cases">{{ critical_cases }}</div>
+      <div class="stat-subtext">Risk score > 80</div>
+    </div>
+
+    <div class="stat-tile">
+      <div class="stat-label">Total Trips Logged</div>
+      <div class="stat-value text-slate-900">{{ total_trips }}</div>
+      <div class="stat-subtext">Audited dispatch logs</div>
+    </div>
+
+  </div>
+
+  <!-- Anomaly Breakdown Strip -->
+  <div class="grid grid-cols-3 gap-3">
+    <div class="bg-white border border-slate-300 rounded p-3 flex justify-between items-center">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase">Weight Anomalies</div>
+        <div class="text-lg font-bold text-slate-800">{{ weight_anomalies }}</div>
+      </div>
+      <span class="badge badge-critical font-bold">Overload Detected</span>
+    </div>
+    <div class="bg-white border border-slate-300 rounded p-3 flex justify-between items-center">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase">Route Deviations</div>
+        <div class="text-lg font-bold text-slate-800">{{ route_deviations }}</div>
+      </div>
+      <span class="badge badge-high font-bold">&gt; 350m Corridor Breach</span>
+    </div>
+    <div class="bg-white border border-slate-300 rounded p-3 flex justify-between items-center">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase">GPS Blackouts</div>
+        <div class="text-lg font-bold text-slate-800">{{ gps_blackouts }}</div>
+      </div>
+      <span class="badge badge-medium font-bold">Signal Disrupted</span>
+    </div>
+  </div>
+
+  <!-- Middle Grid: Live Alerts Queue & Mini Visual Map -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    
+    <!-- Real-Time Alerts Queue (2 Columns) -->
+    <div class="lg:col-span-2 gov-card">
+      <div class="gov-card-header">
+        <h3 class="gov-card-title flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-600"></span>
+          Active Enforcement Alert Feed
+        </h3>
+        <a href="{{ url_for('alerts') }}" class="text-xs text-emerald-800 font-semibold hover:underline">
+          View All Alerts &rarr;
+        </a>
+      </div>
+      <div class="gov-table-container">
+        <table class="gov-table">
+          <thead>
+            <tr>
+              <th>Alert ID</th>
+              <th>Vehicle / Permit</th>
+              <th>Detection Rule</th>
+              <th>Risk Score</th>
+              <th>Severity</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="dashboard-alerts-tbody">
+            {% for a in recent_alerts %}
+            <tr>
+              <td class="font-mono font-bold text-slate-800">{{ a.alert_code }}</td>
+              <td>
+                <div class="font-semibold text-slate-900">{{ a.registration_number or 'N/A' }}</div>
+                <div class="text-[11px] text-slate-500 font-mono">{{ a.permit_number or 'No Permit' }}</div>
+              </td>
+              <td>
+                <div class="font-semibold">{{ a.alert_type.replace('_', ' ').title() }}</div>
+                <div class="text-[11px] text-slate-500 truncate max-w-xs">{{ a.description }}</div>
+              </td>
+              <td>
+                <span class="font-bold {% if a.risk_score >= 80 %}text-red-700{% elif a.risk_score >= 60 %}text-orange-700{% else %}text-amber-700{% endif %}">
+                  +{{ a.risk_score }}
+                </span>
+              </td>
+              <td>
+                <span class="badge {% if a.severity == 'CRITICAL' %}badge-critical{% elif a.severity == 'HIGH' %}badge-high{% elif a.severity == 'MEDIUM' %}badge-medium{% else %}badge-low{% endif %}">
+                  {{ a.severity }}
+                </span>
+              </td>
+              <td>
+                <span class="text-xs font-semibold text-slate-700">{{ a.status }}</span>
+              </td>
+              <td>
+                <a href="{{ url_for('alerts') }}" class="btn-gov btn-gov-secondary btn-sm">
+                  Review
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-slate-500">No active alerts recorded.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right Column: Priority Suspicious Trucks & Fleet Status -->
+    <div class="gov-card">
+      <div class="gov-card-header">
+        <h3 class="gov-card-title">Live High-Risk Vehicle Watch</h3>
+        <a href="{{ url_for('live_map') }}" class="text-xs text-emerald-800 font-semibold hover:underline">
+          GIS Map &rarr;
+        </a>
+      </div>
+      <div class="divide-y divide-slate-200">
+        {% for trip in active_trips %}
+        <div class="p-3 hover:bg-slate-50 transition">
+          <div class="flex justify-between items-start mb-1">
+            <div>
+              <span class="font-mono font-bold text-slate-900 text-sm">{{ trip.registration_number }}</span>
+              <span class="text-xs text-slate-500 ml-1">({{ trip.mineral }})</span>
+            </div>
+            <span class="badge {% if trip.risk_score >= 80 %}badge-critical{% elif trip.risk_score >= 60 %}badge-high{% else %}badge-low{% endif %}">
+              Risk: {{ trip.risk_score }}/100
+            </span>
+          </div>
+          <div class="text-xs text-slate-600">
+            Source: <span class="font-medium text-slate-800">{{ trip.mine_name }}</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1 flex justify-between">
+            <span>Pass: {{ trip.permit_number }}</span>
+            <span>Speed: {{ trip.avg_speed_kmh or 45 }} km/h</span>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <a href="{{ url_for('live_map') }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] py-0.5 px-2">
+              Track on Map
+            </a>
+            <a href="{{ url_for('trips') }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] py-0.5 px-2">
+              Trip Details
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Section: Quick Chart Summary -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-3">Statutory Violation Categories (Rule-Based)</h3>
+      <div class="h-56">
+        <canvas id="dashboardViolationChart"></canvas>
+      </div>
+    </div>
+
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-3">Fleet Risk Band Distribution</h3>
+      <div class="h-56">
+        <canvas id="dashboardRiskChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

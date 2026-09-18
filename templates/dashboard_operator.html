@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+
+{% block title %}Sub-Mine Operations Console - SmartMineGuard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Operational Status Bar with Action Buttons (Requirement 5 & 15 & 19) -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs text-slate-600 shadow-sm gap-2">
+    <div class="flex items-center gap-3">
+      <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+      <div>
+        <span class="font-bold text-slate-900 uppercase">Sub-Mine Operations Console</span>
+        <span class="text-slate-400 mx-2">|</span>
+        <span>Concession: <strong class="text-emerald-900">{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong> &bull; Parent: <span class="text-slate-700">{{ mine.name if mine else 'HSIIDC Ltd. (Khanak Stone Mines)' }}</span></span>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" onclick="openOperatorSubMineModal()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold border border-slate-300 text-amber-900 bg-amber-50 hover:bg-amber-100">
+        <span>⛏️ + Register Sub-Mine</span>
+      </button>
+      <button type="button" onclick="openOperatorTruckModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-bold shadow-xs">
+        <span>🚛 + Register Truck</span>
+      </button>
+      <button type="button" onclick="openOperatorDriverModal()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold border border-slate-300">
+        <span>👨‍✈️ + Register Driver</span>
+      </button>
+      <button type="button" onclick="openOperatorPermitModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-bold bg-emerald-800 hover:bg-emerald-700 text-white shadow-xs">
+        <span>⚡ + Issue e-Rawaana</span>
+      </button>
+      <button type="button" onclick="openOperatorTripModal()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold border border-slate-300">
+        <span>🚀 + Start Trip</span>
+      </button>
+      <a href="{{ url_for('operator_weighbridge') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold">
+        <span>⚖️ Weighbridge</span>
+      </a>
+      <a href="{{ url_for('operator_dispatch') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold">
+        <span>📋 Dispatch</span>
+      </a>
+      <a href="{{ url_for('operator_stock') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold">
+        <span>📦 Stock</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Notification Alert Banner -->
+  <div id="op-action-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- Annual Statutory Sub-Mine Concession Quota Banner -->
+  {% set quota = sub_mine.allocated_quota_mt if sub_mine else (mine.authorized_annual_quota_mt if mine else 85000.0) %}
+  {% set dispatched = sub_mine.dispatched_mt if sub_mine else (mine.current_dispatch_mt if mine else 42350.0) %}
+  {% set remaining = quota - dispatched %}
+  {% set pct = ((dispatched / quota) * 100)|round(1) if quota > 0 else 0 %}
+  <div class="bg-white border border-slate-300 rounded-lg p-5 shadow-sm space-y-3">
+    <div class="flex flex-wrap justify-between items-center gap-2">
+      <div>
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Sub-Mine Contractor Concession Quota</div>
+        <div class="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span class="font-mono bg-slate-100 border border-slate-300 px-2 py-0.5 rounded text-sm">{{ sub_mine.block_code if sub_mine else 'QB-HR-BHW-01' }}</span>
+          <span>&bull;</span>
+          <span class="text-emerald-950">{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</span>
+          <span class="text-xs font-normal text-slate-600">({{ sub_mine.leaseholder_name if sub_mine else 'Sharma Stone Aggregates Ltd.' }})</span>
+        </div>
+      </div>
+      <div class="text-right">
+        <div class="text-xs text-slate-500">Remaining Extraction Allowance</div>
+        <div class="text-xl font-extrabold text-emerald-800">{{ "{:,.1f}".format(remaining) }} MT</div>
+      </div>
+    </div>
+
+    <!-- Annual Quota Progress Bar -->
+    <div class="space-y-1.5">
+      <div class="flex justify-between text-xs font-semibold">
+        <span class="text-slate-700">Sub-Mine Dispatched: {{ "{:,.1f}".format(dispatched) }} MT</span>
+        <span class="text-slate-700">Annual Concession Cap: {{ "{:,.1f}".format(quota) }} MT</span>
+      </div>
+      <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5">
+        <div class="h-2.5 rounded-full {% if pct > 90 %}bg-red-600{% elif pct > 75 %}bg-amber-500{% else %}bg-emerald-600{% endif %} transition-all duration-500" style="width: {{ [pct, 100]|min }}%"></div>
+      </div>
+      <div class="flex justify-between items-center text-[11px] text-slate-500">
+        <span>Concession Status: <strong class="text-emerald-800">{{ sub_mine.status if sub_mine else 'OPERATIONAL' }}</strong></span>
+        <span>Concession Cap Consumption: <strong class="text-slate-800">{{ pct }}%</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Operational Metric Cards for Sub-Mine -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center">
+    <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Active Carriers</div>
+      <div class="stat-value text-emerald-900 text-base font-extrabold mt-0.5">{{ fleet_count }}</div>
+      <div class="stat-subtext text-[9px]">Assigned Fleet</div>
+    </div>
+    <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Registered Drivers</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ drivers_count }}</div>
+      <div class="stat-subtext text-[9px]">Verified DL</div>
+    </div>
+    <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Active e-Rawaana</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ active_permits_count }}</div>
+      <div class="stat-subtext text-[9px]">Valid Passes</div>
+    </div>
+    <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Trips Logged</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ trips_count }}</div>
+      <div class="stat-subtext text-[9px]">Sub-Mine Trips</div>
+    </div>
+    <div class="p-2.5 bg-emerald-50/60 border border-emerald-200 rounded shadow-xs">
+      <div class="stat-label text-[10px] text-emerald-800">Today's Dispatch</div>
+      <div class="stat-value text-emerald-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(operator_daily_summary.actual_dispatch_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">Weighbridge Outflow</div>
+    </div>
+    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Today's Production</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(operator_daily_summary.production_today_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">Pit Excavation</div>
+    </div>
+    <div class="p-2.5 bg-emerald-50/60 border border-emerald-200 rounded shadow-xs">
+      <div class="stat-label text-[10px] text-emerald-800">Current Stock</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(operator_stock_recon.current_stock_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">Pit Stockyard Base</div>
+    </div>
+    <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Weighments Done</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ weighments_count }}</div>
+      <div class="stat-subtext text-[9px]">Automated Scales</div>
+    </div>
+  </div>
+
+  {% if operator_mismatch_check and operator_mismatch_check.is_violation %}
+  <!-- Statutory Alert: Production-Dispatch Mismatch -->
+  <div class="bg-amber-900 text-white border-2 border-amber-500 rounded-lg p-4 shadow-md flex items-start gap-3">
+    <div class="w-6 h-6 rounded-full bg-amber-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    </div>
+    <div class="space-y-1 text-xs">
+      <div class="font-bold text-sm text-amber-200 uppercase tracking-wider flex items-center gap-2">
+        <span>STATUTORY NOTICE: LEASEHOLD STOCK &amp; DISPATCH RECONCILIATION MISMATCH</span>
+        <span class="badge badge-medium text-[10px]">AUDIT FLAG</span>
+      </div>
+      <div class="text-white/90 leading-relaxed">
+        {{ operator_mismatch_check.explanation }}
+      </div>
+      <div class="font-mono text-[11px] text-amber-200 pt-1">
+        Expected Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.expected_closing_mt) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(operator_mismatch_check.metrics.recorded_stock_mt) }} MT
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Quantity Anomalies Enforcement Table (Section 22 - Operator Sub-Mine Scope) -->
+  <div class="gov-card border-red-200">
+    <div class="gov-card-header bg-red-50/50">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <h3 class="gov-card-title text-red-900">
+          QUANTITY ANOMALIES &bull; OVER-PERMITTED DISPATCH INTERCEPTIONS
+        </h3>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-red-800 font-semibold">Sub-Mine Overload Interceptions</span>
+        <span class="badge badge-critical text-xs">{{ operator_quantity_anomalies|length }} Flagged</span>
+      </div>
+    </div>
+
+    <div class="gov-table-container max-h-[440px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Vehicle No.</th>
+            <th>e-Rawaana / Permit</th>
+            <th>Mineral</th>
+            <th>Permitted Qty</th>
+            <th>Actual Qty</th>
+            <th>Excess</th>
+            <th>Source Mine</th>
+            <th>Destination</th>
+            <th>Weighment Time</th>
+            <th>Enforcement Status</th>
+            <th>Audit Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for anom in operator_quantity_anomalies %}
+          <tr class="{% if anom.excess_pct >= 20 %}bg-red-50/40{% else %}bg-amber-50/30{% endif %}">
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=anom.truck_id) }}" class="text-emerald-900 hover:underline flex items-center gap-1">
+                <span>{{ anom.vehicle_number }}</span>
+                {% if anom.is_repeat_offender %}
+                <span class="text-[10px] bg-red-800 text-white font-bold px-1.5 py-0.2 rounded" title="Repeated Over-quantity Offender">REPEAT</span>
+                {% endif %}
+              </a>
+            </td>
+            <td class="font-mono font-semibold">{{ anom.permit_number }}</td>
+            <td>{{ anom.mineral }}</td>
+            <td class="font-mono">{{ anom.permitted_qty_mt }} MT</td>
+            <td class="font-mono font-bold text-slate-900">{{ anom.actual_qty_mt }} MT</td>
+            <td class="font-mono font-extrabold text-red-700">
+              +{{ anom.excess_qty_mt }} MT <span class="text-[10px] font-normal">({{ anom.excess_pct }}%)</span>
+            </td>
+            <td class="text-slate-700">{{ anom.mine_name }}</td>
+            <td class="text-slate-700">{{ anom.destination }}</td>
+            <td class="font-mono text-slate-500 text-[11px]">{{ anom.time }}</td>
+            <td>
+              <span class="badge {% if anom.status == 'FLAGGED FOR INTERCEPTION' %}badge-critical{% else %}badge-high{% endif %} text-[10px] font-bold">
+                {{ anom.status }}
+              </span>
+            </td>
+            <td>
+              <div class="flex items-center gap-1.5">
+                <a href="{{ url_for('truck_detail', truck_id=anom.truck_id) }}" class="btn-gov btn-gov-primary btn-sm text-[11px] py-0.5 px-2">
+                  Inspect &rarr;
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-6 text-slate-500">
+              No active payload quantity anomalies detected for this sub-mine.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Today's Dispatch & Truck-Wise Material Movement Table -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+        <h3 class="gov-card-title">Today's Dispatch &amp; Truck-Wise Material Movement</h3>
+      </div>
+      <span class="text-xs text-slate-500">Authorized Sub-Mine Fleet Dispatches</span>
+    </div>
+    <div class="gov-table-container max-h-[440px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Vehicle No.</th>
+            <th>e-Rawaana Permit</th>
+            <th>Mineral</th>
+            <th>Permitted Qty</th>
+            <th>Actual Qty</th>
+            <th>Difference</th>
+            <th>Trip Status</th>
+            <th>Dispatch Time</th>
+            <th>Weighbridge Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in operator_truck_material %}
+          <tr>
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=r.truck_id) }}" class="text-emerald-900 hover:underline">
+                {{ r.vehicle_number }}
+              </a>
+            </td>
+            <td class="font-mono font-semibold">{{ r.permit_number }}</td>
+            <td>{{ r.mineral }}</td>
+            <td class="font-mono font-semibold">{{ r.permitted_qty_mt }} MT</td>
+            <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-amber-800{% elif r.actual_qty_mt %}text-slate-900{% else %}text-slate-400{% endif %}">
+              {{ r.actual_qty_mt ~ ' MT' if r.actual_qty_mt is not none else 'Pending Weighment' }}
+            </td>
+            <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-amber-800{% elif r.difference_mt %}text-emerald-800{% else %}text-slate-400{% endif %}">
+              {% if r.difference_mt is not none %}
+                {% if r.difference_mt > 0 %}+{% endif %}{{ r.difference_mt }} MT
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if r.status == 'OVER QUANTITY' %}badge-medium{% elif r.status == 'PENDING WEIGHMENT' %}badge-medium{% elif r.status == 'COMPLETED' %}badge-low{% else %}badge-low{% endif %}">
+                {{ r.status }}
+              </span>
+            </td>
+            <td class="font-mono text-slate-500">{{ r.last_dispatch }}</td>
+            <td class="text-slate-700">{{ r.weighbridge_name or 'Awaiting Station' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-6 text-slate-400">No dispatches recorded for this sub-mine today.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sub-Mine Concession Fleet (Registered Vehicles) -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <h3 class="gov-card-title flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+        <span>Sub-Mine Carrier Fleet (Registered Vehicles)</span>
+      </h3>
+      <a href="{{ url_for('trucks') }}" class="text-xs text-emerald-800 font-semibold hover:underline">
+        Full Fleet View &rarr;
+      </a>
+    </div>
+    <div class="gov-table-container max-h-[440px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Vehicle Reg.</th>
+            <th>Type</th>
+            <th>Registered Logistics Partner</th>
+            <th>Tare Weight</th>
+            <th>Max Capacity</th>
+            <th>Driver Name</th>
+            <th>Vehicle Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in trucks %}
+          <tr>
+            <td class="font-mono font-bold text-slate-900">{{ t.registration_number }}</td>
+            <td>{{ t.vehicle_type }}</td>
+            <td class="text-slate-700">{{ t.registered_owner }}</td>
+            <td class="font-mono">{{ t.tare_weight_mt }} MT</td>
+            <td class="font-mono font-semibold">{{ t.max_capacity_mt }} MT</td>
+            <td>{{ t.driver_name }}</td>
+            <td>
+              <span class="font-semibold text-xs {% if t.status == 'IN_TRANSIT' %}text-emerald-800{% elif t.status == 'LOADING' %}text-amber-800{% else %}text-slate-600{% endif %}">
+                {{ t.status }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="btn-gov btn-gov-secondary btn-sm py-0.5 px-2 text-[11px]">
+                Inspect &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-6 text-slate-400">No trucks registered under this sub-mine yet. Use '+ Register Truck' above.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL 1: REGISTER TRUCK (+ Register Truck) -->
+<!-- ============================================================ -->
+<div id="modal-op-truck" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border border-slate-300">
+    <div class="p-4 bg-emerald-950 text-white rounded-t-lg flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-base">🚛</span>
+        <h3 class="font-bold text-sm">Register New Carrier Vehicle</h3>
+      </div>
+      <button type="button" onclick="closeOperatorTruckModal()" class="text-slate-300 hover:text-white font-bold text-lg">&times;</button>
+    </div>
+    <form id="form-op-truck" onsubmit="submitOperatorTruck(event)" class="p-5 space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Registration Number (e.g. HR26AB1234)*</label>
+        <input type="text" id="op-truck-reg" required class="gov-input w-full uppercase" placeholder="HR26AB1234" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Vehicle Type</label>
+          <select id="op-truck-type" class="gov-input w-full">
+            <option value="10-Wheeler Tipper Truck">10-Wheeler Tipper Truck</option>
+            <option value="12-Wheeler Heavy Dumper">12-Wheeler Heavy Dumper</option>
+            <option value="14-Wheeler Multi-Axle Hauler">14-Wheeler Multi-Axle Hauler</option>
+            <option value="6-Wheeler Medium Tipper">6-Wheeler Medium Tipper</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Logistics Partner / Owner</label>
+          <input type="text" id="op-truck-owner" class="gov-input w-full" value="{{ sub_mine.leaseholder_name if sub_mine else 'Concession Haulage Logistics' }}" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Tare Weight (MT)</label>
+          <input type="number" step="0.1" id="op-truck-tare" class="gov-input w-full" value="11.5" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Max Payload Capacity (MT)</label>
+          <input type="number" step="0.1" id="op-truck-cap" class="gov-input w-full" value="28.0" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Primary Driver Name</label>
+          <input type="text" id="op-truck-driver" class="gov-input w-full" placeholder="e.g. Balwinder Singh" required />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Driver Contact Phone</label>
+          <input type="text" id="op-truck-phone" class="gov-input w-full" placeholder="+91 98123 45678" required />
+        </div>
+      </div>
+      <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-900">
+        Vehicle will be permanently assigned to sub-mine <strong>{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong>.
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOperatorTruckModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm font-bold">Submit Registration</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL 2: REGISTER DRIVER (+ Register Driver) -->
+<!-- ============================================================ -->
+<div id="modal-op-driver" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full border border-slate-300">
+    <div class="p-4 bg-emerald-950 text-white rounded-t-lg flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-base">👨‍✈️</span>
+        <h3 class="font-bold text-sm">Register Commercial Driver</h3>
+      </div>
+      <button type="button" onclick="closeOperatorDriverModal()" class="text-slate-300 hover:text-white font-bold text-lg">&times;</button>
+    </div>
+    <form id="form-op-driver" onsubmit="submitOperatorDriver(event)" class="p-5 space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Full Legal Name*</label>
+        <input type="text" id="op-driver-name" required class="gov-input w-full" placeholder="e.g. Ramesh Kumar" />
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Commercial Driving License (DL) Number*</label>
+        <input type="text" id="op-driver-dl" required class="gov-input w-full uppercase" placeholder="HR-26-2022-0012345" />
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Contact Phone Number*</label>
+        <input type="text" id="op-driver-phone" required class="gov-input w-full" placeholder="+91 98123 45678" />
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Assign to Sub-Mine Vehicle (Optional)</label>
+        <select id="op-driver-truck" class="gov-input w-full">
+          <option value="">-- No immediate truck assignment --</option>
+          {% for t in trucks %}
+          <option value="{{ t.id }}">{{ t.registration_number }} ({{ t.vehicle_type }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOperatorDriverModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm font-bold">Save Driver Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL 3: ISSUE e-RAWAANA (+ Issue e-Rawaana) -->
+<!-- ============================================================ -->
+<div id="modal-op-permit" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border border-slate-300">
+    <div class="p-4 bg-emerald-950 text-white rounded-t-lg flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-base">⚡</span>
+        <h3 class="font-bold text-sm">Issue Statutory e-Rawaana Transit Pass</h3>
+      </div>
+      <button type="button" onclick="closeOperatorPermitModal()" class="text-slate-300 hover:text-white font-bold text-lg">&times;</button>
+    </div>
+    <form id="form-op-permit" onsubmit="submitOperatorPermit(event)" class="p-5 space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Carrier Vehicle*</label>
+        <select id="op-permit-truck" required class="gov-input w-full font-bold">
+          {% for t in trucks %}
+          <option value="{{ t.id }}">{{ t.registration_number }} &bull; {{ t.vehicle_type }} (Max: {{ t.max_capacity_mt }} MT)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Mineral / Grade*</label>
+          <input type="text" id="op-permit-mineral" class="gov-input w-full" value="{{ mine.mineral if mine else 'Khanak Blue Stone Road Metal' }}" required />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Permitted Weight (MT)*</label>
+          <input type="number" step="0.1" id="op-permit-weight" class="gov-input w-full font-bold text-emerald-900" value="25.0" required />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Consignee / Buyer Name*</label>
+          <input type="text" id="op-permit-buyer" class="gov-input w-full" value="M/S Neelkanth Stone Crusher L-136" required />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Destination Point*</label>
+          <input type="text" id="op-permit-dest" class="gov-input w-full" value="M/S Neelkanth Stone Crusher L-136" required />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Buyer GSTN</label>
+          <input type="text" id="op-permit-gstn" class="gov-input w-full" value="06AAAAN2658Q1Z4" />
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Validity Duration</label>
+          <select id="op-permit-hours" class="gov-input w-full">
+            <option value="12">12 Hours (Standard Commercial)</option>
+            <option value="24">24 Hours (Interstate Corridor)</option>
+            <option value="8">8 Hours (Intra-District)</option>
+          </select>
+        </div>
+      </div>
+      <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-900">
+        Issued under Sub-Mine Concession: <strong>{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong>.
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOperatorPermitModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm font-bold bg-emerald-800 hover:bg-emerald-700 text-white">Issue Transit Pass</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MODAL 4: DISPATCH TRIP (+ Start Trip) -->
+<!-- ============================================================ -->
+<div id="modal-op-trip" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full border border-slate-300">
+    <div class="p-4 bg-emerald-950 text-white rounded-t-lg flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-base">🚀</span>
+        <h3 class="font-bold text-sm">Dispatch Sub-Mine Transit Trip</h3>
+      </div>
+      <button type="button" onclick="closeOperatorTripModal()" class="text-slate-300 hover:text-white font-bold text-lg">&times;</button>
+    </div>
+    <form id="form-op-trip" onsubmit="submitOperatorTrip(event)" class="p-5 space-y-3 text-xs">
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Select Active e-Rawaana Permit*</label>
+        <select id="op-trip-permit" required class="gov-input w-full font-bold">
+          {% for p in permits %}
+          {% if p.status == 'ACTIVE' %}
+          <option value="{{ p.id }}">{{ p.permit_number }} &bull; {{ p.registration_number }} ({{ p.permitted_weight_mt }} MT {{ p.mineral }})</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 mb-1">Planned Distance (KM)</label>
+        <input type="number" step="0.5" id="op-trip-dist" class="gov-input w-full" value="48.5" />
+      </div>
+      <div class="p-2.5 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900">
+        <span class="font-bold">Rule 7 Notice:</span> Trip departure triggers AIS-140 GPS telemetry corridor tracking. Normal dispatch is prohibited without valid e-Rawaana.
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOperatorTripModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm font-bold">Dispatch Journey</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Register Sub-Mine Pit Concession -->
+<div id="modal-op-submine" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+        <span>⛏️ Register Sub-Mine / Pit Concession</span>
+      </h3>
+      <button onclick="closeOperatorSubMineModal()" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitOperatorSubMine(event)" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Sub-Mine / Pit Name *</label>
+        <input type="text" id="op-submine-name" required class="gov-input w-full" placeholder="e.g. Khanak Blue Stone Pit Lot 2" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Block / Tender Code *</label>
+          <input type="text" id="op-submine-code" required class="gov-input w-full font-mono uppercase" placeholder="KH-PIT-02" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Allocated Annual Quota (MT) *</label>
+          <input type="number" step="100" id="op-submine-quota" required class="gov-input w-full" value="35000" />
+        </div>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Leaseholder / Business Contractor Entity *</label>
+        <input type="text" id="op-submine-leaseholder" required class="gov-input w-full" placeholder="e.g. Haryana Aggregates &amp; Minerals Corp" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Operator In-Charge Name *</label>
+          <input type="text" id="op-submine-operator-name" required class="gov-input w-full" placeholder="e.g. Vikramaditya Singh" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Contact Phone *</label>
+          <input type="text" id="op-submine-phone" required class="gov-input w-full" placeholder="+91 98123 45678" />
+        </div>
+      </div>
+      <div class="p-2.5 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 font-medium">
+        ℹ️ This concession plot will be automatically registered under your assigned parent leasehold: <strong>{{ mine.name if mine else 'Khanak Stone Mines' }}</strong>.
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+        <button type="button" onclick="closeOperatorSubMineModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm bg-amber-800 hover:bg-amber-700 text-white font-bold">Save Sub-Mine Concession</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function showOpAlert(msg, isSuccess) {
+  const box = document.getElementById('op-action-alert');
+  box.className = isSuccess 
+    ? 'p-3 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300 block'
+    : 'p-3 rounded text-xs font-semibold bg-red-100 text-red-900 border border-red-300 block';
+  box.textContent = msg;
+  setTimeout(() => { box.className = 'hidden'; }, 5000);
+}
+
+function openOperatorSubMineModal() { document.getElementById('modal-op-submine').classList.remove('hidden'); }
+function closeOperatorSubMineModal() { document.getElementById('modal-op-submine').classList.add('hidden'); }
+
+function openOperatorTruckModal() { document.getElementById('modal-op-truck').classList.remove('hidden'); }
+function closeOperatorTruckModal() { document.getElementById('modal-op-truck').classList.add('hidden'); }
+
+function openOperatorDriverModal() { document.getElementById('modal-op-driver').classList.remove('hidden'); }
+function closeOperatorDriverModal() { document.getElementById('modal-op-driver').classList.add('hidden'); }
+
+function openOperatorPermitModal() { document.getElementById('modal-op-permit').classList.remove('hidden'); }
+function closeOperatorPermitModal() { document.getElementById('modal-op-permit').classList.add('hidden'); }
+
+function openOperatorTripModal() { document.getElementById('modal-op-trip').classList.remove('hidden'); }
+function closeOperatorTripModal() { document.getElementById('modal-op-trip').classList.add('hidden'); }
+
+async function submitOperatorSubMine(e) {
+  e.preventDefault();
+  const payload = {
+    block_name: document.getElementById('op-submine-name').value.trim(),
+    block_code: document.getElementById('op-submine-code').value.trim(),
+    leaseholder_name: document.getElementById('op-submine-leaseholder').value.trim(),
+    operator_name: document.getElementById('op-submine-operator-name').value.trim(),
+    contact_phone: document.getElementById('op-submine-phone').value.trim(),
+    allocated_quota_mt: parseFloat(document.getElementById('op-submine-quota').value) || 35000.0
+  };
+  try {
+    const res = await fetch('/api/crud/sub-mines', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      closeOperatorSubMineModal();
+      showOpAlert(data.message || 'Sub-mine concession registered successfully.', true);
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      showOpAlert(data.error || 'Failed to register sub-mine.', false);
+    }
+  } catch (err) {
+    showOpAlert('Network error occurred: ' + err.message, false);
+  }
+}
+
+async function submitOperatorTruck(e) {
+  e.preventDefault();
+  const payload = {
+    registration_number: document.getElementById('op-truck-reg').value.trim(),
+    vehicle_type: document.getElementById('op-truck-type').value,
+    registered_owner: document.getElementById('op-truck-owner').value.trim(),
+    tare_weight_mt: parseFloat(document.getElementById('op-truck-tare').value),
+    max_capacity_mt: parseFloat(document.getElementById('op-truck-cap').value),
+    driver_name: document.getElementById('op-truck-driver').value.trim(),
+    driver_phone: document.getElementById('op-truck-phone').value.trim()
+  };
+  try {
+    const res = await fetch('/api/crud/trucks', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeOperatorTruckModal();
+      showOpAlert(data.message || 'Truck registered successfully.', true);
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      showOpAlert(data.error || 'Failed to register vehicle.', false);
+    }
+  } catch (err) {
+    showOpAlert('Network error occurred.', false);
+  }
+}
+
+async function submitOperatorDriver(e) {
+  e.preventDefault();
+  const truckVal = document.getElementById('op-driver-truck').value;
+  const payload = {
+    driver_name: document.getElementById('op-driver-name').value.trim(),
+    license_number: document.getElementById('op-driver-dl').value.trim(),
+    contact_phone: document.getElementById('op-driver-phone').value.trim(),
+    assigned_truck_id: truckVal ? parseInt(truckVal) : null
+  };
+  try {
+    const res = await fetch('/api/crud/drivers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeOperatorDriverModal();
+      showOpAlert(data.message || 'Driver registered successfully.', true);
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      showOpAlert(data.error || 'Failed to register driver.', false);
+    }
+  } catch (err) {
+    showOpAlert('Network error occurred.', false);
+  }
+}
+
+async function submitOperatorPermit(e) {
+  e.preventDefault();
+  const payload = {
+    truck_id: parseInt(document.getElementById('op-permit-truck').value),
+    mineral: document.getElementById('op-permit-mineral').value.trim(),
+    permitted_weight_mt: parseFloat(document.getElementById('op-permit-weight').value),
+    buyer_name: document.getElementById('op-permit-buyer').value.trim(),
+    destination_name: document.getElementById('op-permit-dest').value.trim(),
+    buyer_gstn: document.getElementById('op-permit-gstn').value.trim(),
+    valid_hours: parseInt(document.getElementById('op-permit-hours').value)
+  };
+  try {
+    const res = await fetch('/api/crud/permits', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeOperatorPermitModal();
+      showOpAlert(data.message || 'e-Rawaana issued successfully.', true);
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      showOpAlert(data.error || 'Failed to issue permit.', false);
+    }
+  } catch (err) {
+    showOpAlert('Network error occurred.', false);
+  }
+}
+
+async function submitOperatorTrip(e) {
+  e.preventDefault();
+  const payload = {
+    permit_id: parseInt(document.getElementById('op-trip-permit').value),
+    planned_distance_km: parseFloat(document.getElementById('op-trip-dist').value)
+  };
+  try {
+    const res = await fetch('/api/crud/trips', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeOperatorTripModal();
+      showOpAlert(data.message || 'Trip dispatched successfully.', true);
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      showOpAlert(data.error || 'Failed to dispatch trip.', false);
+    }
+  } catch (err) {
+    showOpAlert('Network error occurred.', false);
+  }
+}
+</script>
+{% endblock %}

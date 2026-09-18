@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Officer Sign In{% endblock %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center py-6 px-4">
+  <div class="max-w-md w-full">
+    
+    <!-- Portal Seal & Title Card -->
+    <div class="gov-card shadow-sm border border-slate-300">
+      <div class="p-6 text-center border-b border-slate-200 bg-slate-50">
+        <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-emerald-900 border-2 border-emerald-700 flex items-center justify-center text-white font-bold text-xl shadow">
+          MG
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 uppercase tracking-wide">
+          Directorate of Mines & Geology
+        </h2>
+        <p class="text-xs text-slate-600 font-medium mt-1">
+          SmartMineGuard — Mineral Transport Intelligence & Statutory Verification Portal
+        </p>
+      </div>
+
+      <!-- Login Form -->
+      <div class="p-6">
+        <form method="POST" action="{{ url_for('login') }}" class="space-y-4">
+          <div>
+            <label for="username" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Officer Username / Service ID
+            </label>
+            <input type="text" id="username" name="username" required autofocus
+              placeholder="Enter official username / Service ID"
+              class="gov-input" />
+          </div>
+
+          <div>
+            <label for="password" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Security Password
+            </label>
+            <input type="password" id="password" name="password" required
+              placeholder="••••••••"
+              class="gov-input" />
+          </div>
+
+          <div class="pt-2">
+            <button type="submit" class="w-full btn-gov btn-gov-primary py-2 text-sm uppercase tracking-wider font-bold">
+              Secure Sign In
+            </button>
+          </div>
+        </form>
+
+        <!-- Statutory Notice -->
+        <div class="mt-6 p-3 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 leading-relaxed">
+          <span class="font-bold">Statutory Notice:</span> Access to this mineral surveillance system is restricted to authorized state mining officers and enforcement personnel. All queries and transactions are logged with IP address and timestamp under Section 43/66 of the Information Technology Act.
+        </div>
+
+        <!-- Help Desk Reference -->
+        <div class="mt-4 pt-3 border-t border-slate-200 text-center text-xs text-slate-500">
+          Need access credentials or password recovery? Contact the <span class="font-semibold text-slate-700">Directorate IT Helpdesk</span> at <span class="font-mono text-slate-800">helpdesk-mines@gov.in</span>.
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

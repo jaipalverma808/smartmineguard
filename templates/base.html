@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Overview{% endblock %} — SmartMineGuard | Mineral Transport Intelligence</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet GIS CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Socket.IO Client -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <!-- HTML5 QR Code Scanner -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+   <!-- Custom Administrative Stylesheet with Cache Busting -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2.6">
+  
+  {% block head %}{% endblock %}
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- Government Identity Header -->
+  <header class="gov-header px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <a href="/" class="flex items-center space-x-3 text-white no-underline">
+          <div class="w-9 h-9 rounded bg-emerald-600 flex items-center justify-center text-white shadow font-bold text-lg">
+            ⛏
+          </div>
+          <div>
+            <h1 class="text-base font-extrabold tracking-tight text-white m-0 font-sans">
+              SmartMineGuard
+            </h1>
+            <p class="text-xs text-emerald-200 m-0">
+              Mining &amp; Mineral Transport Monitoring System
+            </p>
+          </div>
+        </a>
+      </div>
+
+      <!-- Logged-in User Badge & Demo Controls -->
+      <div class="flex items-center gap-3">
+        {% if current_user %}
+        <div class="hidden md:flex items-center bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 shadow-sm">
+          <div class="w-2.5 h-2.5 rounded-full {% if current_user.role == 'ADMIN' %}bg-amber-400{% elif current_user.role == 'OFFICER' %}bg-emerald-400{% else %}bg-sky-400{% endif %} mr-2.5 animate-pulse"></div>
+          <div>
+            <div class="font-bold text-white">{{ current_user.full_name }}</div>
+            <div class="text-[11px] {% if current_user.role == 'ADMIN' %}text-amber-300{% elif current_user.role == 'OFFICER' %}text-emerald-300{% else %}text-sky-300{% endif %} font-medium">
+              {% if current_user.role == 'ADMIN' %}
+                ADMIN &bull; {{ current_user.department or 'Headquarters' }}
+              {% elif current_user.role == 'OFFICER' %}
+                OFFICER &bull; {{ current_user.badge_number or current_user.department }}
+              {% else %}
+                OPERATOR &bull; {{ current_user.department or 'Weighbridge' }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <a href="{{ url_for('index') }}" class="text-xs bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-md transition shadow-sm font-medium flex items-center gap-1.5" title="Open Public Information Portal">
+          <span>Public Portal</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+
+        {% if current_user.role == 'ADMIN' %}
+        <!-- Global Persistent Mine-Scope Filter Selector (ADMIN ONLY: Statewide Grid) -->
+        <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <div class="flex items-center gap-1.5 bg-slate-900/90 border {% if active_mine_id %}border-amber-400 ring-1 ring-amber-400/40{% else %}border-slate-700{% endif %} rounded px-2.5 py-1 text-xs text-white shadow-xs transition">
+            <span class="text-[10px] font-bold {% if active_mine_id %}text-amber-300{% else %}text-emerald-300{% endif %} uppercase flex items-center gap-1">
+              <span>⛏ Mine:</span>
+            </span>
+            <select name="mine_id" onchange="this.form.submit()" class="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer">
+              <option value="" class="bg-slate-900 text-slate-300" {% if not active_mine_id %}selected{% endif %}>All Mines (Statewide Grid)</option>
+              {% for m in all_mines %}
+              <option value="{{ m.id }}" class="bg-slate-900 text-white font-medium" {% if active_mine_id == m.id %}selected{% endif %}>
+                {{ m.name }} ({{ m.district }})
+              </option>
+              {% endfor %}
+            </select>
+            {% if active_mine_id %}
+            <a href="{{ url_for('set_mine_filter', mine_id='', next=request.full_path) }}" class="text-amber-300 hover:text-white font-black text-xs ml-1 px-1 hover:bg-white/10 rounded transition" title="Clear Mine Filter">✕</a>
+            {% endif %}
+          </div>
+        </form>
+        {% elif current_user.role == 'OFFICER' and active_mine %}
+        <!-- Locked Assigned Mine Concession Badge (OFFICER: Strictly Scoped to Their Mine) -->
+        <div class="inline-flex items-center">
+          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-3 py-1 text-xs text-white shadow-xs" title="Field Officer is strictly locked to their single assigned mine leasehold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">⛏ Assigned Mine:</span>
+            <span class="font-bold text-white text-xs">{{ active_mine.name }} ({{ active_mine.district }})</span>
+            <span class="text-[9px] bg-slate-800 text-emerald-300 border border-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">LOCKED SECTOR</span>
+          </div>
+        </div>
+        {% elif current_user.role == 'OPERATOR' and active_mine %}
+        <!-- Weighbridge Scale Station Badge (OPERATOR: Ground Scale Only) -->
+        <div class="inline-flex items-center">
+          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-3 py-1 text-xs text-white shadow-xs">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">⚖️ Scale Station:</span>
+            <span class="font-bold text-white text-xs">{{ active_mine.name }}</span>
+            <span class="text-[9px] bg-slate-800 text-slate-300 border border-slate-600 px-1.5 py-0.5 rounded font-mono">SCALE STATION</span>
+          </div>
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}" class="text-xs bg-red-800 hover:bg-red-700 text-white px-3 py-1.5 rounded-md transition shadow-sm font-semibold">
+          Sign Out
+        </a>
+        {% else %}
+        <!-- Unauthenticated Public Visitor Controls -->
+        <a href="{{ url_for('login') }}" class="btn-gov btn-gov-primary text-xs uppercase tracking-wider font-bold py-1.5 px-3.5 flex items-center gap-1.5 shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+          <span>Officer Login</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  {% if current_user %}
+  <nav class="gov-navbar bg-slate-900 border-b border-slate-800 px-4">
+    <div class="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto whitespace-nowrap py-1">
+
+      {% if current_user.role == 'ADMIN' %}
+      <!-- ADMIN Command & System-wide Navigation -->
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        Admin Command <span class="sr-only">Center</span>
+      </a>
+      <a href="{{ url_for('live_map') }}" class="nav-link {% if request.endpoint == 'live_map' %}active{% endif %}">
+        Live GIS Map
+      </a>
+      <a href="{{ url_for('gps_telemetry') }}" class="nav-link {% if request.endpoint == 'gps_telemetry' %}active{% endif %} flex items-center gap-1">
+        <svg class="w-3.5 h-3.5 inline text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        <span>GPS &amp; Anti-Tamper</span>
+      </a>
+      <a href="{{ url_for('alerts') }}" class="nav-link {% if request.endpoint == 'alerts' %}active{% endif %}">
+        Alerts Center
+        {% if pending_alerts_count > 0 %}
+        <span class="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" id="alert-counter-badge">
+          {{ pending_alerts_count }}
+        </span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('investigations') }}" class="nav-link {% if request.endpoint in ('investigations', 'investigation_detail') %}active{% endif %}">
+        Investigations
+      </a>
+      <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}">
+        Analytics
+      </a>
+      <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+        Reports &amp; Dossiers
+      </a>
+
+      <!-- Executive State Registries & Audit Dropdown (Trucks, e-Rawaanas, Trips, Master Data) -->
+      <div class="relative group inline-block">
+        <a href="{{ url_for('admin_data_management') }}" class="nav-link flex items-center gap-1 {% if request.endpoint in ('trucks', 'truck_detail', 'permits', 'trips', 'admin_data_management') %}active{% endif %}">
+          <svg class="w-3.5 h-3.5 inline text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <span>State Registries</span>
+          <svg class="w-3 h-3 text-slate-400 group-hover:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </a>
+        <div class="hidden group-hover:block absolute left-0 top-full mt-0.5 w-60 bg-slate-900 border border-slate-700 rounded-md shadow-2xl z-50 py-1.5 backdrop-blur-md">
+          <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">Regulatory Audit Archives</div>
+          <a href="{{ url_for('trucks') }}" class="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white {% if request.endpoint in ('trucks', 'truck_detail') %}bg-slate-800/80 text-emerald-400 font-bold{% endif %}">
+            <span>🚛</span>
+            <div>
+              <div>Carrier Fleet Registry</div>
+              <div class="text-[10px] text-slate-400">All registered commercial carriers</div>
+            </div>
+          </a>
+          <a href="{{ url_for('permits') }}" class="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white {% if request.endpoint == 'permits' %}bg-slate-800/80 text-emerald-400 font-bold{% endif %}">
+            <span>📄</span>
+            <div>
+              <div>e-Rawaana Audit Archive</div>
+              <div class="text-[10px] text-slate-400">Statewide issued transit passes</div>
+            </div>
+          </a>
+          <a href="{{ url_for('trips') }}" class="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 hover:text-white {% if request.endpoint == 'trips' %}bg-slate-800/80 text-emerald-400 font-bold{% endif %}">
+            <span>🛣️</span>
+            <div>
+              <div>Transit Trips Ledger</div>
+              <div class="text-[10px] text-slate-400">Highway dispatch journeys</div>
+            </div>
+          </a>
+          <div class="border-t border-slate-800 my-1"></div>
+          <a href="{{ url_for('admin_data_management') }}" class="flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-300 hover:bg-slate-800 hover:text-emerald-200 font-semibold {% if request.endpoint == 'admin_data_management' %}bg-slate-800/80 font-bold{% endif %}">
+            <span>⚙️</span>
+            <div>Master Data Management</div>
+          </a>
+        </div>
+      </div>
+
+      <a href="{{ url_for('admin_users') }}" class="nav-link bg-amber-950/60 text-amber-200 border border-amber-700/50 hover:bg-amber-900 {% if request.endpoint in ('admin_users', 'admin_users_view') %}active{% endif %}">
+        <svg class="w-3.5 h-3.5 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        User Management
+      </a>
+
+      {% elif current_user.role == 'OFFICER' %}
+      <!-- OFFICER Enforcement Command Center Navigation -->
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        Enforcement Command <span class="sr-only">Enforcement Center</span>
+      </a>
+      <a href="{{ url_for('live_map') }}" class="nav-link {% if request.endpoint == 'live_map' %}active{% endif %}">
+        Live GIS Map
+      </a>
+      <a href="{{ url_for('gps_telemetry') }}" class="nav-link {% if request.endpoint == 'gps_telemetry' %}active{% endif %} flex items-center gap-1">
+        <svg class="w-3.5 h-3.5 inline text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        <span>GPS &amp; Anti-Tamper</span>
+      </a>
+      <a href="{{ url_for('trucks') }}" class="nav-link {% if request.endpoint in ('trucks', 'truck_detail') %}active{% endif %}">
+        Trucks Fleet
+      </a>
+      <a href="{{ url_for('permits') }}" class="nav-link {% if request.endpoint == 'permits' %}active{% endif %}">
+        e-Rawaana Permits
+      </a>
+      <a href="{{ url_for('trips') }}" class="nav-link {% if request.endpoint == 'trips' %}active{% endif %}">
+        Transit Trips
+      </a>
+      <a href="{{ url_for('alerts') }}" class="nav-link {% if request.endpoint == 'alerts' %}active{% endif %}">
+        Alerts Center
+        {% if pending_alerts_count > 0 %}
+        <span class="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full" id="alert-counter-badge">
+          {{ pending_alerts_count }}
+        </span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('investigations') }}" class="nav-link {% if request.endpoint in ('investigations', 'investigation_detail') %}active{% endif %}">
+        Investigations
+      </a>
+      <a href="{{ url_for('analytics') }}" class="nav-link {% if request.endpoint == 'analytics' %}active{% endif %}">
+        Analytics
+      </a>
+      <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+        Reports &amp; Dossiers
+      </a>
+      <a href="{{ url_for('officer_verification') }}" class="nav-link bg-emerald-900/80 text-emerald-200 border border-emerald-700/50 hover:bg-emerald-800 {% if request.endpoint == 'officer_verification' %}active{% endif %}">
+        <svg class="w-3.5 h-3.5 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        QR Verification
+      </a>
+
+      {% elif current_user.role == 'OPERATOR' %}
+      <!-- OPERATOR Ground Mining Operations Navigation -->
+      <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+        Mining Operations
+      </a>
+      <a href="{{ url_for('operator_weighbridge') }}" class="nav-link bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 hover:bg-emerald-900 {% if request.endpoint == 'operator_weighbridge' %}active{% endif %} flex items-center gap-1 font-bold">
+        <span>⚖️ Weighbridge Scale</span>
+      </a>
+      <a href="{{ url_for('operator_dispatch') }}" class="nav-link {% if request.endpoint == 'operator_dispatch' %}active{% endif %}">
+        Dispatch e-Rawaana
+      </a>
+      <a href="{{ url_for('trucks') }}" class="nav-link {% if request.endpoint in ('trucks', 'truck_detail') %}active{% endif %}">
+        Fleet &amp; Trucks
+      </a>
+      <a href="{{ url_for('operator_stock') }}" class="nav-link {% if request.endpoint == 'operator_stock' %}active{% endif %}">
+        Production &amp; Stock
+      </a>
+      <a href="{{ url_for('permits') }}" class="nav-link {% if request.endpoint == 'permits' %}active{% endif %}">
+        e-Rawaana Passes
+      </a>
+      <a href="{{ url_for('trips') }}" class="nav-link {% if request.endpoint == 'trips' %}active{% endif %}">
+        Transit Trips
+      </a>
+      <a href="{{ url_for('gps_telemetry') }}" class="nav-link {% if request.endpoint == 'gps_telemetry' %}active{% endif %} flex items-center gap-1">
+        <svg class="w-3.5 h-3.5 inline text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        <span>Fleet GPS</span>
+      </a>
+      <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
+        Operational Reports
+      </a>
+      {% endif %}
+
+    </div>
+  </nav>
+  {% else %}
+  <!-- Public Navigation Bar for Unauthenticated Visitors -->
+  <nav class="gov-navbar px-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto whitespace-nowrap py-1 text-xs">
+      <div class="flex items-center space-x-6">
+        <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+          Home
+        </a>
+        <a href="{{ url_for('index') }}#how-it-works" class="nav-link text-slate-300 hover:text-white">
+          About / How It Works
+        </a>
+        <a href="{{ url_for('index') }}#verification" class="nav-link text-slate-300 hover:text-white">
+          Public Verification
+        </a>
+        <a href="{{ url_for('index') }}#contact" class="nav-link text-slate-300 hover:text-white">
+          Contact / Help
+        </a>
+      </div>
+      <div class="flex items-center space-x-2">
+        <a href="{{ url_for('login') }}" class="btn-gov btn-gov-primary text-xs uppercase font-bold py-1 px-3">
+          Login &rarr;
+        </a>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+
+  <!-- Flash Messages -->
+  <div class="max-w-7xl mx-auto px-4 mt-3 w-full">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert-banner {% if category == 'error' %}alert-error{% elif category == 'info' %}alert-info{% else %}alert-success{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main Content Area -->
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-4">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Standard Institutional Footer -->
+  <footer class="bg-slate-900 text-slate-400 text-xs py-5 border-t border-slate-800 mt-10">
+    <div class="max-w-7xl mx-auto px-4 flex flex-wrap justify-between items-center gap-4">
+      <div>
+        <div class="font-bold text-slate-200">SmartMineGuard &bull; Mining &amp; Mineral Transport Monitoring System</div>
+        <div class="text-[11px] text-slate-500">Official Enforcement &amp; Oversight Infrastructure &bull; Directorate of Geology &amp; Mining</div>
+      </div>
+      <div class="flex items-center gap-4 text-[11px]">
+        <a href="{{ url_for('index') }}" class="hover:text-white transition">Public Portal</a>
+        <span>&bull;</span>
+        <a href="{{ url_for('index') }}#verification" class="hover:text-white transition">Verify Pass</a>
+        <span>&bull;</span>
+        <a href="{{ url_for('index') }}#contact" class="hover:text-white transition">Support</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Global Application Scripts -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

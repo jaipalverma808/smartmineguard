@@ -1,0 +1,711 @@
+{% extends "base.html" %}
+
+{% block title %}Master Data Management — DMG Administrative Registry{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Card -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+        </svg>
+        <span>Master Data &amp; Regulatory Registry Management</span>
+      </h2>
+      <p class="text-[11px] text-slate-500">Configure and monitor state mining concessions, certified weighbridges, destinations, checkpoints, and statutory stock ceilings. Fleet carriers, drivers, e-Rawaana passes, and transit dispatches are decentralized to ground sub-mine operators.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-secondary btn-sm">
+        &larr; Admin Command Center
+      </a>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="border-b border-slate-300 bg-white rounded-t px-2 flex flex-wrap gap-1 text-xs">
+    <button onclick="switchTab('mines')" id="tab-btn-mines" class="tab-btn px-4 py-2.5 font-bold border-b-2 border-emerald-800 text-emerald-900">1. Mines &amp; Leases ({{ mines|length }})</button>
+    <button onclick="switchTab('submines')" id="tab-btn-submines" class="tab-btn px-4 py-2.5 font-medium text-slate-600 hover:text-slate-900">2. Sub-Mines &amp; Concessions ({{ sub_mines|length }})</button>
+    <button onclick="switchTab('weighbridges')" id="tab-btn-weighbridges" class="tab-btn px-4 py-2.5 font-medium text-slate-600 hover:text-slate-900">3. Weighbridges ({{ weighbridges|length }})</button>
+    <button onclick="switchTab('destinations')" id="tab-btn-destinations" class="tab-btn px-4 py-2.5 font-medium text-slate-600 hover:text-slate-900">4. Destinations ({{ destinations|length }})</button>
+    <button onclick="switchTab('checkpoints')" id="tab-btn-checkpoints" class="tab-btn px-4 py-2.5 font-medium text-slate-600 hover:text-slate-900">5. Checkpoints ({{ checkpoints|length }})</button>
+    <button onclick="switchTab('stock')" id="tab-btn-stock" class="tab-btn px-4 py-2.5 font-medium text-slate-600 hover:text-slate-900">6. Stock &amp; Production</button>
+  </div>
+
+  <!-- Notification Banner -->
+  <div id="crud-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- TAB 1: MINES -->
+  <div id="tab-content-mines" class="tab-pane space-y-4">
+    <div class="flex justify-between items-center bg-white p-3 border border-slate-200 rounded">
+      <div class="text-xs text-slate-600">Registered Mining Leaseholds across Rajasthan &amp; Haryana mineral belts.</div>
+      <button onclick="openModal('modal-add-mine')" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Register New Mine Lease</span>
+      </button>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Mine Code</th>
+              <th>Lease Name</th>
+              <th>Operator Organization</th>
+              <th>District, State</th>
+              <th>Mineral</th>
+              <th>Annual Quota (MT)</th>
+              <th>Current Stock (MT)</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in mines %}
+            <tr id="row-mine-{{ m.id }}">
+              <td class="font-mono font-bold text-slate-900">{{ m.mine_code }}</td>
+              <td class="font-semibold text-slate-800">{{ m.name }}</td>
+              <td class="text-slate-600">{{ m.operator_name }}</td>
+              <td>{{ m.district }}, {{ m.state }}</td>
+              <td><span class="font-medium text-amber-900">{{ m.mineral }}</span></td>
+              <td>{{ "{:,.1f}".format(m.authorized_annual_quota_mt) }} MT</td>
+              <td class="font-bold text-emerald-800">{{ "{:,.1f}".format(m.current_stock_mt or 0.0) }} MT</td>
+              <td>
+                <span class="badge {% if m.status == 'OPERATIONAL' %}badge-low{% else %}badge-critical{% endif %}">
+                  {{ m.status }}
+                </span>
+              </td>
+              <td>
+                <button onclick="deleteRecord('mines', {{ m.id }}, 'row-mine-{{ m.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: SUB-MINES & CONCESSIONS -->
+  <div id="tab-content-submines" class="tab-pane hidden space-y-4">
+    <div class="flex flex-wrap justify-between items-center bg-white p-3 border border-slate-200 rounded gap-2">
+      <div>
+        <div class="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+          <span>Statewide Sub-Mine Concessions &amp; Pit Tenders Directory</span>
+          <span class="badge bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-mono">{{ sub_mines|length }} Registered Pit Tenders</span>
+        </div>
+        <div class="text-[11px] text-slate-500 mt-0.5">
+          Decentralized Governance: Ground operators directly register and manage sub-mine concessions, carrier trucks, verified drivers, e-Rawaanas, and outbound dispatches for their assigned leasehold.
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="text" id="submine-search-input" oninput="filterSubMineRegistry()" placeholder="Search Sub-Mine, Parent, Contractor..." class="gov-input text-xs w-60" />
+      </div>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs" id="submines-table">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Block Code</th>
+              <th>Sub-Mine / Pit Name</th>
+              <th>Parent Mine Lease</th>
+              <th>Contractor / Business Concessionaire</th>
+              <th>Operator In-Charge</th>
+              <th>Allocated Quota (MT)</th>
+              <th>Dispatched (MT)</th>
+              <th>Active Carriers</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sm in sub_mines %}
+            <tr id="row-submines-{{ sm.id }}" class="submine-row">
+              <td class="font-mono font-bold text-emerald-900">{{ sm.block_code }}</td>
+              <td class="font-semibold text-slate-800">{{ sm.block_name }}</td>
+              <td>
+                <div class="font-medium text-slate-900">{{ sm.mine_name }}</div>
+                <div class="text-[10px] text-slate-500">{{ sm.mine_district }}, {{ sm.mine_state }}</div>
+              </td>
+              <td class="text-slate-700 font-medium">{{ sm.leaseholder_name }}</td>
+              <td>
+                <div class="text-slate-800">{{ sm.operator_name or '—' }}</div>
+                <div class="font-mono text-[10px] text-slate-500">{{ sm.contact_phone or '—' }}</div>
+              </td>
+              <td class="font-semibold text-slate-800">{{ "{:,.1f}".format(sm.allocated_quota_mt or 0.0) }} MT</td>
+              <td class="font-bold text-emerald-800">{{ "{:,.1f}".format(sm.dispatched_mt or 0.0) }} MT</td>
+              <td>
+                <span class="badge bg-slate-100 text-slate-800 font-mono text-[10px]">
+                  {{ sm.active_trucks_count or 0 }} Trucks
+                </span>
+              </td>
+              <td>
+                <span class="badge {% if sm.status == 'OPERATIONAL' %}badge-low{% else %}badge-critical{% endif %}">
+                  {{ sm.status }}
+                </span>
+              </td>
+              <td>
+                <button onclick="deleteRecord('sub-mines', {{ sm.id }}, 'row-submines-{{ sm.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: WEIGHBRIDGES -->
+  <div id="tab-content-weighbridges" class="tab-pane hidden space-y-4">
+    <div class="flex justify-between items-center bg-white p-3 border border-slate-200 rounded">
+      <div class="text-xs text-slate-600">Automated static and weigh-in-motion gross/tare enforcement scales.</div>
+      <button onclick="openModal('modal-add-weighbridge')" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Add Weighbridge</span>
+      </button>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Code</th>
+              <th>Station Name</th>
+              <th>Location &amp; Highway</th>
+              <th>Associated Mine</th>
+              <th>Capacity MT</th>
+              <th>Coordinates</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for wb in weighbridges %}
+            <tr id="row-weighbridges-{{ wb.id }}">
+              <td class="font-mono font-bold text-slate-900">{{ wb.code }}</td>
+              <td class="font-semibold text-slate-800">{{ wb.name }}</td>
+              <td>{{ wb.location }}</td>
+              <td>{{ wb.mine_name or 'State Toll Grid' }}</td>
+              <td>{{ wb.capacity_mt }} MT</td>
+              <td class="font-mono text-[10px]">{{ wb.latitude }}, {{ wb.longitude }}</td>
+              <td><span class="badge badge-low">{{ wb.status }}</span></td>
+              <td>
+                <button onclick="deleteRecord('weighbridges', {{ wb.id }}, 'row-weighbridges-{{ wb.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: DESTINATIONS -->
+  <div id="tab-content-destinations" class="tab-pane hidden space-y-4">
+    <div class="flex justify-between items-center bg-white p-3 border border-slate-200 rounded">
+      <div class="text-xs text-slate-600">Registered mineral processing hubs, stone crushers, cement works, and rail sidings.</div>
+      <button onclick="openModal('modal-add-destination')" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Register Consignee</span>
+      </button>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Destination Name</th>
+              <th>Facility Type</th>
+              <th>License / Reg No</th>
+              <th>District, State</th>
+              <th>Authorized Minerals</th>
+              <th>Coordinates</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dst in destinations %}
+            <tr id="row-destinations-{{ dst.id }}">
+              <td class="font-bold text-slate-900">{{ dst.name }}</td>
+              <td><span class="badge badge-medium">{{ dst.destination_type }}</span></td>
+              <td class="font-mono text-slate-700">{{ dst.license_number or '—' }}</td>
+              <td>{{ dst.district }}, {{ dst.state }}</td>
+              <td>{{ dst.authorized_minerals }}</td>
+              <td class="font-mono text-[10px]">{{ dst.latitude }}, {{ dst.longitude }}</td>
+              <td><span class="badge badge-low">{{ dst.status }}</span></td>
+              <td>
+                <button onclick="deleteRecord('destinations', {{ dst.id }}, 'row-destinations-{{ dst.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 5: CHECKPOINTS -->
+  <div id="tab-content-checkpoints" class="tab-pane hidden space-y-4">
+    <div class="flex justify-between items-center bg-white p-3 border border-slate-200 rounded">
+      <div class="text-xs text-slate-600">Mining enforcement outposts, boundary checkposts, and highway surveillance gates.</div>
+      <button onclick="openModal('modal-add-checkpoint')" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Add Checkpoint</span>
+      </button>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Checkpoint Name</th>
+              <th>Location &amp; Corridor</th>
+              <th>District</th>
+              <th>Coordinates</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cp in checkpoints %}
+            <tr id="row-checkpoints-{{ cp.id }}">
+              <td class="font-bold text-slate-900">{{ cp.name }}</td>
+              <td>{{ cp.location }}</td>
+              <td>{{ cp.district }}</td>
+              <td class="font-mono text-[10px]">{{ cp.latitude }}, {{ cp.longitude }}</td>
+              <td><span class="badge badge-low">{{ cp.status }}</span></td>
+              <td>
+                <button onclick="deleteRecord('checkpoints', {{ cp.id }}, 'row-checkpoints-{{ cp.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 6: STOCK & PRODUCTION -->
+  <div id="tab-content-stock" class="tab-pane hidden space-y-4">
+    <div class="flex justify-between items-center bg-white p-3 border border-slate-200 rounded">
+      <div class="text-xs text-slate-600">Deterministic mass-balance ledger entries: Opening Stock + Production - Dispatch = Closing Stock.</div>
+      <button onclick="openModal('modal-add-stock')" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Log Production &amp; Stock</span>
+      </button>
+    </div>
+    <div class="gov-card">
+      <div class="gov-table-container max-h-[520px] overflow-y-auto">
+        <table class="gov-table text-xs">
+          <thead class="sticky top-0 bg-slate-100 z-10">
+            <tr>
+              <th>Date</th>
+              <th>Mine</th>
+              <th>Mineral</th>
+              <th>Opening Stock</th>
+              <th>Today's Production</th>
+              <th>Today's Dispatch</th>
+              <th>Closing Stock</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sp in stock_production %}
+            <tr id="row-stock-{{ sp.id }}">
+              <td class="font-mono">{{ sp.record_date }}</td>
+              <td class="font-semibold">{{ sp.mine_name }}</td>
+              <td>{{ sp.mineral }}</td>
+              <td>{{ "{:,.1f}".format(sp.opening_stock_mt) }} MT</td>
+              <td class="font-bold text-emerald-700">+{{ "{:,.1f}".format(sp.production_mt) }} MT</td>
+              <td class="font-bold text-blue-700">-{{ "{:,.1f}".format(sp.dispatch_mt) }} MT</td>
+              <td class="font-bold text-slate-900">{{ "{:,.1f}".format(sp.closing_stock_mt) }} MT</td>
+              <td>
+                <button onclick="deleteRecord('stock-production', {{ sp.id }}, 'row-stock-{{ sp.id }}')" class="text-red-600 hover:text-red-800 text-[11px] font-semibold">Delete</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== MODALS FOR DATA ENTRY ==================== -->
+
+<!-- Modal: Add Mine -->
+<div id="modal-add-mine" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Register New Mine Concession</h3>
+      <button onclick="closeModal('modal-add-mine')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitForm(event, '/api/crud/mines', 'modal-add-mine')" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Mine Lease Name *</label>
+        <input type="text" name="name" required class="gov-input w-full" placeholder="e.g. Alwar Silica Pit No. 2" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Mine Code *</label>
+          <input type="text" name="mine_code" required class="gov-input w-full font-mono" placeholder="MN-RJ-ALW-05" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Mineral Type *</label>
+          <input type="text" name="mineral" required class="gov-input w-full" placeholder="Quartzite / Limestone / Silica Sand" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">District *</label>
+          <input type="text" name="district" required class="gov-input w-full" placeholder="Alwar / Rewari" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">State *</label>
+          <select name="state" class="gov-select w-full">
+            <option value="Rajasthan">Rajasthan</option>
+            <option value="Haryana">Haryana</option>
+            <option value="Punjab">Punjab</option>
+            <option value="Gujarat">Gujarat</option>
+            <option value="Madhya Pradesh">Madhya Pradesh</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Latitude (India: 8.0 - 37.0) *</label>
+          <input type="number" step="0.0001" name="latitude" required class="gov-input w-full" value="27.5620" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Longitude (India: 68.0 - 97.5) *</label>
+          <input type="number" step="0.0001" name="longitude" required class="gov-input w-full" value="76.6120" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Annual Quota (MT) *</label>
+          <input type="number" step="0.1" name="authorized_annual_quota_mt" required class="gov-input w-full" value="50000.0" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Opening Stock (MT) *</label>
+          <input type="number" step="0.1" name="opening_stock_mt" required class="gov-input w-full" value="3500.0" />
+        </div>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Operator Organization *</label>
+        <input type="text" name="operator_name" required class="gov-input w-full" placeholder="e.g. Aravalli Minerals Pvt Ltd" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeModal('modal-add-mine')" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Save Mine Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Weighbridge -->
+<div id="modal-add-weighbridge" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Add Weighbridge Facility</h3>
+      <button onclick="closeModal('modal-add-weighbridge')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitForm(event, '/api/crud/weighbridges', 'modal-add-weighbridge')" class="space-y-3 text-xs">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Weighbridge Code *</label>
+          <input type="text" name="code" required class="gov-input w-full font-mono" placeholder="WB-ALW-02" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Capacity (MT) *</label>
+          <input type="number" step="0.1" name="capacity_mt" required class="gov-input w-full" value="100.0" />
+        </div>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Weigh Station Name *</label>
+        <input type="text" name="name" required class="gov-input w-full" placeholder="e.g. Behror Toll Weighbridge #2" />
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Location / Highway *</label>
+        <input type="text" name="location" required class="gov-input w-full" placeholder="NH-48 Corridor Km 114" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Latitude (India) *</label>
+          <input type="number" step="0.0001" name="latitude" required class="gov-input w-full" value="27.8900" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Longitude (India) *</label>
+          <input type="number" step="0.0001" name="longitude" required class="gov-input w-full" value="76.2800" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeModal('modal-add-weighbridge')" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Save Weighbridge</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Destination -->
+<div id="modal-add-destination" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Register Consignee Destination</h3>
+      <button onclick="closeModal('modal-add-destination')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitForm(event, '/api/crud/destinations', 'modal-add-destination')" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Facility Name *</label>
+        <input type="text" name="name" required class="gov-input w-full" placeholder="e.g. Manesar ReadyMix Plant 3" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Facility Type *</label>
+          <select name="destination_type" class="gov-select w-full">
+            <option value="CRUSHER">Stone Crusher</option>
+            <option value="CEMENT_PLANT">Cement Factory</option>
+            <option value="RAIL_SIDING">Railway Goods Siding</option>
+            <option value="CONSTRUCTION_SITE">Infrastructure Project</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">License / Reg Number</label>
+          <input type="text" name="license_number" class="gov-input w-full font-mono" placeholder="CR-HR-MAN-019" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">District *</label>
+          <input type="text" name="district" required class="gov-input w-full" placeholder="Gurugram / Alwar" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">State *</label>
+          <input type="text" name="state" required class="gov-input w-full" value="Haryana" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Latitude (India) *</label>
+          <input type="number" step="0.0001" name="latitude" required class="gov-input w-full" value="28.3500" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Longitude (India) *</label>
+          <input type="number" step="0.0001" name="longitude" required class="gov-input w-full" value="76.9400" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeModal('modal-add-destination')" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Save Consignee</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Checkpoint -->
+<div id="modal-add-checkpoint" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Add Enforcement Checkpoint</h3>
+      <button onclick="closeModal('modal-add-checkpoint')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitForm(event, '/api/crud/checkpoints', 'modal-add-checkpoint')" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Checkpoint Name *</label>
+        <input type="text" name="name" required class="gov-input w-full" placeholder="e.g. Shahjahanpur Inter-State Border Post" />
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">Location / Highway *</label>
+        <input type="text" name="location" required class="gov-input w-full" placeholder="NH-48 Rajasthan-Haryana Border" />
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">District *</label>
+        <input type="text" name="district" required class="gov-input w-full" placeholder="Kotputli-Behror" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Latitude (India) *</label>
+          <input type="number" step="0.0001" name="latitude" required class="gov-input w-full" value="27.9950" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Longitude (India) *</label>
+          <input type="number" step="0.0001" name="longitude" required class="gov-input w-full" value="76.3550" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeModal('modal-add-checkpoint')" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Save Checkpoint</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Add Stock / Production -->
+<div id="modal-add-stock" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Log Daily Production &amp; Stock Balance</h3>
+      <button onclick="closeModal('modal-add-stock')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitForm(event, '/api/crud/stock-production', 'modal-add-stock')" class="space-y-3 text-xs">
+      <div>
+        <label class="block font-semibold mb-1">Mine Leasehold *</label>
+        <select name="mine_id" id="stock-mine-select" required class="gov-select w-full" onchange="autoFillMineStock()">
+          {% for m in mines %}
+          <option value="{{ m.id }}" data-stock="{{ m.current_stock_mt or 3500.0 }}" data-mineral="{{ m.mineral }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Mineral *</label>
+          <input type="text" name="mineral" id="stock-mineral" required class="gov-input w-full" value="{{ mines[0].mineral if mines else 'Quartzite' }}" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Date *</label>
+          <input type="date" name="record_date" required class="gov-input w-full" id="stock-date" />
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block font-semibold mb-1">Opening MT *</label>
+          <input type="number" step="0.1" name="opening_stock_mt" id="stock-opening" required class="gov-input w-full" value="4200.0" oninput="calcClosingStock()" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Production MT *</label>
+          <input type="number" step="0.1" name="production_mt" id="stock-prod" required class="gov-input w-full" value="450.0" oninput="calcClosingStock()" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Dispatch MT *</label>
+          <input type="number" step="0.1" name="dispatch_mt" id="stock-disp" required class="gov-input w-full" value="380.0" oninput="calcClosingStock()" />
+        </div>
+      </div>
+      <div class="p-2.5 bg-slate-50 border border-slate-200 rounded flex justify-between items-center text-xs">
+        <span class="text-slate-600 font-semibold">Calculated Closing Stock:</span>
+        <span id="stock-closing-preview" class="font-bold text-emerald-800 text-sm">4,270.0 MT</span>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeModal('modal-add-stock')" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Record Balance</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Tab Switching
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+      el.classList.remove('border-b-2', 'border-emerald-800', 'text-emerald-900', 'font-bold');
+      el.classList.add('font-medium', 'text-slate-600');
+    });
+
+    const activePane = document.getElementById('tab-content-' + tabId);
+    if (activePane) activePane.classList.remove('hidden');
+
+    const activeBtn = document.getElementById('tab-btn-' + tabId);
+    if (activeBtn) {
+      activeBtn.classList.add('border-b-2', 'border-emerald-800', 'text-emerald-900', 'font-bold');
+      activeBtn.classList.remove('text-slate-600');
+    }
+  }
+
+  // Modals
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+    if (id === 'modal-add-stock') {
+      const today = new Date().toISOString().split('T')[0];
+      const dt = document.getElementById('stock-date');
+      if (dt) dt.value = today;
+      calcClosingStock();
+    }
+  }
+
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  }
+
+  // Form Submission via Fetch
+  async function submitForm(event, endpoint, modalId) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((value, key) => { payload[key] = value; });
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeModal(modalId);
+        showAlert(data.message || 'Record created successfully.', 'success');
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        showAlert(data.error || 'Failed to process statutory entry.', 'error');
+      }
+    } catch (err) {
+      showAlert('Network error: ' + err.message, 'error');
+    }
+  }
+
+  // Record Deletion
+  async function deleteRecord(entity, id, rowId) {
+    if (!confirm('Are you sure you want to delete this master record? This action is irreversible.')) return;
+    try {
+      const res = await fetch(`/api/crud/${entity}/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const row = document.getElementById(rowId);
+        if (row) row.remove();
+        showAlert(data.message || 'Record removed.', 'success');
+      } else {
+        showAlert(data.error || 'Failed to remove record.', 'error');
+      }
+    } catch (err) {
+      showAlert('Network error: ' + err.message, 'error');
+    }
+  }
+
+  function showAlert(msg, type) {
+    const banner = document.getElementById('crud-alert');
+    if (!banner) return;
+    banner.className = `p-3 rounded text-xs font-semibold ${type === 'success' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-red-100 text-red-900 border border-red-300'}`;
+    banner.innerText = msg;
+    banner.classList.remove('hidden');
+    setTimeout(() => banner.classList.add('hidden'), 5000);
+  }
+
+  function calcClosingStock() {
+    const op = parseFloat(document.getElementById('stock-opening').value) || 0;
+    const pr = parseFloat(document.getElementById('stock-prod').value) || 0;
+    const di = parseFloat(document.getElementById('stock-disp').value) || 0;
+    const closing = Math.max(0, op + pr - di);
+    document.getElementById('stock-closing-preview').innerText = closing.toFixed(1) + ' MT';
+  }
+
+  function autoFillMineStock() {
+    const sel = document.getElementById('stock-mine-select');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt) {
+      document.getElementById('stock-opening').value = opt.getAttribute('data-stock') || 3500;
+      document.getElementById('stock-mineral').value = opt.getAttribute('data-mineral') || 'Quartzite';
+      calcClosingStock();
+    }
+  }
+
+  function filterSubMineRegistry() {
+    const query = (document.getElementById('submine-search-input')?.value || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#submines-table tbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(query) ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

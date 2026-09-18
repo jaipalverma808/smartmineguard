@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}User & Role Management — Administrator Control{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Card -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <svg class="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <span>User &amp; Role Management (RBAC Governance)</span>
+      </h2>
+      <p class="text-[11px] text-slate-500">Statutory access control for Directorate Headquarters, Field Officers, and Mine Leaseholders</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-secondary btn-sm">
+        &larr; Return to Admin Dashboard
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Users Table (2 Cols) -->
+    <div class="lg:col-span-2 gov-card">
+      <div class="gov-card-header">
+        <h3 class="gov-card-title">Registered Personnel &amp; Portal Accounts</h3>
+        <span class="text-xs text-slate-500">{{ users|length }} active credentials</span>
+      </div>
+      <div class="gov-table-container">
+        <table class="gov-table text-xs">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Full Name &amp; Badge</th>
+              <th>System Role</th>
+              <th>Department / Entity</th>
+              <th>Account Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td class="font-mono text-slate-500">{{ u.id }}</td>
+              <td class="font-mono font-bold text-slate-900">{{ u.username }}</td>
+              <td>
+                <div class="font-semibold text-slate-800">{{ u.full_name }}</div>
+                <div class="text-[10px] text-slate-500 font-mono">{{ u.badge_number or 'HQ-ADMIN' }}</div>
+              </td>
+              <td>
+                <span class="badge {% if u.role == 'ADMIN' %}badge-high{% elif u.role == 'OFFICER' %}badge-low{% else %}badge-medium{% endif %} font-semibold">
+                  {{ u.role }}
+                </span>
+              </td>
+              <td class="text-slate-600 text-[11px]">
+                {{ u.department }}
+              </td>
+              <td>
+                {% if u.is_active %}
+                <span class="text-emerald-700 font-semibold flex items-center gap-1 text-[11px]">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
+                </span>
+                {% else %}
+                <span class="text-red-700 font-semibold flex items-center gap-1 text-[11px]">
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span> Inactive
+                </span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.id != current_user.id %}
+                <form method="POST" action="{{ url_for('admin_users_toggle', user_id=u.id) }}" class="inline">
+                  <button type="submit" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-2">
+                    {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                  </button>
+                </form>
+                {% else %}
+                <span class="text-[10px] text-slate-400 italic">Self</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Create User Form (1 Col) -->
+    <div class="gov-card">
+      <div class="gov-card-header">
+        <h3 class="gov-card-title">Provision New Portal Account</h3>
+      </div>
+      <div class="p-4">
+        <form method="POST" action="{{ url_for('admin_users_create') }}" class="space-y-3 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Username</label>
+            <input type="text" name="username" required placeholder="e.g. officer2 or operator2" class="gov-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Temporary Password</label>
+            <input type="password" name="password" required placeholder="••••••••" class="gov-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Full Name &amp; Designation</label>
+            <input type="text" name="full_name" required placeholder="e.g. Sub-Inspector A. K. Sharma" class="gov-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">System Role</label>
+            <select name="role" required class="gov-input text-xs">
+              <option value="OFFICER">OFFICER — Field Enforcement Squad</option>
+              <option value="OPERATOR">OPERATOR — Mine Leaseholder Logistics</option>
+              <option value="ADMIN">ADMIN — Directorate HQ Administrator</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Department / Organization</label>
+            <input type="text" name="department" required placeholder="e.g. Mining Enforcement Squad Zone 2" class="gov-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Badge Number / Lease Code</label>
+            <input type="text" name="badge_number" placeholder="e.g. MES-Z2-105" class="gov-input text-xs" />
+          </div>
+
+          <div>
+            <label class="block font-bold text-slate-700 uppercase tracking-wide text-[10px] mb-1">Official Email</label>
+            <input type="email" name="email" placeholder="officer@enforcement.gov.in" class="gov-input text-xs" />
+          </div>
+
+          <div class="pt-2">
+            <button type="submit" class="btn-gov btn-gov-primary w-full py-2 uppercase font-bold tracking-wider text-xs">
+              Create Authorized User
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

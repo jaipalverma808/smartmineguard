@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Production &amp; Stock Monitoring — Operator Console{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Card -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        <span>Production &amp; Stock Balance Reconciliation</span>
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        {{ mine.name }} &bull; {{ mine.district }}, {{ mine.state }} ({{ mine.mineral }}) &bull; Permitted Annual Quota: {{ "{:,.0f}".format(mine.authorized_annual_quota_mt) }} MT
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openStockModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1">
+        <span>+ Log Daily Production &amp; Stock</span>
+      </button>
+      <a href="{{ url_for('dashboard') }}" class="btn-gov btn-gov-secondary btn-sm">
+        &larr; Operations Hub
+      </a>
+    </div>
+  </div>
+
+  <!-- Notification Banner -->
+  <div id="stock-alert" class="hidden p-3 rounded text-xs font-semibold"></div>
+
+  <!-- Key Mass-Balance Reconciliation Metric Cards (Section 10) -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    
+    <div class="gov-card p-3 bg-slate-50 border-t-2 border-t-slate-500">
+      <div class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Opening Stock</div>
+      <div class="text-xl font-bold text-slate-800 font-mono mt-1">{{ "{:,.1f}".format(stock_recon.opening_stock_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[10px] text-slate-500 mt-1">Base pithead balance</div>
+    </div>
+
+    <div class="gov-card p-3 bg-emerald-50/50 border-t-2 border-t-emerald-600">
+      <div class="text-[11px] text-emerald-800 font-semibold uppercase tracking-wider">Today's Production</div>
+      <div class="text-xl font-bold text-emerald-800 font-mono mt-1">+{{ "{:,.1f}".format(stock_recon.today_production_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[10px] text-emerald-700 mt-1">Extraction recorded today</div>
+    </div>
+
+    <div class="gov-card p-3 bg-amber-50/50 border-t-2 border-t-amber-600">
+      <div class="text-[11px] text-amber-800 font-semibold uppercase tracking-wider">Planned Dispatch</div>
+      <div class="text-xl font-bold text-amber-800 font-mono mt-1">{{ "{:,.1f}".format(stock_recon.today_planned_dispatch_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[10px] text-amber-700 mt-1">Active transit permits</div>
+    </div>
+
+    <div class="gov-card p-3 bg-blue-50/50 border-t-2 border-t-blue-600">
+      <div class="text-[11px] text-blue-800 font-semibold uppercase tracking-wider">Actual Dispatch</div>
+      <div class="text-xl font-bold text-blue-800 font-mono mt-1">-{{ "{:,.1f}".format(stock_recon.today_actual_dispatch_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[10px] text-blue-700 mt-1">Weighed exit tonnage</div>
+    </div>
+
+    <div class="gov-card p-3 bg-purple-50/50 border-t-2 border-t-purple-600">
+      <div class="text-[11px] text-purple-800 font-semibold uppercase tracking-wider">Remaining Quota</div>
+      <div class="text-xl font-bold text-purple-900 font-mono mt-1">{{ "{:,.1f}".format(stock_recon.remaining_dispatch_capacity_mt) }} <span class="text-xs font-normal text-slate-500">MT</span></div>
+      <div class="text-[10px] text-purple-700 mt-1">Remaining annual ceiling</div>
+    </div>
+
+    <div class="gov-card p-3 bg-emerald-100/60 border-t-2 border-t-emerald-700">
+      <div class="text-[11px] text-emerald-900 font-bold uppercase tracking-wider">Current Stock</div>
+      <div class="text-xl font-bold text-emerald-950 font-mono mt-1">{{ "{:,.1f}".format(stock_recon.current_available_stock_mt) }} <span class="text-xs font-normal text-slate-600">MT</span></div>
+      <div class="text-[10px] text-emerald-800 font-semibold mt-1">Opening + Prod - Disp</div>
+    </div>
+
+  </div>
+
+  <!-- Formula Verification Notice -->
+  <div class="bg-white border border-slate-300 rounded p-4 text-xs space-y-2">
+    <div class="font-bold text-slate-800 flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+      <span>Deterministic Statutory Mass-Balance Formula</span>
+    </div>
+    <div class="p-2.5 bg-slate-50 font-mono text-slate-800 border border-slate-200 rounded flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <span>Opening Stock ({{ "{:,.1f}".format(stock_recon.opening_stock_mt) }} MT)</span>
+        <span class="text-emerald-700 font-bold"> + </span>
+        <span>Production ({{ "{:,.1f}".format(stock_recon.today_production_mt) }} MT)</span>
+        <span class="text-blue-700 font-bold"> - </span>
+        <span>Dispatch ({{ "{:,.1f}".format(stock_recon.today_actual_dispatch_mt) }} MT)</span>
+        <span class="font-bold"> = </span>
+        <span class="text-emerald-900 font-bold text-sm">Current Available Stock: {{ "{:,.1f}".format(stock_recon.current_available_stock_mt) }} MT</span>
+      </div>
+      <span class="text-[11px] text-slate-500">Automated Statutory Ledger</span>
+    </div>
+  </div>
+
+  <!-- Stock & Production History Ledger -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <h3 class="gov-card-title">Production &amp; Stock Balance History</h3>
+      <span class="text-xs text-slate-500">{{ production_history|length }} logged daily records</span>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Mineral</th>
+            <th>Opening Stock</th>
+            <th>Today's Production</th>
+            <th>Today's Dispatch</th>
+            <th>Closing Stock</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sp in production_history %}
+          <tr>
+            <td class="font-mono font-bold">{{ sp.record_date }}</td>
+            <td>{{ sp.mineral }}</td>
+            <td class="font-mono">{{ "{:,.1f}".format(sp.opening_stock_mt) }} MT</td>
+            <td class="font-mono font-bold text-emerald-700">+{{ "{:,.1f}".format(sp.production_mt) }} MT</td>
+            <td class="font-mono font-bold text-blue-700">-{{ "{:,.1f}".format(sp.dispatch_mt) }} MT</td>
+            <td class="font-mono font-bold text-slate-900">{{ "{:,.1f}".format(sp.closing_stock_mt) }} MT</td>
+            <td class="text-slate-500 text-[11px]">{{ sp.created_at[:16] if sp.created_at else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-slate-500">No historical production records logged yet for this mine. Use the button above to log today's balance.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal: Log Production & Stock -->
+<div id="modal-log-stock" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-300">
+    <div class="flex justify-between items-center border-b pb-2">
+      <h3 class="text-sm font-bold text-slate-900">Record Daily Pithead Production &amp; Dispatch</h3>
+      <button onclick="closeStockModal()" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
+    </div>
+    <form onsubmit="submitStockForm(event)" class="space-y-3 text-xs">
+      <input type="hidden" name="mine_id" value="{{ mine.id }}" />
+      <div>
+        <label class="block font-semibold mb-1">Mine Leasehold</label>
+        <input type="text" readonly class="gov-input w-full bg-slate-100 font-semibold" value="{{ mine.name }} ({{ mine.mine_code }})" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Mineral *</label>
+          <input type="text" name="mineral" required class="gov-input w-full" value="{{ mine.mineral }}" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Entry Date *</label>
+          <input type="date" name="record_date" required class="gov-input w-full" id="op-stock-date" />
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label class="block font-semibold mb-1">Opening MT *</label>
+          <input type="number" step="0.1" name="opening_stock_mt" id="op-stock-opening" required class="gov-input w-full" value="{{ stock_recon.current_available_stock_mt }}" oninput="opCalcClosingStock()" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Production MT *</label>
+          <input type="number" step="0.1" name="production_mt" id="op-stock-prod" required class="gov-input w-full" value="350.0" oninput="opCalcClosingStock()" />
+        </div>
+        <div>
+          <label class="block font-semibold mb-1">Dispatch MT *</label>
+          <input type="number" step="0.1" name="dispatch_mt" id="op-stock-disp" required class="gov-input w-full" value="{{ stock_recon.today_actual_dispatch_mt }}" oninput="opCalcClosingStock()" />
+        </div>
+      </div>
+      <div class="p-2.5 bg-slate-50 border border-slate-200 rounded flex justify-between items-center text-xs">
+        <span class="text-slate-600 font-semibold">Calculated Closing Stock:</span>
+        <span id="op-stock-closing-preview" class="font-bold text-emerald-800 text-sm">4,200.0 MT</span>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t">
+        <button type="button" onclick="closeStockModal()" class="btn-gov btn-gov-secondary btn-sm">Cancel</button>
+        <button type="submit" class="btn-gov btn-gov-primary btn-sm">Save Stock Balance</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openStockModal() {
+    document.getElementById('modal-log-stock').classList.remove('hidden');
+    document.getElementById('op-stock-date').value = new Date().toISOString().split('T')[0];
+    opCalcClosingStock();
+  }
+
+  function closeStockModal() {
+    document.getElementById('modal-log-stock').classList.add('hidden');
+  }
+
+  function opCalcClosingStock() {
+    const op = parseFloat(document.getElementById('op-stock-opening').value) || 0;
+    const pr = parseFloat(document.getElementById('op-stock-prod').value) || 0;
+    const di = parseFloat(document.getElementById('op-stock-disp').value) || 0;
+    const closing = Math.max(0, op + pr - di);
+    document.getElementById('op-stock-closing-preview').innerText = closing.toFixed(1) + ' MT';
+  }
+
+  async function submitStockForm(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = {};
+    formData.forEach((v, k) => { payload[k] = v; });
+
+    try {
+      const res = await fetch('/api/crud/stock-production', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        closeStockModal();
+        const b = document.getElementById('stock-alert');
+        b.className = 'p-3 rounded text-xs font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300';
+        b.innerText = data.message || 'Production and stock balance updated successfully.';
+        b.classList.remove('hidden');
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        alert(data.error || 'Failed to save stock entry.');
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    }
+  }
+</script>
+{% endblock %}

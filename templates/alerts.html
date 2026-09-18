@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Enforcement Alert Center — SmartMineGuard{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- Header & Tab Navigation -->
+  <div class="bg-white border border-slate-300 rounded p-4 shadow-sm space-y-3">
+    <div class="flex flex-wrap justify-between items-center gap-3">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold tracking-wider text-xs {% if user_role == 'ADMIN' %}text-amber-800 bg-amber-100 border border-amber-300{% else %}text-emerald-800 bg-emerald-100 border border-emerald-300{% endif %} px-2 py-0.5 rounded uppercase font-mono">
+            {% if user_role == 'ADMIN' %}Supervisory Vigilance Oversight{% else %}Field Squad Operations{% endif %}
+          </span>
+          <h2 class="text-base font-bold text-slate-900 uppercase tracking-tight m-0">
+            {% if user_role == 'ADMIN' %}Statewide Anti-Corruption &amp; Alert Vigilance Center{% else %}Field Enforcement Alert Desk{% endif %}
+          </h2>
+        </div>
+        <p class="text-xs text-slate-500 mt-0.5">
+          {% if user_role == 'ADMIN' %}
+            Statutory Vigilance Audit: Monitoring field officer clearances, critical overloads, and suspicious overrides for administrative accountability.
+          {% else %}
+            Ground-level operational triage: Physical checkpost inspections, weighbridge audits, and driver transit verifications.
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Action Tab Switchers -->
+      <div class="flex items-center gap-2 bg-slate-100 p-1 rounded border border-slate-200 text-xs">
+        {% if user_role == 'ADMIN' %}
+        <a href="{{ url_for('alerts', view='vigilance') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'vigilance' %}bg-amber-700 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
+          <span>🛡️ Vigilance Queue (Officer Actions &amp; Fraud)</span>
+          {% if vigilance_pending_count > 0 %}
+          <span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">{{ vigilance_pending_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{{ url_for('alerts', view='all') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'all' %}bg-slate-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
+          <span>📋 All Statewide Alerts</span>
+          <span class="text-[10px] opacity-75">({{ total_alerts_count }})</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('alerts', view='operational') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'operational' %}bg-emerald-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
+          <span>🎯 Active Field Queue</span>
+          {% if operational_pending_count > 0 %}
+          <span class="bg-amber-500 text-slate-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full">{{ operational_pending_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{{ url_for('alerts', view='all') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'all' %}bg-slate-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
+          <span>📋 All Sector Alerts</span>
+          <span class="text-[10px] opacity-75">({{ total_alerts_count }})</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="flex flex-wrap justify-between items-center pt-2 border-t border-slate-200 text-xs gap-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <label for="filter-severity" class="font-bold text-slate-600 text-[11px] uppercase">Severity:</label>
+        <select id="filter-severity" onchange="applyFilters()" class="gov-input text-xs py-1 px-2 w-auto">
+          <option value="">All Severities</option>
+          <option value="CRITICAL" {% if current_severity == 'CRITICAL' %}selected{% endif %}>Critical Only</option>
+          <option value="HIGH" {% if current_severity == 'HIGH' %}selected{% endif %}>High Severity</option>
+          <option value="MEDIUM" {% if current_severity == 'MEDIUM' %}selected{% endif %}>Medium Severity</option>
+          <option value="LOW" {% if current_severity == 'LOW' %}selected{% endif %}>Low Severity</option>
+        </select>
+
+        <label for="filter-status" class="font-bold text-slate-600 text-[11px] uppercase ml-2">Status:</label>
+        <select id="filter-status" onchange="applyFilters()" class="gov-input text-xs py-1 px-2 w-auto">
+          <option value="">All Statuses</option>
+          <option value="NEW" {% if current_status == 'NEW' %}selected{% endif %}>NEW (Unassigned)</option>
+          <option value="ACKNOWLEDGED" {% if current_status == 'ACKNOWLEDGED' %}selected{% endif %}>Acknowledged</option>
+          <option value="UNDER_REVIEW" {% if current_status == 'UNDER_REVIEW' %}selected{% endif %}>Under Review</option>
+          <option value="DISMISSED" {% if current_status == 'DISMISSED' %}selected{% endif %}>Dismissed by Squad</option>
+          <option value="RESOLVED" {% if current_status == 'RESOLVED' %}selected{% endif %}>Resolved</option>
+        </select>
+      </div>
+
+      <a href="{{ url_for('alerts', view=view_mode) }}" class="btn-gov btn-gov-secondary btn-sm">
+        Reset Filters
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Alerts Table -->
+  <div class="gov-card bg-white border border-slate-300 rounded shadow-xs overflow-hidden">
+    <div class="gov-table-container overflow-x-auto w-full">
+      <table class="gov-table min-w-full divide-y divide-slate-200 text-left text-xs">
+        <thead class="bg-slate-100 border-b-2 border-slate-300">
+          <tr>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Alert ID &amp; Time</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Vehicle &amp; Pass</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Detection Type</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Severity &amp; Score</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Field Status</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Officer Accountability &amp; Justification</th>
+            <th class="px-3.5 py-2.5 text-slate-700 font-bold uppercase text-[11px] tracking-wider whitespace-nowrap bg-slate-100">Statutory Action &amp; Supervisory Review</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+          {% for a in alerts %}
+          <tr id="alert-row-{{ a.id }}" class="hover:bg-slate-50 transition {% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' %}bg-amber-50/60{% elif a.admin_review_status == 'FLAGGED_FOR_INQUIRY' %}bg-red-50/70{% endif %}">
+            <td class="px-3.5 py-3 align-top">
+              <div class="font-mono font-bold text-slate-900 text-xs">{{ a.alert_code }}</div>
+              <div class="text-[11px] text-slate-500 whitespace-nowrap">{{ a.created_at[:19] }}</div>
+            </td>
+            <td class="px-3.5 py-3 align-top">
+              <div class="font-semibold text-slate-900 font-mono">{{ a.registration_number or 'Unspecified Vehicle' }}</div>
+              <div class="text-[11px] text-slate-500 font-mono">{{ a.permit_number or 'No Transit Pass' }}</div>
+            </td>
+            <td class="px-3.5 py-3 align-top">
+              <div class="font-semibold text-xs text-slate-900">{{ a.alert_type.replace('_', ' ').title() }}</div>
+              <div class="text-[11px] text-slate-600 max-w-xs mt-0.5 leading-relaxed">{{ a.description }}</div>
+            </td>
+            <td class="px-3.5 py-3 align-top">
+              <div class="flex items-center gap-1.5">
+                <span class="badge {% if a.severity == 'CRITICAL' %}badge-critical{% elif a.severity == 'HIGH' %}badge-high{% elif a.severity == 'MEDIUM' %}badge-medium{% else %}badge-low{% endif %} px-2 py-0.5 rounded font-bold text-[10px]">
+                  {{ a.severity }}
+                </span>
+                <span class="font-bold text-xs {% if a.risk_score >= 30 %}text-red-700{% elif a.risk_score >= 20 %}text-orange-700{% else %}text-amber-700{% endif %}">
+                  +{{ a.risk_score }}
+                </span>
+              </div>
+            </td>
+            <td class="px-3.5 py-3 align-top">
+              <span class="font-semibold text-xs text-slate-800" id="status-badge-{{ a.id }}">{{ a.status }}</span>
+              {% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' %}
+              <div class="mt-1">
+                <span class="text-[10px] bg-amber-100 border border-amber-300 text-amber-900 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider inline-block">
+                  ⚠️ Needs Admin Audit
+                </span>
+              </div>
+              {% elif a.admin_review_status == 'CONFIRMED_BY_ADMIN' %}
+              <div class="mt-1">
+                <span class="text-[10px] bg-emerald-100 border border-emerald-300 text-emerald-900 px-1.5 py-0.5 rounded font-semibold inline-block">
+                  ✓ Admin Confirmed
+                </span>
+              </div>
+              {% elif a.admin_review_status == 'FLAGGED_FOR_INQUIRY' %}
+              <div class="mt-1">
+                <span class="text-[10px] bg-red-100 border border-red-300 text-red-900 px-1.5 py-0.5 rounded font-bold inline-block">
+                  ⚖️ Vigilance Case Opened
+                </span>
+              </div>
+              {% endif %}
+            </td>
+
+            <!-- Officer Accountability Column -->
+            <td class="px-3.5 py-3 align-top text-xs">
+              {% if a.handled_by_name %}
+              <div class="space-y-1">
+                <div>
+                  <span class="font-bold text-slate-900">{{ a.handled_by_name }}</span>
+                  <span class="font-mono text-[10px] text-slate-500">({{ a.handled_by_badge or 'OFFICER' }})</span>
+                </div>
+                <div class="text-[11px]">
+                  <span class="font-semibold text-slate-700">Action:</span>
+                  <span class="font-mono font-bold text-amber-800">{{ a.action_taken or a.status }}</span>
+                </div>
+                {% if a.officer_remarks %}
+                <div class="text-[11px] text-slate-600 bg-slate-100 p-1.5 rounded border border-slate-200 italic max-w-xs">
+                  &ldquo;{{ a.officer_remarks }}&rdquo;
+                </div>
+                {% endif %}
+              </div>
+              {% elif a.officer_name %}
+              <div>
+                <span class="text-slate-600 font-medium">Assigned:</span> {{ a.officer_name }}
+              </div>
+              {% else %}
+              <span class="text-slate-400 italic">Unassigned (Automated Sensor)</span>
+              {% endif %}
+            </td>
+
+            <!-- Statutory / Supervisory Actions -->
+            <td class="px-3.5 py-3 align-top">
+              <div class="flex flex-col gap-1.5 min-w-[130px]">
+                {% if user_role == 'ADMIN' %}
+                  <!-- Admin Supervisory Vigilance Actions -->
+                  {% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' or (a.escalated_to_admin and a.admin_review_status in ('NONE', None)) %}
+                  <div class="flex flex-col gap-1.5">
+                    <button onclick="adminReviewAlert({{ a.id }}, 'CONFIRM')" class="btn-gov btn-gov-secondary btn-sm text-[11px] bg-white border border-emerald-400 text-emerald-800 hover:bg-emerald-50 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center" title="Concur with field officer action">
+                      ✓ Confirm Clearance
+                    </button>
+                    <button onclick="adminReviewAlert({{ a.id }}, 'FLAG_INQUIRY')" class="btn-gov btn-gov-primary btn-sm text-[11px] bg-red-800 hover:bg-red-700 text-white border border-red-900 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center" title="Reject clearance and order Vigilance Inquiry">
+                      ⚖️ Flag Inquiry
+                    </button>
+                  </div>
+                  {% endif %}
+                  
+                  <button onclick="createInvestigationFromAlert({{ a.id }})" class="btn-gov btn-gov-secondary btn-sm text-[11px] bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center">
+                    Elevate to Legal Dossier
+                  </button>
+                {% else %}
+                  <!-- Field Officer Operational Actions -->
+                  {% if a.status == 'NEW' %}
+                  <button onclick="acknowledgeAlert({{ a.id }})" class="btn-gov btn-gov-secondary btn-sm text-[11px] bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center">
+                    Acknowledge
+                  </button>
+                  {% endif %}
+
+                  <button onclick="createInvestigationFromAlert({{ a.id }})" class="btn-gov btn-gov-primary btn-sm text-[11px] bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-800 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center">
+                    Elevate Case
+                  </button>
+
+                  {% if a.status != 'DISMISSED' %}
+                  <button onclick="dismissAlert({{ a.id }})" class="btn-gov btn-gov-secondary btn-sm text-[11px] bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 py-1 px-2.5 rounded font-medium shadow-xs text-center justify-center" title="Record physical verification remarks and clear alert">
+                    Dismiss / Clear
+                  </button>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-8 text-slate-500">
+              <div class="max-w-sm mx-auto space-y-1">
+                <div class="text-2xl">✓</div>
+                <div class="font-bold text-slate-800 text-sm">No Pending Alerts In This View</div>
+                <p class="text-xs text-slate-400">
+                  {% if view_mode == 'vigilance' %}
+                    All field officer actions and critical detections have been supervised and cleared.
+                  {% else %}
+                    No active detections awaiting operational field attention.
+                  {% endif %}
+                </p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+<script>
+  function applyFilters() {
+    const sev = document.getElementById("filter-severity").value;
+    const stat = document.getElementById("filter-status").value;
+    let url = "{{ url_for('alerts', view=view_mode) }}";
+    const params = new URLSearchParams();
+    params.set("view", "{{ view_mode }}");
+    if (sev) params.set("severity", sev);
+    if (stat) params.set("status", stat);
+    window.location.href = url + "?" + params.toString();
+  }
+</script>
+{% endblock %}

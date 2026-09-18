@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Enforcement Case Investigations{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  {% if is_detail %}
+  <!-- Investigation Case File Detail View -->
+  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 pb-3">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('investigations') }}" class="btn-gov btn-gov-secondary btn-sm">&larr; Case Ledger</a>
+      <div>
+        <h2 class="text-base font-bold text-slate-900 font-mono flex items-center gap-2">
+          <span>CASE FILE: {{ inv.case_id }}</span>
+          <span class="badge {% if inv.status == 'CLOSED' %}badge-low{% else %}badge-critical{% endif %} text-xs font-sans">
+            {{ inv.status }}
+          </span>
+        </h2>
+        <div class="text-xs text-slate-500 mt-0.5">{{ inv.title }}</div>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('download_pdf_report', case_id=inv.case_id) }}" class="btn-gov btn-gov-primary btn-sm">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Download Official Evidence Dossier (PDF)
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    
+    <!-- Left Column: Case Meta & Parties -->
+    <div class="space-y-4">
+      <div class="gov-card p-4">
+        <h3 class="gov-card-title mb-2">Subject Vehicle & Carrier</h3>
+        <div class="space-y-2 text-xs">
+          <div><span class="text-slate-500">Vehicle No:</span> <strong class="font-mono text-slate-900">{{ inv.registration_number or 'N/A' }}</strong></div>
+          <div><span class="text-slate-500">Carrier / Owner:</span> <strong>{{ inv.registered_owner or 'N/A' }}</strong></div>
+          <div><span class="text-slate-500">Driver in Custody:</span> <strong>{{ inv.driver_name or 'N/A' }} ({{ inv.driver_phone or 'N/A' }})</strong></div>
+          <div><span class="text-slate-500">e-Rawaana Pass:</span> <span class="font-mono font-bold">{{ inv.permit_number or 'N/A' }}</span></div>
+          <div><span class="text-slate-500">Permitted Mineral:</span> <strong>{{ inv.mineral or 'N/A' }}</strong></div>
+          <div><span class="text-slate-500">Consignee:</span> <strong>{{ inv.destination_name or 'N/A' }}</strong></div>
+        </div>
+      </div>
+
+      <div class="gov-card p-4">
+        <h3 class="gov-card-title mb-2">Lead Enforcement Officer</h3>
+        <div class="space-y-2 text-xs">
+          <div><span class="text-slate-500">Investigator:</span> <strong>{{ inv.lead_officer or 'Enforcement Squad' }}</strong></div>
+          <div><span class="text-slate-500">Badge ID:</span> <span class="font-mono">{{ inv.badge_number or 'DMG-409' }}</span></div>
+          <div><span class="text-slate-500">Department:</span> <strong>{{ inv.department or 'Directorate of Mines' }}</strong></div>
+          <div><span class="text-slate-500">Case Initiated:</span> <strong>{{ inv.created_at[:19] }}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle & Right Columns: Statutory Findings & Evidence Timeline -->
+    <div class="md:col-span-2 space-y-4">
+      
+      <!-- Automated Findings Card -->
+      <div class="gov-card p-4">
+        <h3 class="gov-card-title mb-2 text-red-800">Initial Statutory Findings & Telemetry</h3>
+        <p class="text-xs text-slate-700 leading-relaxed bg-red-50/60 border border-red-200 p-3 rounded mb-3">
+          {{ inv.initial_findings }}
+        </p>
+
+        {% if weighment %}
+        <div class="border border-slate-200 rounded p-3 bg-slate-50 text-xs mb-3">
+          <div class="font-bold text-slate-800 uppercase text-[11px] mb-1">Weighbridge Telemetry Audit:</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div><span class="text-slate-500">Permitted Quota:</span> <strong>{{ weighment.permitted_weight_mt }} MT</strong></div>
+            <div><span class="text-slate-500">Recorded Weight:</span> <strong class="text-red-700">{{ weighment.net_weight_mt }} MT</strong></div>
+            <div><span class="text-slate-500">Overload:</span> <strong class="text-red-700">+{{ weighment.difference_mt }} MT (+55.0%)</strong></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Officer Notes & Administrative Orders Entry Form -->
+      <div class="gov-card p-4">
+        <h3 class="gov-card-title mb-3">Officer Field Notes & Compounding Order</h3>
+        
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Officer Field Notes & Inspection Log</label>
+            <textarea id="officer-notes-input" rows="3" class="gov-input text-xs">{{ inv.officer_notes or '' }}</textarea>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Final Administrative Decision / Order</label>
+            <textarea id="final-decision-input" rows="2" class="gov-input text-xs" placeholder="e.g. Vehicle seized under Section 21 of MMDR Act. Compounding penalty assessed.">{{ inv.final_decision or '' }}</textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Case Status</label>
+              <select id="case-status-select" class="gov-input text-xs">
+                <option value="UNDER_INVESTIGATION" {% if inv.status == 'UNDER_INVESTIGATION' %}selected{% endif %}>UNDER INVESTIGATION</option>
+                <option value="ACTION_REQUIRED" {% if inv.status == 'ACTION_REQUIRED' %}selected{% endif %}>ACTION REQUIRED</option>
+                <option value="CLOSED" {% if inv.status == 'CLOSED' %}selected{% endif %}>CLOSED / COMPOUNDED</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Compounding Penalty (INR ₹)</label>
+              <input type="number" id="penalty-input" value="{{ inv.penalty_amount_inr or 0 }}" class="gov-input text-xs" />
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end">
+            <button onclick="saveCaseNotes({{ inv.id }})" class="btn-gov btn-gov-primary text-xs">
+              Update Case File & Regenerate PDF Dossier
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  {% else %}
+  <!-- Investigations Case Ledger -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Statutory Investigation & Enforcement Dossiers</h2>
+      <p class="text-[11px] text-slate-500">Formal administrative inquiry files established from automated surveillance alerts</p>
+    </div>
+  </div>
+
+  <div class="gov-card">
+    <div class="gov-table-container">
+      <table class="gov-table">
+        <thead>
+          <tr>
+            <th>Case ID</th>
+            <th>Logged Date</th>
+            <th>Vehicle / Carrier</th>
+            <th>e-Rawaana Pass</th>
+            <th>Primary Detection</th>
+            <th>Lead Investigating Officer</th>
+            <th>Case Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in investigations %}
+          <tr>
+            <td class="font-mono font-bold text-slate-900 text-sm">
+              <a href="{{ url_for('investigation_detail', inv_id=inv.id) }}" class="text-emerald-900 hover:underline">
+                {{ inv.case_id }}
+              </a>
+            </td>
+            <td class="text-xs text-slate-600 whitespace-nowrap">{{ inv.created_at[:19] }}</td>
+            <td>
+              <div class="font-semibold text-slate-900 font-mono">{{ inv.registration_number or 'N/A' }}</div>
+            </td>
+            <td class="font-mono text-xs">{{ inv.permit_number or 'N/A' }}</td>
+            <td>
+              <div class="font-semibold">{{ inv.alert_type.replace('_', ' ').title() if inv.alert_type else 'Statutory Anomaly' }}</div>
+              <div class="text-[11px] text-slate-500 truncate max-w-xs">{{ inv.title }}</div>
+            </td>
+            <td class="text-xs">{{ inv.lead_officer or 'Enforcement Officer' }}</td>
+            <td>
+              <span class="badge {% if inv.status == 'CLOSED' %}badge-low{% elif inv.status == 'ACTION_REQUIRED' %}badge-high{% else %}badge-critical{% endif %}">
+                {{ inv.status }}
+              </span>
+            </td>
+            <td>
+              <div class="flex gap-1.5">
+                <a href="{{ url_for('investigation_detail', inv_id=inv.id) }}" class="btn-gov btn-gov-secondary btn-sm">
+                  View Case File
+                </a>
+                <a href="{{ url_for('download_pdf_report', case_id=inv.case_id) }}" class="btn-gov btn-gov-primary btn-sm">
+                  PDF Dossier
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% block scripts %}
+<script>
+  async function saveCaseNotes(invId) {
+    const notes = document.getElementById("officer-notes-input").value;
+    const decision = document.getElementById("final-decision-input").value;
+    const status = document.getElementById("case-status-select").value;
+    const penalty = document.getElementById("penalty-input").value;
+
+    try {
+      const res = await fetch(`/api/investigations/${invId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes: notes,
+          final_decision: decision,
+          status: status,
+          penalty_amount_inr: penalty
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Case notes updated and evidence dossier PDF regenerated successfully.");
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err) {
+      alert("Error saving notes: " + err);
+    }
+  }
+</script>
+{% endblock %}
+{% endblock %}

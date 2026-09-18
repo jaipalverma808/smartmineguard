@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Live GIS Monitoring Map{% endblock %}
+
+{% block content %}
+<div class="space-y-3">
+
+  <!-- Map Command Bar -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2 text-xs shadow-sm gap-2">
+    <div class="flex items-center gap-3">
+      <span class="font-bold text-slate-800 uppercase tracking-wide">Live GIS Operations Layer</span>
+      <span class="text-slate-300">|</span>
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+        <span class="text-slate-600">Low (0-30)</span>
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 ml-2"></span>
+        <span class="text-slate-600">Medium (31-60)</span>
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-orange-600 ml-2"></span>
+        <span class="text-slate-600">High (61-80)</span>
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-600 ml-2"></span>
+        <span class="text-slate-600 font-bold">Critical (81-100)</span>
+      </div>
+    </div>
+
+    <!-- Filter & Demo Controls -->
+    <div class="flex items-center gap-2">
+      <button onclick="focusTruck('HR26AB1234')" class="btn-gov btn-gov-danger btn-sm">
+        Locate Target Truck (HR26AB1234)
+      </button>
+      <button onclick="resetMapView()" class="btn-gov btn-gov-secondary btn-sm">
+        Reset Map Extents
+      </button>
+    </div>
+  </div>
+
+  <!-- Map & Inspector Layout (Grid) -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-3">
+    
+    <!-- Fullscreen Leaflet Map Container (3 Columns) -->
+    <div class="lg:col-span-3 relative">
+      <div id="gis-map" class="map-view shadow-sm" style="height: calc(100vh - 165px); min-height: 560px; width: 100%; position: relative; z-index: 1;"></div>
+
+      <!-- Map Legend Overlay -->
+      <div class="absolute bottom-4 left-4 bg-white/95 border border-slate-300 rounded p-2.5 text-[11px] shadow-md z-[1000] max-w-xs pointer-events-auto">
+        <div class="font-bold text-slate-800 uppercase mb-1 border-b border-slate-200 pb-1">Map Spatial Layers</div>
+        <div class="space-y-1 text-slate-600">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-emerald-700 inline-block"></span>
+            <span>Authorized Mine Leaseholds</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-blue-600 inline-block"></span>
+            <span>Permitted NH-48 Transport Corridor</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-red-800 inline-block"></span>
+            <span>Sabi Riverbed Restricted Mining Zone</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-purple-700 inline-block"></span>
+            <span>Exit Checkpoints & Weighbridges</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar: Fleet List & Selected Vehicle Inspector -->
+    <div class="map-sidebar p-3 space-y-3">
+      
+      <!-- Selected Truck Inspector Drawer -->
+      <div id="truck-inspector-card" class="gov-card p-3 border-emerald-700 bg-emerald-50/40 space-y-2">
+        <div class="flex justify-between items-center border-b border-slate-200 pb-1.5">
+          <span class="font-bold text-xs uppercase text-slate-800 tracking-wider">Live Trip Telemetry</span>
+          <span id="inspector-risk-badge" class="badge badge-critical text-[10px]">CRITICAL (92/100)</span>
+        </div>
+        
+        <div class="space-y-1.5 text-xs">
+          <!-- Truck & Trip IDs -->
+          <div class="flex justify-between items-center">
+            <div>
+              <div class="text-[10px] text-slate-500 uppercase">Registration No.</div>
+              <div class="font-mono font-bold text-base text-slate-900" id="inspector-reg">HR26AB1234</div>
+            </div>
+            <div class="text-right">
+              <div class="text-[10px] text-slate-500 uppercase">Trip ID</div>
+              <div class="font-mono font-bold text-xs text-slate-700" id="inspector-trip-id">TRIP-2026-00501</div>
+            </div>
+          </div>
+
+          <!-- Permit & Mineral -->
+          <div class="grid grid-cols-2 gap-1 text-[11px] border-t border-slate-200 pt-1">
+            <div>
+              <span class="text-slate-500">e-Rawaana:</span>
+              <div class="font-mono font-bold text-slate-800 truncate" id="inspector-permit">SMG-2026-00125</div>
+            </div>
+            <div>
+              <span class="text-slate-500">Mineral Cargo:</span>
+              <div class="font-bold text-slate-800 truncate" id="inspector-mineral">Quartzite Aggregate</div>
+            </div>
+          </div>
+
+          <!-- Material Quantities (Section 11) -->
+          <div class="grid grid-cols-3 gap-1 text-[11px] bg-white p-1.5 rounded border border-slate-200">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Permitted:</span>
+              <strong class="font-mono" id="inspector-permitted">20.0 MT</strong>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Actual Net:</span>
+              <strong class="font-mono text-slate-900" id="inspector-actual">31.0 MT</strong>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Excess Load:</span>
+              <strong class="font-mono text-red-700" id="inspector-excess">+11.0 MT</strong>
+            </div>
+          </div>
+
+          <!-- Route Origin & Destination -->
+          <div class="space-y-1 text-[11px] border-t border-slate-200 pt-1">
+            <div>
+              <span class="text-slate-500">Source Mine:</span>
+              <div class="font-semibold text-slate-800 truncate" id="inspector-source">Aravalli Quarry Block A (Alwar)</div>
+            </div>
+            <div>
+              <span class="text-slate-500">Destination:</span>
+              <div class="font-semibold text-slate-800 truncate" id="inspector-destination">Bhiwadi Industrial Crushing Zone</div>
+            </div>
+          </div>
+
+          <!-- Timing & Mileage -->
+          <div class="grid grid-cols-2 gap-1 text-[11px] bg-slate-50 p-1.5 rounded border border-slate-200">
+            <div>
+              <span class="text-slate-500 text-[10px] block">Trip Start:</span>
+              <span class="font-mono text-slate-700" id="inspector-start">Today 08:30</span>
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px] block">Expected Arrival:</span>
+              <span class="font-mono text-slate-700" id="inspector-arrival">Today 14:00</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-1 text-[11px] text-center">
+            <div class="p-1 bg-white rounded border border-slate-200">
+              <span class="text-[9px] text-slate-400 block">Total Route</span>
+              <span class="font-mono font-bold text-slate-800" id="inspector-dist-total">78.0 km</span>
+            </div>
+            <div class="p-1 bg-white rounded border border-slate-200">
+              <span class="text-[9px] text-slate-400 block">Travelled</span>
+              <span class="font-mono font-bold text-emerald-800" id="inspector-dist-travelled">48.5 km</span>
+            </div>
+            <div class="p-1 bg-white rounded border border-slate-200">
+              <span class="text-[9px] text-slate-400 block">Remaining</span>
+              <span class="font-mono font-bold text-blue-800" id="inspector-dist-remaining">29.5 km</span>
+            </div>
+          </div>
+
+          <!-- Round Count & Cumulative Total (Req 6 & 12) -->
+          <div class="grid grid-cols-2 gap-1 text-[11px] bg-emerald-950 text-white p-2 rounded border border-emerald-800">
+            <div>
+              <span class="text-emerald-300 text-[9px] block uppercase font-bold">Today's Trip:</span>
+              <strong id="inspector-round" class="font-mono text-xs text-white">Trip In Progress (Unrestricted)</strong>
+            </div>
+            <div>
+              <span class="text-emerald-300 text-[9px] block uppercase font-bold">Today Dispatched:</span>
+              <strong id="inspector-today-dispatched" class="font-mono text-xs text-emerald-200">48.5 MT</strong>
+            </div>
+          </div>
+
+          <!-- Chronological Trip Timeline Mini-Feed (Req 9) -->
+          <div class="border-t border-slate-200 pt-1.5 space-y-1">
+            <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Trip Milestones Timeline:</span>
+            <div id="inspector-timeline" class="space-y-1 text-[10px] max-h-28 overflow-y-auto pl-1 bg-white p-1 rounded border border-slate-200">
+              <!-- Dynamically populated from /api/trucks/<id>/route -->
+            </div>
+          </div>
+
+          <!-- Status Banner -->
+          <div class="text-[11px]">
+            <div class="text-slate-500">Telemetry Status:</div>
+            <div class="font-bold text-red-700" id="inspector-status">CORRIDOR DEVIATED • BLACKOUT</div>
+          </div>
+
+
+          <!-- Quick Action Buttons -->
+          <div class="pt-2 flex flex-col gap-1.5">
+            <a id="inspector-dossier-link" href="{{ url_for('download_pdf_report', case_id='SMG-2026-00041') }}" class="btn-gov btn-gov-primary btn-sm w-full text-center">
+              Generate Evidence Dossier PDF
+            </a>
+            <a href="{{ url_for('alerts') }}" class="btn-gov btn-gov-secondary btn-sm w-full text-center">
+              View Active Alerts
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Fleet Roster -->
+      <div class="border-t border-slate-200 pt-2.5">
+        <div class="font-bold text-xs uppercase text-slate-700 mb-1.5 tracking-wide flex justify-between items-center">
+          <span id="active-fleet-heading">Active Fleet ({{ trucks|length }})</span>
+          <span class="text-[10px] text-emerald-700 font-semibold animate-pulse">● Live Updates</span>
+        </div>
+
+        <!-- Live Quick Search for Active Fleet -->
+        <div class="mb-2">
+          <input type="text" id="roster-search-input" oninput="filterRosterFleetList()" placeholder="🔍 Search vehicle plate, permit..." class="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs focus:outline-none focus:border-emerald-700 shadow-xs" />
+        </div>
+
+        <!-- Scrollable Active Fleet Roster with custom slide scrollbar -->
+        <div class="space-y-1.5 max-h-[380px] overflow-y-auto pr-1" id="truck-roster-list" style="scrollbar-width: thin; scrollbar-color: #94a3b8 #f1f5f9;">
+          {% for t in trucks %}
+          <div onclick="focusTruck('{{ t.registration_number }}')" class="truck-list-item gov-card p-2 text-xs hover:border-emerald-700 transition cursor-pointer" id="roster-item-{{ t.registration_number }}" data-plate="{{ t.registration_number|lower }}" data-permit="{{ (t.permit_number or '')|lower }}" data-mineral="{{ (t.mineral or '')|lower }}">
+            <div class="flex justify-between items-start">
+              <span class="font-mono font-bold text-slate-800">{{ t.registration_number }}</span>
+              <span class="badge {% if t.current_risk_score >= 80 %}badge-critical{% elif t.current_risk_score >= 60 %}badge-high{% else %}badge-low{% endif %} text-[10px] py-0">
+                {{ t.current_risk_score }}
+              </span>
+            </div>
+            <div class="text-[11px] text-slate-500 truncate">{{ t.permit_number or 'No Active Permit' }}</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">{{ t.status }} • {{ t.mineral or 'General' }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Server-rendered initial datasets
+  const INITIAL_MINES = {{ mines|tojson }};
+  const INITIAL_GEOFENCES = {{ geofences|tojson }};
+  const INITIAL_TRUCKS = {{ trucks|tojson }};
+
+  function filterRosterFleetList() {
+    const query = (document.getElementById('roster-search-input').value || '').toLowerCase().trim();
+    const items = document.querySelectorAll('.truck-list-item');
+    let count = 0;
+    items.forEach(item => {
+      const plate = item.getAttribute('data-plate') || '';
+      const permit = item.getAttribute('data-permit') || '';
+      const mineral = item.getAttribute('data-mineral') || '';
+      if (!query || plate.includes(query) || permit.includes(query) || mineral.includes(query)) {
+        item.style.display = '';
+        count++;
+      } else {
+        item.style.display = 'none';
+      }
+    });
+    const heading = document.getElementById('active-fleet-heading');
+    if (heading) {
+      heading.innerText = query ? `Active Fleet (${count}/${items.length})` : `Active Fleet (${items.length})`;
+    }
+  }
+</script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+{% endblock %}

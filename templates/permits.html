@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}e-Rawaana Mineral Transit Permits & Official Pass Suite{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- Header Strip -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded-lg px-4 py-3 text-xs shadow-sm gap-3">
+    <div>
+      <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+        <span>e-Rawaana Statutory Mineral Transit Pass Management</span>
+        {% if current_user.role == 'ADMIN' %}
+        <span class="badge bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-semibold">Statewide Audit Archive</span>
+        {% elif current_user.role == 'OFFICER' %}
+        <span class="badge bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-semibold">Field Verification Ledger</span>
+        {% else %}
+        <span class="badge bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-semibold">Ground Scale Passes</span>
+        {% endif %}
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        {% if current_user.role == 'ADMIN' %}
+        Statewide repository of statutory mineral transit passes for regulatory audit, vigilance review, and court inquiry verification
+        {% else %}
+        Official transit authorizations, GST tax invoices &amp; weighbridge metrology records issued under MMDR &amp; State Concession Rules
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="{{ url_for('view_permit', permit_id=permits[0].id) if permits else '#' }}" class="btn-gov btn-gov-primary text-xs flex items-center gap-1.5">
+        <span>🏛️ View Sample Pass</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Real Mine Highlight Banner -->
+  <div class="bg-gradient-to-r from-emerald-900 to-slate-900 text-white p-3.5 rounded-lg shadow-sm flex flex-wrap justify-between items-center gap-3">
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <span class="bg-emerald-500 text-slate-950 font-bold px-1.5 py-0.5 rounded text-[10px] uppercase">Real Mine System</span>
+        <span class="font-bold text-xs">HSIIDC Ltd. (Khanak Stone Mines, Bhiwani, Haryana) & Dept of Mines & Geology</span>
+      </div>
+      <p class="text-[11px] text-slate-300">Statutory 3-Document Suite active: 1. Official e-Rawana Pass (Mines & Geology) • 2. HSIIDC Tax Invoice • 3. Automated Weighbridge Slip (Gross)</p>
+    </div>
+    <div class="flex items-center gap-2 text-xs">
+      <span class="text-slate-300">Authorized Format:</span>
+      <span class="font-mono font-bold bg-white/10 px-2 py-1 rounded text-emerald-300 border border-white/10">Haryana DMG / MMDR Rule 102</span>
+    </div>
+  </div>
+
+  <!-- Main Permits Table -->
+  <div class="gov-card">
+    <div class="gov-card-header flex flex-wrap justify-between items-center gap-3 bg-slate-50/80 border-b border-slate-200 px-4 py-2.5">
+      <div class="flex items-center gap-2">
+        <h3 class="gov-card-title">Statutory e-Rawaana Passes Register</h3>
+        <span class="text-xs text-slate-500 font-medium">
+          &bull; Showing <span id="permit-count" class="font-bold text-slate-800">{{ permits|length }}</span> of {{ permits|length }} passes
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <input type="text" id="permit-search" oninput="filterPermitsTable()" placeholder="Search permit no, vehicle, mine, buyer..." class="gov-input text-xs w-72 pl-8 pr-7 py-1.5 rounded" />
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <button id="permit-search-clear" onclick="clearPermitSearch()" class="hidden absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 font-bold text-xs" title="Clear search">&times;</button>
+        </div>
+      </div>
+    </div>
+    <div class="gov-table-container max-h-[520px] overflow-y-auto">
+      <table class="gov-table text-xs" id="permits-table">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr>
+            <th>Permit / Rawana No</th>
+            <th>Authorized Vehicle</th>
+            <th>Mineral & HSN</th>
+            <th>Net Quota</th>
+            <th>Taxable / Total (₹)</th>
+            <th>Source Leasehold</th>
+            <th>Consignee / Destination</th>
+            <th>Status</th>
+            <th class="text-center">Official Document Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in permits %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="font-mono font-bold text-slate-900 text-sm">
+              <a href="{{ url_for('view_permit', permit_id=p.id) }}" class="text-emerald-800 hover:text-emerald-950 hover:underline flex items-center gap-1">
+                {{ p.permit_number }}
+              </a>
+              <div class="flex flex-wrap gap-1 mt-0.5">
+                {% if p.issuance_type == 'EMERGENCY_ADMIN_ISSUANCE' %}
+                  <span class="bg-red-100 text-red-800 border border-red-200 text-[9px] px-1 rounded font-bold">EMERGENCY ADMIN</span>
+                {% elif p.issuance_type == 'OFFICER_AUTHORIZED_DISPATCH' %}
+                  <span class="bg-blue-100 text-blue-800 border border-blue-200 text-[9px] px-1 rounded font-bold">OFFICER DIRECT</span>
+                {% else %}
+                  <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] px-1 rounded font-bold">SCALE AUTONOMOUS</span>
+                {% endif %}
+                {% if p.permit_number == 'RCO26041' %}
+                  <span class="bg-amber-100 text-amber-900 text-[10px] px-1 rounded font-normal">Real Mine Pass</span>
+                {% endif %}
+              </div>
+            </td>
+            <td class="font-mono font-semibold text-slate-800">
+              <span class="bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs">
+                {{ p.registration_number or 'Unassigned' }}
+              </span>
+            </td>
+            <td>
+              <div class="font-semibold text-slate-800">{{ p.mineral }}</div>
+              <div class="text-[10px] text-slate-500 font-mono">HSN: {{ p.hsn_code or '2517' }}</div>
+            </td>
+            <td>
+              <span class="font-bold text-slate-900">{{ p.permitted_weight_mt }} MT</span>
+              {% if p.net_weight_mt %}
+                <div class="text-[10px] text-emerald-700 font-medium">Actual: {{ p.net_weight_mt }} MT</div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="font-semibold text-slate-800">₹ {{ "{:,.2f}".format(p.total_amount) if p.total_amount else "{:,.2f}".format(p.permitted_weight_mt * 336.0 * 1.05) }}</div>
+              <div class="text-[10px] text-slate-500">Rate: ₹{{ p.rate_per_mt or '336.00' }}/MT</div>
+            </td>
+            <td>
+              <div class="font-semibold text-slate-800 text-xs">{{ p.source_name }}</div>
+              {% if p.quarry_name %}
+              <div class="text-[10px] text-emerald-900 font-medium truncate max-w-[200px]" title="{{ p.quarry_name }}">
+                🏢 {{ p.quarry_name }}
+              </div>
+              {% endif %}
+              <div class="text-[11px] text-slate-500">{{ p.mine_district or 'Haryana' }}</div>
+            </td>
+            <td>
+              <div class="font-semibold text-slate-800 text-xs">{{ p.destination_name }}</div>
+              <div class="text-[11px] text-slate-500 truncate max-w-[180px]">{{ p.buyer_name }}</div>
+            </td>
+            <td>
+              <span class="badge {% if p.status in ['ACTIVE', 'WEIGHED'] %}badge-active{% elif p.status == 'CONSUMED' %}badge-consumed{% elif p.status == 'EXPIRED' %}badge-high{% else %}badge-critical{% endif %}">
+                {{ p.status }}
+              </span>
+            </td>
+            <td>
+              <div class="flex items-center justify-center gap-1.5">
+                <!-- Full View Button -->
+                <a href="{{ url_for('view_permit', permit_id=p.id) }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 text-[11px] py-1 px-2" title="View Official e-Rawana Suite">
+                  <span>📄 View Pass</span>
+                </a>
+
+                <!-- Download PDF Dropdown -->
+                <div class="relative group">
+                  <button class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 text-[11px] py-1 px-2" title="Download Official PDF">
+                    <span>📥 PDF</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </button>
+                  <div class="absolute right-0 mt-1 w-48 bg-white border border-slate-300 rounded-md shadow-xl py-1 hidden group-hover:block z-50 text-xs text-left">
+                    <a href="{{ url_for('download_permit_pdf', permit_id=p.id, type='erawana') }}" class="block px-3 py-1.5 text-slate-700 hover:bg-slate-100">
+                      🏛️ Official e-Rawana Pass
+                    </a>
+                    <a href="{{ url_for('download_permit_pdf', permit_id=p.id, type='invoice') }}" class="block px-3 py-1.5 text-slate-700 hover:bg-slate-100">
+                      🧾 GST Tax Invoice
+                    </a>
+                    <a href="{{ url_for('download_permit_pdf', permit_id=p.id, type='weighment') }}" class="block px-3 py-1.5 text-slate-700 hover:bg-slate-100">
+                      ⚖️ Weighment Slip
+                    </a>
+                    <div class="border-t border-slate-200 my-1"></div>
+                    <a href="{{ url_for('download_permit_pdf', permit_id=p.id, type='packet') }}" class="block px-3 py-1.5 text-emerald-800 font-bold hover:bg-emerald-50">
+                      📑 All 3 Documents (Packet)
+                    </a>
+                  </div>
+                </div>
+
+                <!-- QR Modal Button -->
+                <button onclick="showQRModal('{{ p.permit_number }}', '{{ p.qr_code_hash }}', '{{ p.registration_number }}', '{{ p.permitted_weight_mt }}', '{{ p.mineral }}')" class="btn-gov btn-gov-secondary btn-sm p-1" title="Scan QR Code">
+                  <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
+                </button>
+              </div>
+            </td>
+          {% else %}
+          <tr id="permits-empty-row">
+            <td colspan="9" class="text-center py-6 text-slate-500">No active e-Rawaana transit passes registered.</td>
+          </tr>
+          {% endfor %}
+          <tr id="permits-no-match-row" class="hidden">
+            <td colspan="9" class="text-center py-6 text-slate-500 font-medium">No e-Rawaana passes match your search query.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- QR Code Modal Dialog -->
+<div id="qr-modal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 flex">
+  <div class="bg-white rounded-lg border border-slate-300 max-w-sm w-full p-5 shadow-2xl space-y-4">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+      <h3 class="font-bold text-slate-900 text-sm uppercase flex items-center gap-1.5">
+        <span>🏛️</span> e-Rawaana Statutory QR Pass
+      </h3>
+      <button onclick="hideQRModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold">&times;</button>
+    </div>
+    
+    <div class="text-center space-y-2">
+      <div id="qr-container" class="flex justify-center p-3 bg-slate-50 border border-slate-200 rounded">
+        <!-- QR Code Canvas injected here -->
+      </div>
+      <div class="font-mono font-bold text-base text-slate-900" id="modal-permit-no"></div>
+      <div class="text-xs text-slate-600 font-medium" id="modal-permit-details"></div>
+    </div>
+
+    <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded text-[11px] text-emerald-900 space-y-1">
+      <div class="font-bold">Roadside Officer QR Scanning:</div>
+      <div>This statutory QR pass contains encrypted anti-tamper payload for immediate verification via the <strong>Officer QR Verify</strong> module.</div>
+    </div>
+
+    <div class="flex gap-2">
+      <a id="modal-view-full-btn" href="#" class="btn-gov btn-gov-primary flex-1 text-center text-xs py-2">
+        Open Full Pass Suite
+      </a>
+      <button onclick="hideQRModal()" class="btn-gov btn-gov-secondary text-xs py-2 px-4">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+  let qrInstance = null;
+
+  function showQRModal(permitNo, hash, reg, weight, mineral) {
+    document.getElementById("modal-permit-no").textContent = permitNo;
+    document.getElementById("modal-permit-details").textContent = 
+      `Vehicle: ${reg} | Quota: ${weight} MT | Mineral: ${mineral}`;
+    
+    const container = document.getElementById("qr-container");
+    container.innerHTML = "";
+    
+    const payload = `SMARTMINEGUARD:${permitNo}:${reg}:${weight}:${hash}`;
+    qrInstance = new QRCode(container, {
+      text: payload,
+      width: 180,
+      height: 180,
+      colorDark : "#0F172A",
+      colorLight : "#FFFFFF",
+      correctLevel : QRCode.CorrectLevel.H
+    });
+
+    document.getElementById("modal-view-full-btn").href = `/permits/${permitNo}/view`;
+    document.getElementById("qr-modal").classList.remove("hidden");
+  }
+
+  function hideQRModal() {
+    document.getElementById("qr-modal").classList.add("hidden");
+  }
+
+  function filterPermitsTable() {
+    const input = document.getElementById("permit-search");
+    if (!input) return;
+    const filter = input.value.trim().toUpperCase();
+    const clearBtn = document.getElementById("permit-search-clear");
+    if (clearBtn) clearBtn.classList.toggle("hidden", filter.length === 0);
+
+    const table = document.getElementById("permits-table");
+    if (!table) return;
+    const rows = table.querySelectorAll("tbody tr:not(#permits-empty-row):not(#permits-no-match-row)");
+    let visibleCount = 0;
+
+    rows.forEach(tr => {
+      const text = tr.textContent || tr.innerText;
+      if (text.toUpperCase().indexOf(filter) > -1) {
+        tr.style.display = "";
+        visibleCount++;
+      } else {
+        tr.style.display = "none";
+      }
+    });
+
+    const countEl = document.getElementById("permit-count");
+    if (countEl) countEl.innerText = visibleCount;
+
+    const noMatchRow = document.getElementById("permits-no-match-row");
+    if (noMatchRow) {
+      noMatchRow.classList.toggle("hidden", visibleCount > 0 || rows.length === 0);
+    }
+  }
+
+  function clearPermitSearch() {
+    const input = document.getElementById("permit-search");
+    if (input) {
+      input.value = "";
+      filterPermitsTable();
+      input.focus();
+    }
+  }
+</script>
+{% endblock %}

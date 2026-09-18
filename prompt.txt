@@ -1,0 +1,2147 @@
+IMPORTANT — THIS IS A FULL REBUILD/MIGRATION OF MY EXISTING SMARTMINEGUARD PROJECT.
+
+I want you to work on my EXISTING SmartMineGuard project, not create a random new demo.
+
+READ THIS ENTIRE PROMPT BEFORE MAKING ANY CHANGES.
+
+============================================================
+# 1. PRIMARY OBJECTIVE
+============================================================
+
+Rebuild/refactor my existing SmartMineGuard project into a clean,
+professional, complete, working software-only mining monitoring and
+enforcement platform.
+
+The final application must use ONLY:
+
+BACKEND
+- Python
+- Flask
+- Flask-SocketIO where real-time communication is required
+
+DATABASE
+- PostgreSQL
+- PostGIS
+
+FRONTEND
+- HTML
+- Jinja2
+- CSS
+- Tailwind CSS
+- Vanilla JavaScript
+- Leaflet.js
+- Chart.js
+
+OTHER
+- ReportLab for PDF generation
+- A normal JavaScript QR-code library for QR functionality
+
+STRICTLY FORBIDDEN:
+
+- TypeScript
+- JavaScript backend
+- React
+- React Native
+- Next.js
+- Node.js
+- Express
+- Fastify
+- FastAPI
+- Prisma
+- MongoDB
+- Redis
+- AI
+- Machine Learning
+- LLM APIs
+- OpenAI APIs
+- Gemini APIs
+- external AI services
+
+The detection and risk system must be completely deterministic,
+rule-based and explainable.
+
+============================================================
+# 2. MOST IMPORTANT RULE — DO NOT LOSE EXISTING FEATURES
+============================================================
+
+THIS IS THE MOST IMPORTANT REQUIREMENT.
+
+You MUST NOT remove, simplify, silently skip, or forget existing
+SmartMineGuard functionality.
+
+Before modifying anything:
+
+1. Inspect the entire existing project.
+2. Inspect every existing backend file.
+3. Inspect every frontend page/component.
+4. Inspect all existing routes.
+5. Inspect all API endpoints.
+6. Inspect all database code.
+7. Inspect the database schema.
+8. Inspect mock/demo/seed data.
+9. Inspect authentication logic.
+10. Inspect detection logic.
+11. Inspect GPS simulation.
+12. Inspect alert functionality.
+13. Inspect investigation functionality.
+14. Inspect report/PDF functionality.
+15. Inspect QR functionality.
+16. Inspect dashboards and analytics.
+17. Inspect all existing user workflows.
+
+Create an INTERNAL feature inventory before editing.
+
+For every existing feature, determine:
+
+EXISTING FEATURE
+→ WHERE IT CURRENTLY EXISTS
+→ WHAT IT DOES
+→ NEW FLASK EQUIVALENT
+→ NEW FRONTEND EQUIVALENT
+→ DATABASE REQUIREMENTS
+
+Then implement the equivalent functionality.
+
+DO NOT replace a working feature with a fake button.
+
+DO NOT create buttons that do nothing.
+
+DO NOT create pages containing placeholder text such as:
+"Coming Soon"
+"TODO"
+"Feature will be implemented"
+"AI generated"
+"Demo only"
+
+If a feature exists, make it actually work.
+
+============================================================
+# 3. DO NOT JUST RENAME FILE EXTENSIONS
+============================================================
+
+This is NOT:
+
+alerts.controller.ts
+→ alerts.controller.py
+
+That is WRONG.
+
+You must translate the actual TypeScript/Express functionality
+into proper Python/Flask code.
+
+For example:
+
+OLD:
+
+TypeScript
+↓
+Express
+↓
+Controller
+↓
+Database adapter
+
+NEW:
+
+Python
+↓
+Flask
+↓
+Route
+↓
+Service function
+↓
+PostgreSQL/PostGIS
+
+Translate the actual business logic.
+
+Do not put TypeScript code inside .py files.
+
+Do not leave TypeScript dependencies behind.
+
+============================================================
+# 4. FINAL PROJECT MUST HAVE A SMALL, CLEAR DIRECTORY STRUCTURE
+============================================================
+
+I DO NOT WANT A HUGE ENTERPRISE DIRECTORY TREE.
+
+I am a student and my team needs to understand the project quickly.
+
+The directory structure must be visible and easy to understand.
+
+Prefer this structure:
+
+smartmineguard/
+│
+├── app.py
+├── config.py
+├── requirements.txt
+├── .env.example
+├── README.md
+│
+├── database/
+│   ├── schema.sql
+│   └── seed.sql
+│
+├── services/
+│   ├── detection.py
+│   ├── risk_engine.py
+│   ├── gps_simulator.py
+│   └── report_generator.py
+│
+├── templates/
+│   ├── base.html
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── map.html
+│   ├── trucks.html
+│   ├── permits.html
+│   ├── trips.html
+│   ├── alerts.html
+│   ├── investigations.html
+│   ├── analytics.html
+│   ├── reports.html
+│   └── officer.html
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   │
+│   └── js/
+│       ├── app.js
+│       ├── dashboard.js
+│       ├── map.js
+│       ├── trucks.js
+│       ├── alerts.js
+│       └── officer.js
+│
+└── tests/
+    └── test_detection.py
+
+THIS IS A GUIDELINE.
+
+If a file genuinely needs to be split because it becomes too large,
+you may create another file.
+
+Otherwise DO NOT create additional folders.
+
+DO NOT create:
+
+controllers/
+repositories/
+models/
+middleware/
+interfaces/
+schemas/
+utils/
+helpers/
+handlers/
+providers/
+adapters/
+factories/
+config/modules/
+etc.
+
+just for the sake of architecture.
+
+Keep the project compact.
+
+A student should be able to open the project and immediately
+understand where things are.
+
+============================================================
+# 5. FRONTEND MUST LOOK REAL — NOT AI GENERATED
+============================================================
+
+This is extremely important.
+
+I DO NOT WANT THE WEBSITE TO LOOK LIKE A GENERIC AI-GENERATED
+SaaS dashboard.
+
+Avoid the common AI website appearance:
+
+- excessive rounded cards
+- giant gradient backgrounds
+- purple/blue AI gradients
+- excessive glassmorphism
+- excessive shadows
+- floating blobs
+- meaningless decorative graphics
+- huge headings
+- excessive animations
+- neon colors
+- excessive pill-shaped buttons
+- every element inside a card
+- overly perfect symmetrical layouts
+- fake futuristic "AI" design
+- "Powered by AI" style UI
+- excessive whitespace
+- unnecessary icons everywhere
+
+The website should feel like a REAL GOVERNMENT / MINING /
+ADMINISTRATIVE / ENTERPRISE INFORMATION SYSTEM.
+
+Think:
+
+Indian government portal
++
+mining department dashboard
++
+GIS monitoring system
++
+modern enterprise software
+
+NOT:
+
+startup landing page
+NOT:
+
+AI SaaS template
+NOT:
+
+Dribbble concept
+NOT:
+
+futuristic cyberpunk dashboard
+
+============================================================
+# 6. VISUAL DESIGN DIRECTION
+============================================================
+
+Use a restrained professional color system.
+
+Primary direction:
+
+- deep forest/administrative green
+- dark charcoal
+- muted off-white
+- warm neutral gray
+- restrained amber for warnings
+- restrained red for critical alerts
+- subtle blue only where necessary for information
+
+Do NOT use a giant gradient.
+
+Use solid colors and subtle borders.
+
+The interface should resemble software actually used by
+government officers.
+
+Use:
+
+- thin borders
+- modest border radius
+- compact tables
+- clear typography
+- readable data density
+- proper spacing
+- strong hierarchy
+- professional status indicators
+
+Do not make every card heavily rounded.
+
+Use approximately 4px–8px radius where appropriate.
+
+Use shadows very sparingly.
+
+============================================================
+# 7. GOVERNMENT/ENTERPRISE VISUAL LANGUAGE
+============================================================
+
+The application should have a professional header.
+
+Example structure:
+
+---------------------------------------------------------
+MINING & MINERAL TRANSPORT MONITORING SYSTEM
+Government / Department style identity
+
+Dashboard | Live Monitoring | Trucks | Permits | Alerts | Reports
+                                                Officer | Logout
+---------------------------------------------------------
+
+Use a serious administrative visual identity.
+
+The interface should immediately communicate:
+
+"official monitoring system"
+
+rather than:
+
+"AI startup".
+
+Do not use fake government logos or claim that this is an
+official government application.
+
+If an organization name is needed, use:
+
+"SmartMineGuard"
+"Mining & Mineral Transport Monitoring System"
+
+and clearly treat it as a prototype/hackathon system.
+
+============================================================
+# 8. RESPONSIVE DESIGN
+============================================================
+
+The frontend must work properly on:
+
+- desktop
+- laptop
+- tablet
+- mobile
+
+Desktop is the primary target.
+
+Do not destroy the desktop dashboard just to make mobile responsive.
+
+Use responsive tables carefully.
+
+On smaller screens:
+
+- sidebar can collapse
+- tables can become horizontally scrollable
+- cards can stack
+- navigation can collapse
+
+============================================================
+# 9. APPLICATION PURPOSE
+============================================================
+
+SmartMineGuard is NOT intended to replace an existing government
+mining management system.
+
+It is an INTELLIGENCE + MONITORING + ENFORCEMENT LAYER.
+
+Concept:
+
+Existing mining data
++
+Permit/e-Rawaana data
++
+Truck data
++
+GPS movement
++
+Weighbridge data
++
+Mine production
++
+Destination data
+
+↓
+
+SmartMineGuard
+
+↓
+
+Rule-based detection
+
+↓
+
+Risk score
+
+↓
+
+Alert
+
+↓
+
+Officer verification
+
+↓
+
+Investigation
+
+↓
+
+Evidence dossier
+
+The core idea is:
+
+"Permit → Truck → GPS → Weighbridge → Detection → Risk Score →
+Alert → Officer Verification → Evidence"
+
+============================================================
+# 10. MAIN MODULES
+============================================================
+
+The final application must contain these working modules:
+
+1. Authentication
+2. Dashboard
+3. Mine Management
+4. Truck Management
+5. Permit/e-Rawaana Management
+6. Trip Management
+7. Live GPS Monitoring
+8. Weighbridge Data
+9. Detection Engine
+10. Risk Engine
+11. Alert Center
+12. Investigation Management
+13. Officer Verification
+14. QR Verification
+15. Analytics
+16. Reports
+17. PDF Evidence Dossier
+
+Do not remove modules simply because the frontend is being rebuilt.
+
+============================================================
+# 11. LOGIN / AUTHENTICATION
+============================================================
+
+Create a proper Flask authentication flow.
+
+Support at minimum:
+
+- login
+- logout
+- session handling
+- role-based access
+
+Suggested roles:
+
+ADMIN
+OFFICER
+OPERATOR
+
+The UI should change appropriately according to role.
+
+Do not create insecure hardcoded authentication in production-style
+code.
+
+For hackathon demo purposes, seed demo users in the database and
+document their credentials in README.md.
+
+Passwords must be hashed.
+
+============================================================
+# 12. DASHBOARD
+============================================================
+
+Create a serious government/operations dashboard.
+
+Display real database-driven statistics.
+
+Examples:
+
+- Total Mines
+- Active Trucks
+- Active Permits
+- Today's Trips
+- Verified e-Rawaana
+- Pending Alerts
+- High Risk Cases
+- Critical Cases
+- GPS Active Trucks
+- Weight Anomalies
+- Route Deviations
+- GPS Blackouts
+
+Include:
+
+- trend information
+- recent alerts
+- suspicious trips
+- live operational status
+- small charts using Chart.js
+
+Do not fill the dashboard with decorative cards.
+
+Prioritize information that an officer actually needs.
+
+============================================================
+# 13. LIVE GIS MONITORING
+============================================================
+
+Use Leaflet.js.
+
+Create a live monitoring map.
+
+Show:
+
+- mines
+- weighbridges
+- checkpoints
+- destinations
+- truck locations
+- truck routes
+- route breadcrumbs
+- suspicious routes
+
+Truck status:
+
+NORMAL
+→ neutral/green
+
+WARNING
+→ amber
+
+HIGH RISK
+→ orange/red
+
+CRITICAL
+→ red
+
+Clicking a truck should show:
+
+- truck number
+- driver
+- permit number
+- mineral
+- permitted quantity
+- actual weight
+- source mine
+- destination
+- current coordinates
+- route status
+- GPS status
+- risk score
+
+============================================================
+# 14. PYTHON GPS SIMULATOR
+============================================================
+
+Create a Python-based GPS simulator.
+
+It should simulate multiple trucks.
+
+At least:
+
+100 virtual trucks should be supported in demo mode.
+
+The simulator should generate:
+
+- latitude
+- longitude
+- timestamp
+- truck ID
+- speed
+- heading
+- GPS status
+
+Use Flask-SocketIO to send live updates to the browser.
+
+Do NOT use Node.js.
+
+Do NOT use a TypeScript WebSocket server.
+
+The system must be able to demonstrate suspicious trips.
+
+Create deliberate demo scenarios such as:
+
+1. normal trip
+2. overweight trip
+3. route deviation
+4. GPS blackout
+5. permit reuse
+6. impossible transit time
+
+============================================================
+# 15. DETECTION ENGINE — NO AI
+============================================================
+
+The detection engine MUST NOT use:
+
+- AI
+- machine learning
+- neural networks
+- LLM
+- external AI APIs
+
+Use deterministic algorithms.
+
+Implement these six detections:
+
+-----------------------------------
+1. WEIGHT ANOMALY
+-----------------------------------
+
+Compare:
+
+permitted weight
+vs
+actual weighbridge weight
+
+Example:
+
+if actual_weight > permitted_weight:
+    flag anomaly
+
+Also compare against vehicle capacity where available.
+
+-----------------------------------
+2. ROUTE DEVIATION
+-----------------------------------
+
+Compare GPS route with permitted route/corridor.
+
+Use PostGIS where possible.
+
+Calculate:
+
+- distance from permitted route
+- deviation duration
+- deviation distance
+
+Flag when threshold is exceeded.
+
+-----------------------------------
+3. GPS BLACKOUT
+-----------------------------------
+
+Monitor GPS heartbeat.
+
+If a truck stops sending GPS data unexpectedly:
+
+flag GPS blackout.
+
+Especially important when blackout occurs near suspicious
+geographic areas/geofences.
+
+-----------------------------------
+4. PERMIT REUSE
+-----------------------------------
+
+A permit/e-Rawaana should not be reused after legitimate consumption.
+
+Detect:
+
+same permit
++
+multiple trips
++
+multiple vehicles
++
+multiple timestamps
+
+Flag suspicious reuse.
+
+-----------------------------------
+5. IMPOSSIBLE TRANSIT
+-----------------------------------
+
+Compare:
+
+source
+destination
+legal/expected distance
+timestamp
+vehicle speed
+
+If a trip would require impossible speed or impossible transit
+duration, flag it.
+
+Example:
+
+distance = 300 km
+time = 30 minutes
+
+This should generate a suspicious event.
+
+-----------------------------------
+6. PRODUCTION-DISPATCH MISMATCH
+-----------------------------------
+
+Compare:
+
+authorized production
+actual production
+total dispatched quantity
+destination receipt
+
+Detect unaccounted mineral quantity.
+
+This is one of the most important features.
+
+============================================================
+# 16. PASS RECYCLING / SHORT LOOP DETECTION
+============================================================
+
+Implement deterministic pass recycling detection.
+
+Compare:
+
+permit creation time
+loading time
+weighbridge time
+destination time
+expected transit time
+
+Also compare:
+
+shortest legal route distance
+maximum reasonable speed
+actual trip duration
+
+Flag suspicious short-looping or impossible reuse.
+
+============================================================
+# 17. CORRIDOR DEVIATION
+============================================================
+
+Implement route corridor checking.
+
+A truck does not have to stay exactly on a single line.
+
+Create a reasonable permitted corridor around the route.
+
+Use PostGIS spatial calculations.
+
+A truck crossing outside the permitted corridor should generate
+a route deviation event.
+
+Store the evidence:
+
+- location
+- timestamp
+- distance from corridor
+- route ID
+- truck ID
+
+============================================================
+# 18. GPS BLACKOUT NEAR ILLEGAL/SUSPICIOUS AREAS
+============================================================
+
+Create configurable geofences.
+
+If GPS disappears near a monitored/suspicious area:
+
+increase risk.
+
+Do NOT claim that the system automatically proves illegal mining.
+
+It should say:
+
+"Suspicious GPS blackout near monitored zone."
+
+The officer investigates.
+
+============================================================
+# 19. RISK ENGINE
+============================================================
+
+Create an explainable rule-based scoring system.
+
+Example:
+
+Weight anomaly       +30
+Route deviation      +20
+GPS blackout         +20
+Permit reuse         +30
+Impossible transit   +30
+Production mismatch  +30
+
+Cap the final score at 100.
+
+Categories:
+
+0–30    LOW
+31–60   MEDIUM
+61–80   HIGH
+81–100  CRITICAL
+
+The exact reasons must always be visible.
+
+Example:
+
+Risk Score: 92 / 100
+
+Reasons:
+
++30 Weight anomaly
++20 Route deviation
++20 GPS blackout
++22 Additional suspicious conditions
+
+Do NOT display:
+
+"AI detected this truck."
+
+Instead display:
+
+"Rule-based risk assessment"
+
+============================================================
+# 20. ALERT CENTER
+============================================================
+
+Create a proper alert management page.
+
+Columns:
+
+Alert ID
+Time
+Truck
+Permit
+Detection Type
+Risk Score
+Severity
+Status
+Assigned Officer
+Actions
+
+Statuses:
+
+NEW
+ACKNOWLEDGED
+UNDER_REVIEW
+RESOLVED
+DISMISSED
+
+Allow officers/admins to:
+
+- open alert
+- view evidence
+- acknowledge
+- assign
+- change status
+- create investigation
+- generate report
+
+============================================================
+# 21. TRUCK MANAGEMENT
+============================================================
+
+Truck page should include:
+
+- truck registration number
+- owner
+- driver
+- capacity
+- vehicle type
+- status
+- current GPS status
+- current location
+- active permit
+- risk score
+- trip history
+
+Truck details page:
+
+Overview
+Trips
+Permits
+GPS History
+Alerts
+Risk History
+
+============================================================
+# 22. PERMIT / e-RAWAANA MANAGEMENT
+============================================================
+
+Create permit management.
+
+Fields:
+
+- permit number
+- truck
+- source mine
+- destination
+- mineral
+- permitted quantity
+- issue time
+- expiry time
+- status
+- weighbridge
+- buyer
+
+Statuses:
+
+ACTIVE
+CONSUMED
+EXPIRED
+CANCELLED
+SUSPICIOUS
+
+The system must track the complete lifecycle.
+
+============================================================
+# 23. WEIGHBRIDGE
+============================================================
+
+Record:
+
+- gross weight
+- tare weight
+- net weight
+- permitted weight
+- difference
+- timestamp
+- weighbridge ID
+- truck
+- permit
+
+Automatically detect abnormal weights.
+
+============================================================
+# 24. OFFICER VERIFICATION / PWA-LIKE INTERFACE
+============================================================
+
+Create an officer-friendly verification page.
+
+It should be usable on mobile.
+
+Officer can:
+
+- scan QR
+- enter permit number
+- verify permit
+- see truck information
+- see destination
+- see permitted quantity
+- see actual weight
+- see permit status
+- see risk indicators
+- mark verification result
+
+Use browser APIs/normal JavaScript QR functionality.
+
+Do not introduce React.
+
+============================================================
+# 25. QR VERIFICATION
+============================================================
+
+Generate QR data for permits/e-Rawaana.
+
+QR should contain a secure reference to the permit.
+
+Verification should display:
+
+Permit
+Truck
+Driver
+Mineral
+Quantity
+Source
+Destination
+Validity
+Weight status
+Risk status
+Consumed/reused status
+
+If suspicious:
+
+display a very clear warning.
+
+Example:
+
+"VERIFICATION WARNING
+Permit has already been consumed."
+
+============================================================
+# 26. INVESTIGATION MODULE
+============================================================
+
+Officer can create an investigation from an alert.
+
+Investigation should contain:
+
+- investigation ID
+- linked alert
+- truck
+- permit
+- officer
+- status
+- created date
+- notes
+- evidence
+- final decision
+
+Statuses:
+
+OPEN
+UNDER INVESTIGATION
+ACTION REQUIRED
+CLOSED
+
+============================================================
+# 27. EVIDENCE DOSSIER
+============================================================
+
+Create an evidence page and PDF report.
+
+Generate PDF using ReportLab.
+
+PDF should contain:
+
+SmartMineGuard
+Mining & Mineral Transport Monitoring System
+
+Case ID
+Truck
+Permit
+Mine
+Destination
+Mineral
+Permitted Quantity
+Actual Quantity
+
+Detection Findings
+
+Risk Score
+
+Risk Factors
+
+GPS Timeline
+
+Route deviation details
+
+Weighbridge details
+
+Permit history
+
+Investigation notes
+
+Officer details
+
+Timestamp
+
+Use a professional administrative PDF layout.
+
+Do not claim it is an official government document.
+
+============================================================
+# 28. ANALYTICS
+============================================================
+
+Use Chart.js.
+
+Display meaningful analytics:
+
+- alerts by type
+- alerts by severity
+- truck activity
+- permit activity
+- weight anomalies
+- route deviations
+- GPS blackouts
+- investigations
+- mine production vs dispatch
+- daily/weekly trip trends
+
+Charts must use actual database data.
+
+============================================================
+# 29. DATABASE
+============================================================
+
+Use PostgreSQL + PostGIS.
+
+Preserve useful existing database concepts.
+
+At minimum support entities for:
+
+users
+mines
+trucks
+drivers
+permits
+trips
+weighbridges
+weighments
+gps_positions
+alerts
+detections
+investigations
+evidence
+checkpoints/geofences
+production
+dispatch
+
+Use proper relationships.
+
+Use PostGIS geography/geometry fields where spatial data is needed.
+
+Examples:
+
+GPS positions
+route geometry
+mine coordinates
+weighbridge coordinates
+geofences
+
+Do NOT use MongoDB.
+
+Do NOT use Redis.
+
+============================================================
+# 30. DATABASE ACCESS
+============================================================
+
+Use a simple Python PostgreSQL approach.
+
+Keep SQL readable.
+
+Do not introduce unnecessary ORM complexity.
+
+If an ORM is already present and useful, carefully migrate only if
+necessary.
+
+The final project must remain understandable to a student.
+
+============================================================
+# 31. API
+============================================================
+
+Convert existing APIs to Flask.
+
+Example:
+
+GET /api/alerts
+
+→
+
+@app.route("/api/alerts")
+
+and:
+
+GET /api/alerts/:id
+
+→
+
+@app.route("/api/alerts/<int:alert_id>")
+
+Preserve existing API functionality wherever practical.
+
+Create equivalent Flask endpoints for:
+
+- auth
+- dashboard
+- trucks
+- permits
+- trips
+- GPS
+- alerts
+- investigations
+- reports
+- QR verification
+- analytics
+
+Use JSON APIs where the frontend needs dynamic data.
+
+============================================================
+# 32. REAL-TIME COMMUNICATION
+============================================================
+
+Use Flask-SocketIO only where real-time updates are genuinely needed.
+
+Primary real-time use:
+
+GPS truck positions
+alerts
+monitoring dashboard
+
+Browser:
+
+HTML + Vanilla JavaScript
+
+Server:
+
+Flask + Flask-SocketIO
+
+No Node.js.
+
+============================================================
+# 33. MOCK / DEMO DATA
+============================================================
+
+The application MUST be easy to demonstrate during SIH.
+
+Create realistic seed data.
+
+Include:
+
+- multiple mines
+- multiple trucks
+- multiple permits
+- weighbridges
+- destinations
+- trips
+- GPS positions
+- normal cases
+- suspicious cases
+- alerts
+- investigations
+
+Include deliberately suspicious scenarios.
+
+Example:
+
+TRUCK:
+HR26AB1234
+
+Permit:
+SMG-2026-00125
+
+Permitted:
+20 MT
+
+Actual:
+31 MT
+
+Route:
+deviated
+
+GPS:
+blackout near monitored zone
+
+Result:
+CRITICAL
+
+Risk:
+92/100
+
+This should be reproducible during the demo.
+
+============================================================
+# 34. NO FAKE DATA AFTER LOGIN
+============================================================
+
+Do not hardcode dashboard numbers directly into HTML.
+
+Example WRONG:
+
+Total Trucks = 245
+
+The number should come from the database.
+
+Example:
+
+{{ total_trucks }}
+
+or via an API.
+
+The same applies to:
+
+- alerts
+- permits
+- trips
+- charts
+- trucks
+- risk scores
+
+============================================================
+# 35. FRONTEND FILE STRUCTURE
+============================================================
+
+Keep templates straightforward.
+
+Use:
+
+templates/base.html
+
+for shared layout.
+
+Then individual pages:
+
+dashboard.html
+map.html
+trucks.html
+permits.html
+trips.html
+alerts.html
+investigations.html
+analytics.html
+reports.html
+officer.html
+
+Use Jinja inheritance.
+
+Do not create 50 tiny components.
+
+Do not create unnecessary partial folders.
+
+Use reusable sections in base.html where practical.
+
+============================================================
+# 36. JAVASCRIPT
+============================================================
+
+Use only Vanilla JavaScript.
+
+Do not use:
+
+React
+Vue
+Angular
+TypeScript
+
+Keep JS readable.
+
+Use separate JS files only when useful.
+
+Do not create:
+
+truckService.js
+truckController.js
+truckRepository.js
+truckUtils.js
+
+unless genuinely required.
+
+Keep the number of frontend files low.
+
+============================================================
+# 37. CSS / TAILWIND
+============================================================
+
+Use Tailwind CSS carefully.
+
+The website must not look like a Tailwind template.
+
+Use custom CSS in:
+
+static/css/style.css
+
+for:
+
+- government-style identity
+- table styling
+- status badges
+- map UI
+- navigation
+- forms
+- responsive behavior
+
+Avoid excessive Tailwind utility clutter in HTML where a clean CSS
+class is more readable.
+
+============================================================
+# 38. ICONS
+============================================================
+
+Use icons sparingly.
+
+Icons should support navigation and information.
+
+Do not put an icon next to every word.
+
+Avoid decorative emoji.
+
+Use a professional icon library only if needed and compatible with
+the no-build/simple frontend requirement.
+
+============================================================
+# 39. TABLES ARE IMPORTANT
+============================================================
+
+This is an administrative system.
+
+Tables should be a major part of the UI.
+
+Use professional data tables for:
+
+- trucks
+- permits
+- trips
+- alerts
+- investigations
+- weighments
+- reports
+
+Include:
+
+- search
+- filtering
+- sorting where useful
+- pagination where useful
+- status badges
+- action buttons
+
+Do not convert everything into cards.
+
+============================================================
+# 40. MAP DESIGN
+============================================================
+
+The map should be a major feature.
+
+Use Leaflet.
+
+Include:
+
+- legend
+- filters
+- status markers
+- selected truck panel
+- route line
+- breadcrumbs
+- map controls
+
+The map should feel like an actual monitoring system.
+
+============================================================
+# 41. NO AI CLAIMS
+============================================================
+
+Never use phrases such as:
+
+"AI powered"
+
+"AI detected"
+
+"machine learning prediction"
+
+"intelligent neural network"
+
+The project uses:
+
+RULE-BASED DETECTION
++
+SPATIAL ANALYSIS
++
+RISK SCORING
++
+REAL-TIME MONITORING
+
+If you want to describe the platform as intelligent, use:
+
+"rule-based intelligence"
+
+or:
+
+"automated risk detection"
+
+============================================================
+# 42. SECURITY
+============================================================
+
+Implement basic practical security:
+
+- password hashing
+- session authentication
+- role checks
+- input validation
+- parameterized SQL
+- environment variables
+- no passwords committed in code
+- CSRF protection where appropriate
+- safe error messages
+
+Create:
+
+.env.example
+
+Never put real credentials inside the repository.
+
+============================================================
+# 43. ERROR HANDLING
+============================================================
+
+Create useful error handling.
+
+Handle:
+
+- database unavailable
+- invalid permit
+- missing truck
+- invalid QR
+- expired permit
+- reused permit
+- invalid API request
+- missing GPS data
+
+Show professional messages.
+
+Never show raw Python stack traces to users.
+
+============================================================
+# 44. README
+============================================================
+
+README.md must explain:
+
+1. Project overview
+2. Problem
+3. Solution
+4. Features
+5. Architecture
+6. Technology stack
+7. Folder structure
+8. PostgreSQL/PostGIS setup
+9. Environment variables
+10. Installation
+11. Running the project
+12. Seed database
+13. Demo users
+14. GPS simulator
+15. Detection rules
+16. Risk scoring
+17. API overview
+18. Testing
+19. SIH demo flow
+
+Running should be as simple as possible.
+
+Example:
+
+python -m venv venv
+
+venv\Scripts\activate
+
+pip install -r requirements.txt
+
+python app.py
+
+============================================================
+# 45. REQUIREMENTS.TXT
+============================================================
+
+Only include packages actually required.
+
+Likely packages may include:
+
+Flask
+Flask-SocketIO
+psycopg2-binary
+python-dotenv
+reportlab
+eventlet or another compatible SocketIO async dependency if needed
+
+Do not include:
+
+express
+typescript
+react
+next
+prisma
+fastapi
+node packages
+
+============================================================
+# 46. TESTING
+============================================================
+
+Before declaring the migration complete, test:
+
+1. Database connection
+2. Login
+3. Logout
+4. Dashboard
+5. Trucks
+6. Permits
+7. Trips
+8. GPS simulator
+9. Live map
+10. Detection engine
+11. Risk engine
+12. Alerts
+13. Investigation
+14. QR verification
+15. PDF report
+16. Analytics
+17. Role permissions
+
+Also test each detection rule independently.
+
+Create:
+
+tests/test_detection.py
+
+with tests for:
+
+- weight anomaly
+- route deviation
+- GPS blackout
+- permit reuse
+- impossible transit
+- production mismatch
+- risk score
+
+============================================================
+# 47. CLEANUP AFTER MIGRATION
+============================================================
+
+ONLY AFTER the Flask application works:
+
+Remove obsolete backend technology.
+
+Final project must NOT require:
+
+.ts
+.tsx
+Node.js
+Express
+React
+Next.js
+Fastify
+FastAPI
+Prisma
+
+There must be no production TypeScript backend.
+
+Do not leave old TypeScript code pretending to be part of the new
+Flask architecture.
+
+============================================================
+# 48. IMPORTANT — DO NOT DESTROY EXISTING WORK
+============================================================
+
+Do NOT immediately delete the existing project.
+
+First inspect.
+
+Then migrate.
+
+Then verify.
+
+Then clean obsolete files.
+
+If an existing feature is unclear, inspect its implementation
+before deciding it is unnecessary.
+
+If existing database data/model is useful, preserve it.
+
+If existing frontend functionality is useful, recreate it in
+Jinja/HTML/Vanilla JS.
+
+============================================================
+# 49. DO NOT CREATE A TECHNICAL DOCUMENT INSTEAD OF CODE
+============================================================
+
+I am NOT asking you to only create:
+
+architecture.md
+design.md
+technical-spec.md
+
+I need the ACTUAL WORKING APPLICATION.
+
+Create and modify the actual files.
+
+The final result must be runnable.
+
+============================================================
+# 50. DO NOT STOP AFTER PARTIAL IMPLEMENTATION
+============================================================
+
+Do not give me only:
+
+- frontend
+- backend skeleton
+- database schema
+- UI mockup
+- API specification
+
+I need the complete integrated application.
+
+Frontend
++
+Flask
++
+PostgreSQL/PostGIS
++
+GPS simulation
++
+Detection
++
+Risk engine
++
+Alerts
++
+Investigation
++
+QR verification
++
+PDF reports
+
+must work together.
+
+============================================================
+# 51. IF THE EXISTING PROJECT IS ALREADY PARTIALLY MIGRATED
+============================================================
+
+If you find that some .py files already exist while some .ts files
+still exist:
+
+DO NOT start over blindly.
+
+Inspect what has already been migrated.
+
+Keep good working Python code.
+
+Fix incomplete migration.
+
+Translate remaining TypeScript functionality.
+
+Do not duplicate functionality.
+
+Do not create:
+
+old version
+new version
+final version
+final-final version
+
+folders.
+
+Keep ONE clean implementation.
+
+============================================================
+# 52. UI PAGE REQUIREMENTS
+============================================================
+
+LOGIN
+- official/administrative appearance
+- SmartMineGuard identity
+- simple login form
+- no flashy animations
+
+DASHBOARD
+- operational metrics
+- alert summary
+- risk summary
+- map preview
+- charts
+- recent activity
+
+LIVE MONITORING
+- large Leaflet map
+- truck list
+- filters
+- live status
+- selected truck details
+
+TRUCKS
+- searchable table
+- status
+- risk
+- capacity
+- current location
+
+PERMITS
+- searchable table
+- status
+- quantity
+- truck
+- source
+- destination
+
+TRIPS
+- trip timeline
+- route
+- GPS status
+- weight
+- permit
+
+ALERTS
+- severity
+- detection reason
+- score
+- status
+- officer
+
+INVESTIGATIONS
+- case management
+- evidence
+- notes
+- resolution
+
+ANALYTICS
+- meaningful charts
+
+REPORTS
+- generate/download PDF
+
+OFFICER
+- mobile-friendly verification
+- QR verification
+- permit lookup
+- suspicious status
+
+============================================================
+# 53. NATURAL UI / UX RULE
+============================================================
+
+Before implementing each page, ask:
+
+"Would this look like software actually used by a mining department
+or field officer?"
+
+If the answer is no, simplify it.
+
+Avoid trendy UI for the sake of trendy UI.
+
+The website should feel:
+
+REAL
+PRACTICAL
+OFFICIAL
+DATA-HEAVY
+TRUSTWORTHY
+EASY TO OPERATE
+
+not:
+
+FLASHY
+FUTURISTIC
+AI-GENERATED
+DECORATIVE
+
+============================================================
+# 54. DEMO FLOW FOR SIH
+============================================================
+
+The final system must support this complete demonstration:
+
+STEP 1
+Officer opens dashboard.
+
+STEP 2
+Officer sees active trucks and current alerts.
+
+STEP 3
+Officer opens live monitoring map.
+
+STEP 4
+Select:
+
+HR26AB1234
+
+STEP 5
+System shows:
+
+Permit:
+SMG-2026-00125
+
+Permitted quantity:
+20 MT
+
+STEP 6
+Truck starts normal movement.
+
+STEP 7
+Weighbridge records:
+
+31 MT
+
+STEP 8
+Detection engine generates:
+
+WEIGHT ANOMALY
+
+STEP 9
+Truck deviates from permitted route.
+
+Detection:
+
+ROUTE DEVIATION
+
+STEP 10
+GPS signal disappears near a monitored zone.
+
+Detection:
+
+GPS BLACKOUT
+
+STEP 11
+Risk engine calculates:
+
+92 / 100
+
+CRITICAL
+
+STEP 12
+Dashboard receives live alert.
+
+STEP 13
+Officer opens alert.
+
+STEP 14
+Officer verifies QR.
+
+STEP 15
+System shows evidence.
+
+STEP 16
+Officer creates investigation.
+
+STEP 17
+Officer generates evidence PDF.
+
+This entire flow must work during the hackathon demo.
+
+============================================================
+# 55. FINAL DIRECTORY MUST BE CLEAN
+============================================================
+
+At the end, show me the final directory tree.
+
+It should remain close to:
+
+smartmineguard/
+│
+├── app.py
+├── config.py
+├── requirements.txt
+├── .env.example
+├── README.md
+│
+├── database/
+│   ├── schema.sql
+│   └── seed.sql
+│
+├── services/
+│   ├── detection.py
+│   ├── risk_engine.py
+│   ├── gps_simulator.py
+│   └── report_generator.py
+│
+├── templates/
+│   ├── base.html
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── map.html
+│   ├── trucks.html
+│   ├── permits.html
+│   ├── trips.html
+│   ├── alerts.html
+│   ├── investigations.html
+│   ├── analytics.html
+│   ├── reports.html
+│   └── officer.html
+│
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       ├── app.js
+│       ├── dashboard.js
+│       ├── map.js
+│       ├── trucks.js
+│       ├── alerts.js
+│       └── officer.js
+│
+└── tests/
+    └── test_detection.py
+
+If you genuinely need fewer files, reduce them.
+
+DO NOT increase the number of folders unnecessarily.
+
+============================================================
+# 56. FINAL QUALITY CHECK
+============================================================
+
+Before telling me the work is finished, perform this checklist:
+
+[ ] No TypeScript backend
+[ ] No Express
+[ ] No Node.js dependency
+[ ] No React
+[ ] No Next.js
+[ ] No FastAPI
+[ ] No AI
+[ ] No ML
+[ ] Flask starts successfully
+[ ] PostgreSQL connects
+[ ] PostGIS works
+[ ] Login works
+[ ] Dashboard works
+[ ] Trucks work
+[ ] Permits work
+[ ] Trips work
+[ ] GPS simulation works
+[ ] Live map works
+[ ] Detection works
+[ ] Risk scoring works
+[ ] Alerts work
+[ ] Investigations work
+[ ] QR verification works
+[ ] PDF generation works
+[ ] Analytics work
+[ ] Seed data works
+[ ] Tests work
+[ ] Existing functionality preserved
+[ ] No fake buttons
+[ ] No placeholder pages
+[ ] No unnecessary directories
+[ ] UI looks professional
+[ ] UI does NOT look AI-generated
+[ ] README is complete
+
+============================================================
+# 57. FINAL INSTRUCTION
+============================================================
+
+START NOW.
+
+First inspect the ENTIRE existing SmartMineGuard codebase.
+
+Do NOT immediately start generating new files.
+
+Understand what already exists.
+
+Build an internal feature map.
+
+Then migrate the project.
+
+Preserve ALL useful existing functionality.
+
+Translate TypeScript/Express functionality into Python/Flask.
+
+Recreate the frontend using HTML/Jinja2/Vanilla JavaScript/Tailwind.
+
+Use PostgreSQL/PostGIS.
+
+Use Flask-SocketIO for real-time functionality.
+
+Use deterministic detection algorithms.
+
+Use explainable rule-based risk scoring.
+
+Keep the directory structure SMALL.
+
+Keep the code readable.
+
+Keep the UI professional and natural.
+
+DO NOT create unnecessary folders.
+
+DO NOT create unnecessary files.
+
+DO NOT rename .ts files to .py.
+
+DO NOT leave TypeScript code in Python files.
+
+DO NOT give me a technical document instead of implementation.
+
+DO NOT give me only a skeleton.
+
+DO NOT remove features.
+
+DO NOT replace working functionality with placeholders.
+
+ACTUALLY MODIFY/CREATE THE FILES AND BUILD THE COMPLETE WORKING
+SMARTMINEGUARD APPLICATION.
+
+At the end, show:
+
+1. Final directory tree
+2. What was migrated
+3. What files were created/modified
+4. What old files were removed and why
+5. Database setup
+6. How to run
+7. Demo credentials
+8. How to run the GPS simulator
+9. How to demonstrate the suspicious-trip scenario
+10. Test results
+
+MOST IMPORTANT:
+
+FEATURE PRESERVATION > CLEANUP.
+
+CLEAN STRUCTURE > TOO MANY FILES.
+
+REAL FUNCTIONALITY > MOCK UI.
+
+PROFESSIONAL GOVERNMENT/ENTERPRISE UI > AI-GENERATED DESIGN.
+
+COMPLETE WORKING PROJECT > TECHNICAL DOCUMENT.
+
+START BY INSPECTING THE EXISTING PROJECT.

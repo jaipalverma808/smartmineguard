@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Mining Intelligence &amp; Material Analytics{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">
+        Mineral Movement Analytics &amp; Production-Dispatch Intelligence
+      </h2>
+      <p class="text-[11px] text-slate-500">
+        Deterministic mass-balance accounting, daily production vs dispatch reconciliation, and statutory quota audits
+      </p>
+    </div>
+    <div class="flex items-center gap-2 font-mono text-xs">
+      <span class="text-slate-500">Current Stock Balance:</span>
+      <span class="font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+        {{ "{:,.1f}".format(stock_recon.current_stock_mt) }} MT
+      </span>
+    </div>
+  </div>
+
+  <!-- Operational Material KPI Summary Tiles -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
+    <div class="p-3 bg-white border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Opening Stock</div>
+      <div class="stat-value text-slate-900 text-lg">{{ "{:,.1f}".format(daily_summary.opening_stock_mt) }} MT</div>
+      <div class="stat-subtext">Pit Stockyard Base</div>
+    </div>
+
+    <div class="p-3 bg-white border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Production Today</div>
+      <div class="stat-value text-slate-900 text-lg">{{ "{:,.1f}".format(daily_summary.production_today_mt) }} MT</div>
+      <div class="stat-subtext">Mined Excavation</div>
+    </div>
+
+    <div class="p-3 bg-emerald-50 border border-emerald-300 rounded shadow-xs">
+      <div class="stat-label text-emerald-800">Available Stock</div>
+      <div class="stat-value text-emerald-950 text-lg">{{ "{:,.1f}".format(daily_summary.available_stock_mt) }} MT</div>
+      <div class="stat-subtext">Opening + Production</div>
+    </div>
+
+    <div class="p-3 bg-white border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Planned Dispatch</div>
+      <div class="stat-value text-slate-900 text-lg">{{ "{:,.1f}".format(daily_summary.planned_dispatch_mt) }} MT</div>
+      <div class="stat-subtext">Daily Quota Target</div>
+    </div>
+
+    <div class="p-3 bg-white border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Actual Dispatched</div>
+      <div class="stat-value text-emerald-900 text-lg">{{ "{:,.1f}".format(daily_summary.actual_dispatch_mt) }} MT</div>
+      <div class="stat-subtext">Weighbridge Audited</div>
+    </div>
+
+    <div class="p-3 bg-white border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Remaining Target</div>
+      <div class="stat-value text-slate-900 text-lg">{{ "{:,.1f}".format(daily_summary.remaining_dispatch_mt) }} MT</div>
+      <div class="stat-subtext">Completion: {{ daily_summary.completion_pct }}%</div>
+    </div>
+
+    <div class="p-3 bg-slate-50 border border-slate-300 rounded shadow-xs">
+      <div class="stat-label">Net Stock Delta</div>
+      <div class="stat-value text-lg {% if stock_recon.is_accumulating %}text-emerald-800{% else %}text-amber-800{% endif %}">
+        {% if stock_recon.stock_change_mt >= 0 %}+{% endif %}{{ "{:,.1f}".format(stock_recon.stock_change_mt) }} MT
+      </div>
+      <div class="stat-subtext">Prod &minus; Dispatch</div>
+    </div>
+  </div>
+
+  <!-- Dispatch vs Production Analytics (Section 26) -->
+  <div class="gov-card p-4">
+    <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-3 mb-3 gap-2">
+      <div>
+        <h3 class="gov-card-title flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+          <span>Production vs. Dispatch Analytics (7-Day Daily Movement)</span>
+        </h3>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Comparative timeseries of daily mined extraction versus verified weighbridge outbound dispatches
+        </p>
+      </div>
+      <div class="flex items-center gap-2 text-xs font-mono">
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 bg-emerald-800 rounded-xs inline-block"></span> Production (MT)</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 bg-amber-600 rounded-xs inline-block"></span> Dispatch (MT)</span>
+        <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 bg-slate-400 rounded-xs inline-block"></span> Stock Delta (MT)</span>
+      </div>
+    </div>
+
+    <div class="h-72">
+      <canvas id="dispatchVsProdChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Mineral-Wise Monitoring Table (Section 25) -->
+  <div class="gov-card">
+    <div class="gov-card-header">
+      <h3 class="gov-card-title flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span>Mineral-Wise Monitoring Breakdown</span>
+      </h3>
+      <span class="text-xs text-slate-500">Production vs Dispatched by Mineral Category</span>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs">
+        <thead>
+          <tr>
+            <th>Mineral Commodity</th>
+            <th>Daily Production</th>
+            <th>Dispatched Today</th>
+            <th>Remaining Dispatch Target</th>
+            <th>Number of Transport Trucks</th>
+            <th>Total Trips Today</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for min in mineral_summary %}
+          <tr>
+            <td class="font-bold text-slate-900">{{ min.mineral }}</td>
+            <td class="font-mono">{{ "{:,.1f}".format(min.produced_mt) }} MT</td>
+            <td class="font-mono font-bold text-emerald-900">{{ "{:,.1f}".format(min.dispatched_mt) }} MT</td>
+            <td class="font-mono font-semibold">{{ "{:,.1f}".format(min.remaining_mt) }} MT</td>
+            <td class="text-center font-bold text-slate-800">{{ min.trucks_count }}</td>
+            <td class="text-center font-bold text-slate-800">{{ min.trips_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Grid of Compliance & Quota Charts -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    
+    <!-- Chart 1: Mine Production vs Authorized Extraction Quota -->
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-1">Mine Leasehold Quota Reconciliation</h3>
+      <p class="text-xs text-slate-500 mb-3">Authorized Environmental Clearance vs Cumulative Dispatched Tonnage (MT)</p>
+      <div class="h-64">
+        <canvas id="mineDispatchChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 2: Alerts by Statutory Violation Category -->
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-1">Detected Rule Violations by Category</h3>
+      <p class="text-xs text-slate-500 mb-3">Deterministic rule-based detections logged across active transport fleet</p>
+      <div class="h-64">
+        <canvas id="alertTypeChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 3: Alert Severity Distribution -->
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-1">Enforcement Severity Breakdown</h3>
+      <p class="text-xs text-slate-500 mb-3">Distribution of alerts requiring immediate field interception vs advisory audit</p>
+      <div class="h-64">
+        <canvas id="alertSeverityChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 4: Fleet Risk Band Distribution -->
+    <div class="gov-card p-4">
+      <h3 class="gov-card-title mb-1">Fleet Risk Band Distribution</h3>
+      <p class="text-xs text-slate-500 mb-3">Normalized 0-100 risk scoring bands across active commercial tippers</p>
+      <div class="h-64">
+        <canvas id="riskBandChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Injected real database aggregates
+  const MINE_DATA = {{ mine_dispatch|safe }};
+  const ALERT_TYPES = {{ alerts_by_type|safe }};
+  const ALERT_SEVERITY = {{ alerts_by_severity|safe }};
+  const RISK_DIST = {{ risk_dist|safe }};
+  const DISPATCH_VS_PROD = {{ dispatch_vs_prod|safe }};
+
+  // 0. Production vs Dispatch Timeseries (Section 26)
+  new Chart(document.getElementById("dispatchVsProdChart"), {
+    type: "bar",
+    data: {
+      labels: DISPATCH_VS_PROD.labels,
+      datasets: [
+        {
+          label: "Production (MT)",
+          data: DISPATCH_VS_PROD.production,
+          backgroundColor: "#0F3826",
+          order: 2
+        },
+        {
+          label: "Dispatch (MT)",
+          data: DISPATCH_VS_PROD.dispatch,
+          backgroundColor: "#D97706",
+          order: 2
+        },
+        {
+          label: "Stock Delta (Prod - Disp)",
+          data: DISPATCH_VS_PROD.stock_change,
+          type: "line",
+          borderColor: "#64748B",
+          backgroundColor: "#94A3B8",
+          borderWidth: 2,
+          pointRadius: 4,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // 1. Mine Dispatch vs Quota
+  new Chart(document.getElementById("mineDispatchChart"), {
+    type: "bar",
+    data: {
+      labels: MINE_DATA.map(m => m.name.substring(0, 20) + "..."),
+      datasets: [
+        {
+          label: "Authorized Quota (MT)",
+          data: MINE_DATA.map(m => m.quota),
+          backgroundColor: "#CBD5E1"
+        },
+        {
+          label: "Current Dispatched (MT)",
+          data: MINE_DATA.map(m => m.dispatch),
+          backgroundColor: "#0F3826"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // 2. Alert Type
+  new Chart(document.getElementById("alertTypeChart"), {
+    type: "bar",
+    data: {
+      labels: ALERT_TYPES.map(a => a.alert_type.replace('_', ' ')),
+      datasets: [{
+        label: "Violations Logged",
+        data: ALERT_TYPES.map(a => a.count),
+        backgroundColor: "#155E3D"
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+
+  // 3. Alert Severity Doughnut
+  new Chart(document.getElementById("alertSeverityChart"), {
+    type: "doughnut",
+    data: {
+      labels: ALERT_SEVERITY.map(s => s.severity),
+      datasets: [{
+        data: ALERT_SEVERITY.map(s => s.count),
+        backgroundColor: ["#DC2626", "#EA580C", "#D97706", "#16A34A"]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+
+  // 4. Risk Band Pie
+  new Chart(document.getElementById("riskBandChart"), {
+    type: "pie",
+    data: {
+      labels: RISK_DIST.map(r => r.level),
+      datasets: [{
+        data: RISK_DIST.map(r => r.count),
+        backgroundColor: ["#16A34A", "#D97706", "#EA580C", "#DC2626"]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+</script>
+{% endblock %}

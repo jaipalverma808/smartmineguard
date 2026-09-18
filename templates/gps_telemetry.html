@@ -1,0 +1,904 @@
+{% extends "base.html" %}
+
+{% block title %}GPS Anti-Tamper & Jammer Surveillance Center{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- PAGE HEADER & STATUS BAR -->
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded p-4 shadow-sm gap-3">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="inline-flex p-1.5 bg-sky-950 text-sky-400 rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        </span>
+        <h1 class="text-base font-bold text-slate-900 tracking-tight uppercase">
+          GPS Anti-Tamper &amp; Telemetry Intelligence Center
+        </h1>
+        <span class="badge badge-low text-[11px] font-mono flex items-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          AIS-140 RADAR ONLINE
+        </span>
+      </div>
+      <p class="text-xs text-slate-500 mt-1">
+        Continuous surveillance defending against RF GPS Jammers ("Gamers"), hardware wire-cuts, cellular shadow dead-zones, and illegal riverbed mining incursions.
+      </p>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-2">
+      {% if active_mine %}
+      <div class="bg-amber-50 border border-amber-300 rounded px-2.5 py-1 text-xs text-amber-900 flex items-center gap-1.5 font-medium">
+        <span>⛏ Filtered to: <strong>{{ active_mine.name }}</strong></span>
+        <a href="{{ url_for('set_mine_filter', mine_id='', next=request.full_path) }}" class="text-amber-700 hover:text-black font-bold ml-1" title="Show Statewide Fleet">✕</a>
+      </div>
+      {% endif %}
+      <button onclick="refreshGpsFleetData()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>Refresh Radar</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- HARDWARE TELEMETRY & ANTI-TAMPER DIAGNOSTIC BAR -->
+  <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-indigo-700/60 rounded-lg p-3 text-white shadow-md">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="bg-amber-500 text-slate-950 font-black text-[10px] uppercase px-2 py-0.5 rounded tracking-wider">
+          Telemetry Diagnostic Control
+        </span>
+        <span class="text-xs text-slate-300">
+          Target Vehicle: <strong class="text-amber-400 font-mono">HR26AB1234</strong> (Shri Ram Logistics)
+        </span>
+      </div>
+
+      <!-- Quick Trigger Buttons -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button onclick="triggerGpsScenario('jammer')" class="bg-red-700 hover:bg-red-600 text-white text-xs px-2.5 py-1 rounded transition font-bold shadow flex items-center gap-1" title="Simulates driver turning on high-power RF GPS Jammer ('Gamer')">
+          <span>🚨 1. Trigger GPS Jammer ("Gamer")</span>
+        </button>
+        <button onclick="triggerGpsScenario('tamper')" class="bg-orange-700 hover:bg-orange-600 text-white text-xs px-2.5 py-1 rounded transition font-bold shadow flex items-center gap-1" title="Simulates cutting 24V power bus cable to force internal battery">
+          <span>⚠️ 2. Trigger Wire-Cut / Tamper</span>
+        </button>
+        <button onclick="triggerGpsScenario('riverbed')" class="bg-purple-800 hover:bg-purple-700 text-white text-xs px-2.5 py-1 rounded transition font-bold shadow flex items-center gap-1" title="Simulates vehicle entering illegal Sabi Riverbed mining exclusion zone">
+          <span>⛔ 3. Trigger Riverbed Incursion</span>
+        </button>
+        <button onclick="triggerGpsScenario('blindspot')" class="bg-sky-800 hover:bg-sky-700 text-white text-xs px-2.5 py-1 rounded transition font-semibold shadow flex items-center gap-1" title="Simulates legitimate GSM mountain shadow dead-zone">
+          <span>📡 4. Trigger Network Blindspot</span>
+        </button>
+        <button onclick="triggerGpsScenario('restore')" class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-2.5 py-1 rounded transition font-bold shadow flex items-center gap-1" title="Restores 12 satellites, 24.2V power, and normal telemetry">
+          <span>🔄 Restore Fleet</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 TOP KPI STATISTIC CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <!-- Total Monitored -->
+    <div class="stat-card border-l-4 border-l-slate-700">
+      <div class="text-[11px] text-slate-500 font-semibold uppercase">AIS-140 Units</div>
+      <div class="text-xl font-bold text-slate-900 mt-1" id="kpi-total-monitored">{{ total_monitored }}</div>
+      <div class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span>Fleet Transponders</span>
+      </div>
+    </div>
+
+    <!-- GPS Jammers Detected -->
+    <div class="stat-card border-l-4 border-l-red-600 bg-red-50/40">
+      <div class="text-[11px] text-red-700 font-bold uppercase flex items-center justify-between">
+        <span>GPS Jammers</span>
+        <span class="text-[10px] bg-red-200 text-red-900 px-1 rounded font-mono">RF JAM</span>
+      </div>
+      <div class="text-xl font-black text-red-700 mt-1 flex items-center gap-1.5">
+        <span id="kpi-jammer-count">{{ jammer_count }}</span>
+        {% if jammer_count > 0 %}
+        <span class="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded animate-pulse text-[10px]">ALERT</span>
+        {% endif %}
+      </div>
+      <div class="text-[10px] text-red-600 mt-1">C/N0 Signal Collapse</div>
+    </div>
+
+    <!-- Hardware Wire Cuts / Tamper -->
+    <div class="stat-card border-l-4 border-l-orange-500 bg-orange-50/40">
+      <div class="text-[11px] text-orange-700 font-bold uppercase flex items-center justify-between">
+        <span>Hardware Tamper</span>
+        <span class="text-[10px] bg-orange-200 text-orange-900 px-1 rounded font-mono">24V CUT</span>
+      </div>
+      <div class="text-xl font-bold text-orange-700 mt-1" id="kpi-tamper-count">{{ tamper_count }}</div>
+      <div class="text-[10px] text-orange-600 mt-1">Power Severed / Enclosure</div>
+    </div>
+
+    <!-- Network Blindspots -->
+    <div class="stat-card border-l-4 border-l-sky-600 bg-sky-50/30">
+      <div class="text-[11px] text-sky-800 font-bold uppercase">Network Drops</div>
+      <div class="text-xl font-bold text-sky-900 mt-1" id="kpi-blindspot-count">{{ blindspot_count }}</div>
+      <div class="text-[10px] text-sky-600 mt-1">Legitimate GSM Shadow</div>
+    </div>
+
+    <!-- Riverbed Incursions -->
+    <div class="stat-card border-l-4 border-l-purple-600 bg-purple-50/40">
+      <div class="text-[11px] text-purple-800 font-bold uppercase">Riverbed Breaches</div>
+      <div class="text-xl font-bold text-purple-900 mt-1" id="kpi-prohibited-count">{{ prohibited_count }}</div>
+      <div class="text-[10px] text-purple-600 mt-1">Sabi Exclusion Zone</div>
+    </div>
+
+    <!-- Telemetry Integrity Index -->
+    <div class="stat-card border-l-4 border-l-emerald-600 bg-emerald-50/30">
+      <div class="text-[11px] text-emerald-800 font-bold uppercase">Fleet Integrity</div>
+      <div class="text-xl font-bold text-emerald-900 mt-1 flex items-baseline gap-0.5">
+        <span id="kpi-integrity-score">{{ integrity_score }}</span>
+        <span class="text-xs font-semibold text-emerald-700">%</span>
+      </div>
+      <div class="w-full bg-emerald-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
+        <div class="bg-emerald-600 h-1.5 rounded-full" style="width: {{ integrity_score }}%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SPATIAL RADAR MAP & DETECTION RULE EXPLAINER -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    
+    <!-- Leaflet Threat Map (2 Columns) -->
+    <div class="lg:col-span-2 bg-white border border-slate-300 rounded shadow-sm overflow-hidden flex flex-col">
+      <div class="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2 font-bold text-slate-800 uppercase tracking-wide">
+          <svg class="w-4 h-4 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Live GIS Anti-Tamper &amp; Jammer Radius Radar</span>
+        </div>
+        <div class="flex items-center gap-3 text-[11px] text-slate-600">
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span> Compliant</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-600 inline-block animate-ping"></span> RF Jammer</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span> Wire Cut</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block"></span> Blindspot</span>
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-700 inline-block"></span> Riverbed</span>
+        </div>
+      </div>
+
+      <!-- Map Container -->
+      <div id="gps-threat-map" class="h-96 w-full relative z-0"></div>
+
+      <div class="bg-slate-50 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500 flex items-center justify-between">
+        <span>Spatial boundary tracking against designated MMDR leaseholds and Sabi Riverbed restricted geofence.</span>
+        <button onclick="resetRadarView()" class="text-sky-700 font-bold hover:underline">Center Fleet Extents</button>
+      </div>
+    </div>
+
+    <!-- JAMMER VS NETWORK EXPLANATION (1 Column) -->
+    <div class="bg-white border border-slate-300 rounded shadow-sm p-4 flex flex-col justify-between space-y-3">
+      <div>
+        <div class="flex items-center gap-1.5 border-b border-slate-200 pb-2">
+          <span class="p-1 bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-xs">STATUTORY RULE</span>
+          <h2 class="text-xs font-bold text-slate-900 uppercase">RF Jammer vs. Cellular Shadow Detection Rule</h2>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1.5">
+          How SmartMineGuard algorithmically distinguishes between legitimate rural cellular dead-zones and deliberate illegal mining jammer devices:
+        </p>
+
+        <!-- Heuristic Comparison Box -->
+        <div class="mt-3 space-y-2 text-xs">
+          <!-- Legitimate Blindspot Box -->
+          <div class="p-2.5 rounded border border-sky-200 bg-sky-50/60 space-y-1">
+            <div class="flex items-center justify-between font-bold text-sky-900 text-[11px]">
+              <span>1. Legitimate Network Shadow</span>
+              <span class="text-[10px] bg-sky-200 text-sky-800 px-1 rounded">NON-FRAUD</span>
+            </div>
+            <ul class="text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+              <li><strong>C/N0 Ratio:</strong> 42 - 48 dB-Hz (Normal RF floor)</li>
+              <li><strong>GNSS Lock:</strong> 8 - 14 satellites visible</li>
+              <li><strong>Cellular:</strong> Gradual ping latency &amp; tower handover delay</li>
+              <li><strong>Verdict:</strong> Terrain shadow (No violation alert)</li>
+            </ul>
+          </div>
+
+          <!-- Illegal Jammer Attack Box -->
+          <div class="p-2.5 rounded border border-red-300 bg-red-50/70 space-y-1">
+            <div class="flex items-center justify-between font-bold text-red-900 text-[11px]">
+              <span>2. Deliberate GPS Jammer Device</span>
+              <span class="text-[10px] bg-red-600 text-white px-1 rounded animate-pulse font-mono">ILLEGAL</span>
+            </div>
+            <ul class="text-[11px] text-slate-700 list-disc list-inside space-y-0.5">
+              <li><strong>C/N0 Ratio:</strong> Spikes to &lt; 18 dB-Hz (RF saturation)</li>
+              <li><strong>GNSS Lock:</strong> Instant collapse to 0 satellites (&lt;3s)</li>
+              <li><strong>Cellular:</strong> GSM modem transmits packets with 0 GNSS fix</li>
+              <li><strong>Verdict:</strong> <strong>Illegal RF Jamming device active</strong></li>
+            </ul>
+          </div>
+
+          <!-- Hardware Tamper Box -->
+          <div class="p-2.5 rounded border border-orange-200 bg-orange-50/60 space-y-1">
+            <div class="flex items-center justify-between font-bold text-orange-900 text-[11px]">
+              <span>3. Physical Wire-Cut / Tamper</span>
+              <span class="text-[10px] bg-orange-200 text-orange-900 px-1 rounded font-mono">HARDWARE</span>
+            </div>
+            <ul class="text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
+              <li><strong>Main Power:</strong> 24.2V drops instantly to 0.0V</li>
+              <li><strong>Battery:</strong> Unit auto-switches to 3.7V internal LiPo</li>
+              <li><strong>Sensor:</strong> Enclosure optical switch breached</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-mono">
+        AIS-140 Compliance: IS 16833 / IRNSS Certified Protocol
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FLEET TELEMETRY AUDIT LEDGER (MAIN TABLE) -->
+  <div class="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
+    <!-- Table Controls Header -->
+    <div class="bg-slate-100 border-b border-slate-200 px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div>
+        <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wide">
+          Fleet Anti-Tamper Telemetry Ledger &amp; Signal Health
+        </h3>
+        <p class="text-[11px] text-slate-500">
+          Showing {{ trucks|length }} registered transport vehicles with active onboard transponder diagnostics.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Search -->
+        <div class="relative">
+          <input type="text" id="gps-search-input" onkeyup="filterGpsTable()" placeholder="Search Reg, Driver, IMEI..." class="form-input text-xs py-1.5 pl-8 pr-3 w-48 sm:w-64 rounded border-slate-300">
+          <svg class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+
+        <!-- Filter Pill Buttons -->
+        <div class="inline-flex rounded border border-slate-300 bg-white p-0.5 text-xs">
+          <button onclick="setStatusFilter('ALL')" class="status-btn active px-2.5 py-1 rounded font-medium text-slate-700 hover:bg-slate-100" data-status="ALL">All</button>
+          <button onclick="setStatusFilter('JAMMER_DETECTED')" class="status-btn px-2.5 py-1 rounded font-medium text-red-700 hover:bg-red-50" data-status="JAMMER_DETECTED">Jammers</button>
+          <button onclick="setStatusFilter('TAMPERED')" class="status-btn px-2.5 py-1 rounded font-medium text-orange-700 hover:bg-orange-50" data-status="TAMPERED">Tampered</button>
+          <button onclick="setStatusFilter('BLINDSPOT')" class="status-btn px-2.5 py-1 rounded font-medium text-sky-700 hover:bg-sky-50" data-status="BLINDSPOT">Blindspot</button>
+          <button onclick="setStatusFilter('PROHIBITED_ZONE')" class="status-btn px-2.5 py-1 rounded font-medium text-purple-700 hover:bg-purple-50" data-status="PROHIBITED_ZONE">Riverbed</button>
+          <button onclick="setStatusFilter('HEALTHY')" class="status-btn px-2.5 py-1 rounded font-medium text-emerald-700 hover:bg-emerald-50" data-status="HEALTHY">Compliant</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Responsive Table with Slide Scroll Bar & Sticky Headers -->
+    <div class="gov-table-container max-h-[540px] overflow-y-auto border-b border-slate-200">
+      <table class="gov-table w-full text-left text-xs border-collapse" id="gps-fleet-table">
+        <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
+          <tr class="bg-slate-100 text-slate-700 border-b-2 border-slate-300 uppercase font-bold text-[10px] tracking-wider">
+            <th class="px-3 py-2.5">Vehicle Reg &amp; Driver</th>
+            <th class="px-3 py-2.5">Assigned Leasehold</th>
+            <th class="px-3 py-2.5">Transponder Hardware</th>
+            <th class="px-3 py-2.5">Power / Battery</th>
+            <th class="px-3 py-2.5">Satellites &amp; C/N0</th>
+            <th class="px-3 py-2.5 text-center">Blindspots</th>
+            <th class="px-3 py-2.5 text-center">Jammers</th>
+            <th class="px-3 py-2.5 text-center">Wire-Cuts</th>
+            <th class="px-3 py-2.5">Signal Status</th>
+            <th class="px-3 py-2.5 text-right">Audit &amp; Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-sans" id="gps-table-body">
+          {% for t in trucks %}
+          <tr class="hover:bg-slate-50 transition truck-row" data-status="{{ t.gps_status or 'HEALTHY' }}" data-search="{{ t.registration_number }} {{ t.driver_name }} {{ t.gps_imei }} {{ t.assigned_mine_name }}">
+            
+            <!-- Vehicle Reg & Driver -->
+            <td class="px-3 py-2.5">
+              <div class="font-bold text-slate-900 font-mono flex items-center gap-1.5">
+                <a href="{{ url_for('truck_detail', truck_id=t.id) }}" class="text-emerald-800 hover:underline">
+                  {{ t.registration_number }}
+                </a>
+              </div>
+              <div class="text-[11px] text-slate-500">{{ t.driver_name }} &bull; {{ t.driver_phone }}</div>
+            </td>
+
+            <!-- Assigned Leasehold -->
+            <td class="px-3 py-2.5">
+              <div class="font-medium text-slate-800">{{ t.assigned_mine_name or 'Aravalli Quarry Block A' }}</div>
+              <div class="text-[10px] text-slate-400">{{ t.mine_district or 'Alwar' }}</div>
+            </td>
+
+            <!-- Transponder Hardware -->
+            <td class="px-3 py-2.5">
+              <div class="font-mono text-[11px] text-slate-700">{{ t.gps_imei or '864201045678901' }}</div>
+              <div class="text-[10px] text-slate-400">{{ t.transponder_model or 'AIS-140 IRNSS Rugged' }}</div>
+            </td>
+
+            <!-- Power / Battery -->
+            <td class="px-3 py-2.5">
+              <div class="flex items-center gap-1.5">
+                {% if (t.external_power_volts or 24.2) > 12.0 %}
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span class="font-mono text-emerald-800 font-bold text-[11px]">{{ t.external_power_volts or 24.2 }}V</span>
+                <span class="text-[10px] text-slate-400">(24V Main)</span>
+                {% else %}
+                <span class="inline-block w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+                <span class="font-mono text-red-700 font-black text-[11px]">0.0V (CUT)</span>
+                <span class="text-[10px] bg-orange-100 text-orange-800 px-1 rounded">Backup {{ t.backup_battery_pct or 82 }}%</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Satellites & C/N0 -->
+            <td class="px-3 py-2.5">
+              <div class="flex items-center gap-1.5">
+                {% if (t.satellite_count or 12) > 0 %}
+                <span class="font-bold text-slate-800 text-[11px]">{{ t.satellite_count or 12 }} Sats</span>
+                <span class="text-[10px] text-slate-400">({{ t.carrier_noise_ratio_cno or 44.5 }} dB-Hz)</span>
+                {% else %}
+                <span class="bg-red-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded animate-pulse">0 Sats (JAMMED)</span>
+                <span class="text-[10px] text-red-600 font-mono">&lt; 14 dB-Hz</span>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Counts -->
+            <td class="px-3 py-2.5 text-center font-mono">
+              <span class="{% if (t.network_blindspot_count or 0) > 0 %}bg-sky-100 text-sky-800{% else %}text-slate-400{% endif %} px-1.5 py-0.5 rounded text-[11px] font-semibold">
+                {{ t.network_blindspot_count or 0 }}
+              </span>
+            </td>
+
+            <td class="px-3 py-2.5 text-center font-mono">
+              <span class="{% if (t.jammer_detected_count or 0) > 0 %}bg-red-600 text-white animate-pulse{% else %}text-slate-400{% endif %} px-1.5 py-0.5 rounded text-[11px] font-bold">
+                {{ t.jammer_detected_count or 0 }}
+              </span>
+            </td>
+
+            <td class="px-3 py-2.5 text-center font-mono">
+              <span class="{% if (t.tamper_count or 0) > 0 %}bg-orange-600 text-white{% else %}text-slate-400{% endif %} px-1.5 py-0.5 rounded text-[11px] font-bold">
+                {{ t.tamper_count or 0 }}
+              </span>
+            </td>
+
+            <!-- Status Badge -->
+            <td class="px-3 py-2.5">
+              {% if t.gps_status == 'JAMMER_DETECTED' %}
+              <span class="badge badge-critical text-[10px] font-bold animate-pulse flex items-center gap-1 w-max">
+                <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                JAMMER ACTIVE
+              </span>
+              {% elif t.gps_status == 'TAMPERED' %}
+              <span class="badge badge-high text-[10px] font-bold bg-orange-100 text-orange-900 border-orange-300 flex items-center gap-1 w-max">
+                WIRE-CUT TAMPER
+              </span>
+              {% elif t.gps_status == 'PROHIBITED_ZONE' %}
+              <span class="badge text-[10px] font-bold bg-purple-100 text-purple-900 border-purple-300 flex items-center gap-1 w-max">
+                RIVERBED BREACH
+              </span>
+              {% elif t.gps_status == 'BLINDSPOT' %}
+              <span class="badge badge-medium text-[10px] font-bold bg-sky-100 text-sky-800 border-sky-300 flex items-center gap-1 w-max">
+                GSM BLINDSPOT
+              </span>
+              {% else %}
+              <span class="badge badge-low text-[10px] font-semibold flex items-center gap-1 w-max">
+                HEALTHY
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Audit & Action -->
+            <td class="px-3 py-2.5 text-right space-x-1 whitespace-nowrap">
+              <button onclick="openTruckDiagnosticsModal({{ t.id }})" class="btn-gov btn-gov-secondary btn-sm text-xs py-1 px-2">
+                Diagnostics 🔍
+              </button>
+              <button onclick="focusTruckOnMap('{{ t.registration_number }}', {{ t.current_lat or 27.8520 }}, {{ t.current_lng or 76.4530 }})" class="btn-gov btn-gov-primary btn-sm text-xs py-1 px-2">
+                Locate
+              </button>
+            </td>
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Empty State -->
+    <div id="gps-empty-state" class="hidden py-8 text-center text-slate-400 text-xs">
+      No trucks match the selected filter criteria.
+    </div>
+
+  </div>
+
+  <!-- RECENT TELEMETRY TAMPER & INCIDENT EVENTS AUDIT LOG -->
+  <div class="bg-white border border-slate-300 rounded shadow-sm overflow-hidden">
+    <div class="bg-slate-100 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs">
+      <div class="font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+        <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>Recent Telemetry Security &amp; Tamper Incidents Log</span>
+      </div>
+      <span class="text-[11px] text-slate-500 font-mono">Immutable Audit Trail</span>
+    </div>
+
+    <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+      {% for evt in recent_events %}
+      <div class="p-3 hover:bg-slate-50 transition flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div class="flex items-start gap-3">
+          <!-- Icon indicator -->
+          <div class="mt-0.5">
+            {% if evt.event_type == 'GPS_JAMMER_DETECTED' %}
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold text-xs">🚨</span>
+            {% elif evt.event_type == 'HARDWARE_TAMPER_WIRE_CUT' %}
+            <span class="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-xs">⚠️</span>
+            {% elif evt.event_type == 'PROHIBITED_ZONE_INCURSION' %}
+            <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">⛔</span>
+            {% else %}
+            <span class="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs">📡</span>
+            {% endif %}
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-900 font-mono">{{ evt.registration_number }}</span>
+              <span class="text-slate-400">&bull;</span>
+              <span class="font-semibold text-slate-800">{{ evt.location_name or 'Transit Corridor NH-48' }}</span>
+              <span class="badge {% if evt.severity == 'CRITICAL' %}badge-critical{% elif evt.severity == 'HIGH' %}badge-high{% else %}badge-medium{% endif %} text-[9px]">
+                {{ evt.severity }}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-600 mt-0.5">{{ evt.evidence_notes }}</p>
+            <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
+              <span>Method: <strong>{{ evt.detection_method }}</strong></span>
+              <span>&bull;</span>
+              <span>Action: <strong class="text-emerald-800">{{ evt.action_taken or 'Logged for audit' }}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-end gap-1">
+          <span class="text-[11px] text-slate-400 font-mono">{{ evt.created_at }}</span>
+          {% if evt.status == 'ACTIVE' and current_user.role in ('ADMIN', 'OFFICER') %}
+          <div class="flex items-center gap-1">
+            <button onclick="dispatchFlyingSquad({{ evt.id }})" class="btn-gov btn-gov-danger btn-sm text-[10px] py-0.5 px-2">
+              Dispatch Squad 🚁
+            </button>
+          </div>
+          {% else %}
+          <span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">{{ evt.status }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="py-8 text-center text-slate-400 text-xs">
+        No recent tamper security incidents logged.
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- TRUCK TELEMETRY DIAGNOSTICS MODAL -->
+<div id="truck-telemetry-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 hidden">
+  <div class="bg-white rounded-lg shadow-2xl border border-slate-300 max-w-2xl w-full overflow-hidden animate-in fade-in zoom-in duration-150">
+    
+    <!-- Modal Header -->
+    <div class="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="p-1 bg-sky-600 rounded text-xs font-bold">AIS-140</span>
+        <div>
+          <h4 class="font-bold text-sm tracking-tight font-mono" id="modal-truck-reg">HR26AB1234</h4>
+          <p class="text-[10px] text-slate-300" id="modal-driver-info">Vikram Singh &bull; +91 98123 45678</p>
+        </div>
+      </div>
+      <button onclick="closeTruckDiagnosticsModal()" class="text-slate-400 hover:text-white text-lg font-bold p-1">✕</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto text-xs" id="modal-body-content">
+      <div id="modal-loading" class="py-12 text-center text-slate-500">
+        <div class="w-8 h-8 border-3 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+        Interrogating onboard AIS-140 transponder telemetry stream...
+      </div>
+
+      <div id="modal-details" class="hidden space-y-4">
+        <!-- Live Status Card -->
+        <div class="p-3 rounded-lg border flex flex-wrap items-center justify-between gap-2" id="modal-status-banner">
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Classification Verdict</div>
+            <div class="text-sm font-bold mt-0.5" id="modal-verdict-title">Healthy AIS-140 Telemetry</div>
+            <div class="text-[11px] text-slate-600 mt-0.5" id="modal-verdict-desc"></div>
+          </div>
+          <span class="badge text-xs font-bold px-2 py-1" id="modal-status-pill">HEALTHY</span>
+        </div>
+
+        <!-- Sensor Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="bg-slate-50 p-2.5 rounded border border-slate-200">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Active Satellites</div>
+            <div class="text-base font-bold text-slate-900 mt-0.5" id="modal-sat-count">12</div>
+            <div class="text-[10px] text-slate-400">GNSS Constellation</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded border border-slate-200">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Carrier / Noise (C/N0)</div>
+            <div class="text-base font-bold text-slate-900 mt-0.5" id="modal-cno-ratio">44.5 dB-Hz</div>
+            <div class="text-[10px] text-slate-400">Jammer threshold: &lt;20</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded border border-slate-200">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">External Power</div>
+            <div class="text-base font-bold text-slate-900 mt-0.5" id="modal-voltage">24.2 V</div>
+            <div class="text-[10px] text-slate-400">Vehicle Battery Bus</div>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded border border-slate-200">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Backup LiPo</div>
+            <div class="text-base font-bold text-slate-900 mt-0.5" id="modal-battery">100%</div>
+            <div class="text-[10px] text-slate-400">Internal Failsafe</div>
+          </div>
+        </div>
+
+        <!-- Hardware Specs -->
+        <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-1.5">
+          <div class="font-bold text-slate-800 uppercase text-[11px] border-b border-slate-200 pb-1">
+            Transponder Diagnostic Profile
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <div>Transponder Model: <strong id="modal-transponder-model" class="text-slate-800">AIS-140 IRNSS v4.2</strong></div>
+            <div>IMEI Number: <strong id="modal-transponder-imei" class="text-slate-800 font-mono">864201045678901</strong></div>
+            <div>Cellular Signal: <strong id="modal-cellular-dbm" class="text-slate-800">-65 dBm (4G LTE)</strong></div>
+            <div>Last GPS Timestamp: <strong id="modal-last-ping" class="text-slate-800 font-mono">2026-09-13 02:00:00</strong></div>
+          </div>
+        </div>
+
+        <!-- Historical Events Log -->
+        <div>
+          <div class="font-bold text-slate-800 uppercase text-[11px] mb-1.5">
+            Interruption History for this Vehicle
+          </div>
+          <div id="modal-events-list" class="space-y-1.5 max-h-40 overflow-y-auto">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="bg-slate-100 border-t border-slate-200 px-5 py-3 flex justify-between items-center text-xs">
+      <span class="text-[11px] text-slate-500">Government of Rajasthan &bull; Directorate of Mines &amp; Geology</span>
+      <button onclick="closeTruckDiagnosticsModal()" class="btn-gov btn-gov-secondary btn-sm">
+        Close Window
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- LEAFLET & LOGIC JAVASCRIPT -->
+<script>
+let radarMap = null;
+let radarMarkers = {};
+let jammerCircles = {};
+let currentStatusFilter = 'ALL';
+
+// Initialize Map
+document.addEventListener("DOMContentLoaded", function() {
+  initRadarMap();
+});
+
+function initRadarMap() {
+  if (radarMap) return;
+  
+  // Default center around Rajasthan / Haryana mining corridor
+  radarMap = L.map('gps-threat-map').setView([27.8000, 76.4500], 10);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors | SmartMineGuard GIS',
+    maxZoom: 18
+  }).addTo(radarMap);
+
+  // Render Sabi Riverbed Prohibited Exclusion Zone
+  const sabiCoords = [
+    [27.8480, 76.4480],
+    [27.8580, 76.4520],
+    [27.8620, 76.4680],
+    [27.8510, 76.4620]
+  ];
+  const sabiPoly = L.polygon(sabiCoords, {
+    color: '#9333ea',
+    weight: 2,
+    fillColor: '#a855f7',
+    fillOpacity: 0.25,
+    dashArray: '4, 4'
+  }).addTo(radarMap);
+  sabiPoly.bindPopup("<strong class='text-purple-900'>⛔ Sabi Riverbed Restricted Mining Exclusion Zone</strong><br><span class='text-xs text-slate-600'>Unauthorized extraction strictly forbidden under MMDR Act Sec 4.</span>");
+
+  // Plot initial fleet
+  plotTrucksOnRadar();
+}
+
+const TRUCKS_DATA = {{ trucks|tojson }};
+
+function plotTrucksOnRadar() {
+  // Clear previous markers
+  Object.values(radarMarkers).forEach(m => radarMap.removeLayer(m));
+  Object.values(jammerCircles).forEach(c => radarMap.removeLayer(c));
+  radarMarkers = {};
+  jammerCircles = {};
+
+  const bounds = [];
+
+  TRUCKS_DATA.forEach(t => {
+    const lat = t.current_lat || 27.8000;
+    const lng = t.current_lng || 76.4500;
+    bounds.push([lat, lng]);
+
+    let markerColor = '#059669'; // Emerald
+    let pulseClass = '';
+
+    if (t.gps_status === 'JAMMER_DETECTED') {
+      markerColor = '#dc2626'; // Red
+      pulseClass = 'animate-ping';
+      
+      // Draw 600m red RF Jammer saturation radius
+      const jammerCircle = L.circle([lat, lng], {
+        radius: 650,
+        color: '#ef4444',
+        weight: 1.5,
+        fillColor: '#f87171',
+        fillOpacity: 0.35,
+        dashArray: '3, 3'
+      }).addTo(radarMap);
+      jammerCircle.bindPopup(`<strong>🚨 Active RF GPS Jammer Radius</strong><br>Interference Zone: 650m<br>Vehicle: ${t.registration_number}`);
+      jammerCircles[t.registration_number] = jammerCircle;
+
+    } else if (t.gps_status === 'TAMPERED') {
+      markerColor = '#ea580c'; // Orange
+    } else if (t.gps_status === 'PROHIBITED_ZONE') {
+      markerColor = '#7e22ce'; // Purple
+    } else if (t.gps_status === 'BLINDSPOT') {
+      markerColor = '#0284c7'; // Sky
+    }
+
+    const iconHtml = `
+      <div class="relative flex items-center justify-center">
+        <div style="background-color: ${markerColor};" class="w-6 h-6 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white text-[10px] font-bold">
+          🚚
+        </div>
+        ${t.gps_status === 'JAMMER_DETECTED' ? '<span class="absolute w-8 h-8 rounded-full bg-red-500 opacity-75 animate-ping"></span>' : ''}
+      </div>
+    `;
+
+    const customIcon = L.divIcon({
+      html: iconHtml,
+      className: 'custom-radar-icon',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+
+    const marker = L.marker([lat, lng], { icon: customIcon }).addTo(radarMap);
+    marker.bindPopup(`
+      <div class="p-1 space-y-1 font-sans text-xs">
+        <div class="font-bold text-slate-900 font-mono text-sm">${t.registration_number}</div>
+        <div class="text-[11px] text-slate-600">${t.driver_name} &bull; ${t.driver_phone}</div>
+        <div class="border-t border-slate-200 pt-1 mt-1 text-[11px]">
+          <div>Status: <strong>${t.gps_status || 'HEALTHY'}</strong></div>
+          <div>Power: <strong>${t.external_power_volts || 24.2}V</strong> | Satellites: <strong>${t.satellite_count || 12}</strong></div>
+          <div>Jammers: <strong>${t.jammer_detected_count || 0}</strong> | Tampers: <strong>${t.tamper_count || 0}</strong></div>
+        </div>
+        <button onclick="openTruckDiagnosticsModal(${t.id})" class="mt-1 w-full bg-slate-900 text-white py-1 rounded text-[11px] font-semibold hover:bg-slate-800">
+          Open Technical Diagnostics
+        </button>
+      </div>
+    `);
+
+    radarMarkers[t.registration_number] = marker;
+  });
+
+  if (bounds.length > 0) {
+    radarMap.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+
+function focusTruckOnMap(reg, lat, lng) {
+  if (radarMap) {
+    radarMap.setView([lat, lng], 14, { animate: true });
+    if (radarMarkers[reg]) {
+      radarMarkers[reg].openPopup();
+    }
+  }
+}
+
+function resetRadarView() {
+  if (radarMap) {
+    radarMap.setView([27.8000, 76.4500], 10, { animate: true });
+  }
+}
+
+// Table Search & Filter
+function filterGpsTable() {
+  const query = document.getElementById("gps-search-input").value.toLowerCase();
+  const rows = document.querySelectorAll(".truck-row");
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const rowStatus = row.getAttribute("data-status");
+    const rowSearch = row.getAttribute("data-search").toLowerCase();
+
+    const matchesStatus = (currentStatusFilter === 'ALL' || rowStatus === currentStatusFilter);
+    const matchesSearch = (!query || rowSearch.includes(query));
+
+    if (matchesStatus && matchesSearch) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  });
+
+  const emptyState = document.getElementById("gps-empty-state");
+  if (visibleCount === 0) {
+    emptyState.classList.remove("hidden");
+  } else {
+    emptyState.classList.add("hidden");
+  }
+}
+
+function setStatusFilter(status) {
+  currentStatusFilter = status;
+  document.querySelectorAll(".status-btn").forEach(btn => {
+    if (btn.getAttribute("data-status") === status) {
+      btn.classList.add("active", "bg-slate-900", "text-white");
+      btn.classList.remove("text-slate-700", "text-red-700", "text-orange-700", "text-sky-700", "text-purple-700", "text-emerald-700");
+    } else {
+      btn.classList.remove("active", "bg-slate-900", "text-white");
+    }
+  });
+  filterGpsTable();
+}
+
+// AIS-140 Telemetry Scenario Trigger
+async function triggerGpsScenario(action) {
+  try {
+    const res = await fetch("/api/gps/simulator/trigger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action, truck_reg: "HR26AB1234" })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (action === 'restore') {
+        showToast("Fleet GPS telemetry restored to pristine online conditions.", "success");
+      } else if (action === 'jammer') {
+        showToast("🚨 RF GPS Jammer ('Gamer') device activated on HR26AB1234! Satellites dropped to 0.", "critical");
+      } else if (action === 'tamper') {
+        showToast("⚠️ Main 24V power line severed on HR26AB1234! Backup battery engaged.", "warning");
+      } else if (action === 'riverbed') {
+        showToast("⛔ HR26AB1234 breached Sabi Riverbed restricted mining zone!", "critical");
+      } else if (action === 'blindspot') {
+        showToast("📡 Legitimate GSM mountain shadow simulated on HR26AB1234.", "info");
+      }
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      showToast("Error executing scenario: " + (data.error || "Unknown error"), "critical");
+    }
+  } catch (err) {
+    console.error("Scenario trigger error:", err);
+    showToast("Network error executing demo scenario.", "critical");
+  }
+}
+
+// Interrogate Truck Diagnostics Modal
+async function openTruckDiagnosticsModal(truckId) {
+  const modal = document.getElementById("truck-telemetry-modal");
+  const loading = document.getElementById("modal-loading");
+  const details = document.getElementById("modal-details");
+
+  modal.classList.remove("hidden");
+  loading.classList.remove("hidden");
+  details.classList.add("hidden");
+
+  try {
+    const res = await fetch(`/api/gps/trucks/${truckId}/diagnostics`);
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const truck = data.truck;
+      const classification = data.classification;
+      const events = data.events;
+
+      document.getElementById("modal-truck-reg").textContent = truck.registration_number;
+      document.getElementById("modal-driver-info").textContent = `${truck.driver_name || 'Driver'} • ${truck.driver_phone || 'N/A'}`;
+
+      // Classification verdict
+      const banner = document.getElementById("modal-status-banner");
+      const title = document.getElementById("modal-verdict-title");
+      const desc = document.getElementById("modal-verdict-desc");
+      const pill = document.getElementById("modal-status-pill");
+
+      title.textContent = classification.title;
+      desc.textContent = classification.explanation;
+      pill.textContent = truck.gps_status || 'HEALTHY';
+
+      if (truck.gps_status === 'JAMMER_DETECTED') {
+        banner.className = "p-3 rounded-lg border bg-red-50 border-red-300 text-red-900";
+        pill.className = "badge badge-critical text-xs font-bold animate-pulse";
+      } else if (truck.gps_status === 'TAMPERED') {
+        banner.className = "p-3 rounded-lg border bg-orange-50 border-orange-300 text-orange-900";
+        pill.className = "badge badge-high text-xs font-bold";
+      } else if (truck.gps_status === 'PROHIBITED_ZONE') {
+        banner.className = "p-3 rounded-lg border bg-purple-50 border-purple-300 text-purple-900";
+        pill.className = "badge text-xs font-bold bg-purple-200 text-purple-900 border-purple-300";
+      } else if (truck.gps_status === 'BLINDSPOT') {
+        banner.className = "p-3 rounded-lg border bg-sky-50 border-sky-300 text-sky-900";
+        pill.className = "badge badge-medium text-xs font-bold";
+      } else {
+        banner.className = "p-3 rounded-lg border bg-emerald-50 border-emerald-300 text-emerald-900";
+        pill.className = "badge badge-low text-xs font-bold";
+      }
+
+      // Sensor Metrics
+      document.getElementById("modal-sat-count").textContent = truck.satellite_count ?? 12;
+      document.getElementById("modal-cno-ratio").textContent = `${truck.carrier_noise_ratio_cno ?? 44.5} dB-Hz`;
+      document.getElementById("modal-voltage").textContent = `${truck.external_power_volts ?? 24.2} V`;
+      document.getElementById("modal-battery").textContent = `${truck.backup_battery_pct ?? 100}%`;
+
+      document.getElementById("modal-transponder-model").textContent = truck.transponder_model || 'AIS-140 IRNSS Rugged';
+      document.getElementById("modal-transponder-imei").textContent = truck.gps_imei || 'N/A';
+      document.getElementById("modal-cellular-dbm").textContent = `${truck.signal_strength_dbm || -65} dBm (4G LTE)`;
+      document.getElementById("modal-last-ping").textContent = truck.last_gps_time || 'Just now';
+
+      // Events list
+      const list = document.getElementById("modal-events-list");
+      list.innerHTML = "";
+      if (events && events.length > 0) {
+        events.forEach(evt => {
+          const item = document.createElement("div");
+          item.className = "p-2 rounded bg-white border border-slate-200 text-[11px] flex justify-between items-center";
+          item.innerHTML = `
+            <div>
+              <div class="font-bold text-slate-800">${evt.event_type.replace(/_/g, ' ')}</div>
+              <div class="text-slate-500 text-[10px]">${evt.evidence_notes || evt.detection_method}</div>
+            </div>
+            <div class="text-right">
+              <span class="badge ${evt.severity === 'CRITICAL' ? 'badge-critical' : 'badge-medium'} text-[9px]">${evt.severity}</span>
+              <div class="text-[10px] text-slate-400 font-mono mt-0.5">${evt.created_at}</div>
+            </div>
+          `;
+          list.appendChild(item);
+        });
+      } else {
+        list.innerHTML = `<div class="py-4 text-center text-slate-400 text-[11px]">No tamper events recorded for this vehicle.</div>`;
+      }
+
+      loading.classList.add("hidden");
+      details.classList.remove("hidden");
+    } else {
+      showToast("Error retrieving diagnostics", "critical");
+      closeTruckDiagnosticsModal();
+    }
+  } catch (err) {
+    console.error("Diagnostics error:", err);
+    showToast("Network error loading diagnostics", "critical");
+    closeTruckDiagnosticsModal();
+  }
+}
+
+function closeTruckDiagnosticsModal() {
+  document.getElementById("truck-telemetry-modal").classList.add("hidden");
+}
+
+// Flying Squad Dispatch Enforcement Action
+async function dispatchFlyingSquad(eventId) {
+  if (!confirm("Dispatch Mining Flying Squad for intercept and physical inspection?")) return;
+
+  try {
+    const res = await fetch(`/api/gps/events/${eventId}/enforce`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_type: "FLYING_SQUAD", notes: "Immediate intercept ordered for GPS Jammer / Tamper." })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast("Flying Squad Dispatched! Rapid response unit alerted with coordinates.", "success");
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      showToast("Action failed: " + (data.error || "Unknown error"), "critical");
+    }
+  } catch (err) {
+    showToast("Network error dispatching enforcement squad", "critical");
+  }
+}
+
+function refreshGpsFleetData() {
+  window.location.reload();
+}
+</script>
+{% endblock %}

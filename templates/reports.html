@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Statutory Evidence Dossiers & Reports{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2.5 text-xs shadow-sm gap-2">
+    <div>
+      <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Statutory Evidence Dossiers & Administrative Reports</h2>
+      <p class="text-[11px] text-slate-500">Official court-admissible PDF evidence packages compiled under MMDR enforcement provisions</p>
+    </div>
+  </div>
+
+  <div class="gov-card">
+    <div class="gov-table-container">
+      <table class="gov-table">
+        <thead>
+          <tr>
+            <th>Case Identifier</th>
+            <th>Creation Timestamp</th>
+            <th>Transport Vehicle</th>
+            <th>e-Rawaana Pass</th>
+            <th>Assigned Investigator</th>
+            <th>Status</th>
+            <th>Compiled Evidence Dossier</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reports %}
+          <tr>
+            <td class="font-mono font-bold text-slate-900 text-sm">
+              <a href="{{ url_for('investigation_detail', inv_id=r.id) }}" class="text-emerald-900 hover:underline">
+                {{ r.case_id }}
+              </a>
+            </td>
+            <td class="text-xs text-slate-600 whitespace-nowrap">{{ r.created_at[:19] }}</td>
+            <td class="font-mono font-bold text-slate-800">{{ r.registration_number or 'Fleet Audit' }}</td>
+            <td class="font-mono text-xs">{{ r.permit_number or 'N/A' }}</td>
+            <td class="text-xs">{{ r.officer_name or 'Enforcement Officer' }}</td>
+            <td>
+              <span class="badge {% if r.status == 'CLOSED' %}badge-low{% else %}badge-critical{% endif %}">
+                {{ r.status }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('download_pdf_report', case_id=r.case_id) }}" class="btn-gov btn-gov-primary btn-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Download Dossier (PDF)
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center py-6 text-slate-500">No reports generated yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
