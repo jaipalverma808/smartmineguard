@@ -1,21 +1,22 @@
-import os
 import sys
 from pathlib import Path
+from flask import Flask
 
-# Ensure the root project directory is on sys.path
 root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-try:
-    from app import app
-except Exception as e:
-    import traceback
-    err_tb = traceback.format_exc()
-    from flask import Flask, Response
-    app = Flask(__name__)
-    
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def catch_all(path):
-        return Response(f"Serverless Application Startup Error:\n\n{err_tb}", mimetype="text/plain", status=500)
+app = Flask(__name__)
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def handle_all(path):
+    try:
+        import app as full_app
+        # Forward request to real app
+        with full_app.app.test_client() as client:
+            resp = client.get(f"/{path}")
+            return (resp.get_data(), resp.status_code, resp.headers.items())
+    except Exception as e:
+        import traceback
+        return f"CRASH DIAGNOSTIC TRACEBACK:\n\n{traceback.format_exc()}", 500, {"Content-Type": "text/plain"}
