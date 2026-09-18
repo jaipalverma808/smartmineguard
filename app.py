@@ -6,6 +6,12 @@ STRICTLY PURE SOFTWARE — NO AI / NO MACHINE LEARNING / NO NODE.JS.
 import os
 import sys
 import traceback
+from pathlib import Path
+
+# Ensure project root is always in sys.path for serverless runtimes (Vercel, AWS Lambda)
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import json
 import logging
@@ -86,6 +92,7 @@ class ErrorLoggingMiddleware:
             return [body]
 
 app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
+handler = app
 
 socketio = SocketIO()
 if not Config.IS_SERVERLESS:
