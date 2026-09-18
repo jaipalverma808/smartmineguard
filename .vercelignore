@@ -1,0 +1,15 @@
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.github
+tests
+test_*.py
+scripts
+prompt.txt
+*.pptx
+*.pdf
