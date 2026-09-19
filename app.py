@@ -172,8 +172,10 @@ def get_operator_mine_id():
         except Exception:
             pass
     user_dept = session.get("user_dept", "")
-    mine = db.query("SELECT id FROM mines WHERE operator_name = ? OR name LIKE ? OR ? LIKE '%' || operator_name || '%'", 
-                    (user_dept, f"%{user_dept}%", user_dept), one=True)
+    if not user_dept:
+        return 1
+    mine = db.query("SELECT id FROM mines WHERE operator_name = ? OR name LIKE ?", 
+                    (user_dept, f"%{user_dept}%"), one=True)
     if mine:
         return mine["id"]
     return 1  # Fallback to primary leasehold
