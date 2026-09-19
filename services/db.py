@@ -66,6 +66,7 @@ class DatabaseManager:
     def __init__(self):
         self.use_postgres = False
         self._pg_pool = None  # Connection pool for PostgreSQL
+        self._query_cache = {}
         self._test_postgres()
 
     def _test_postgres(self):
@@ -131,7 +132,6 @@ class DatabaseManager:
         else:
             conn.close()
 
-
     def _format_pg_sql(self, sql):
         import re
         pg_sql = sql.replace("%", "%%").replace("?", "%s")
@@ -147,9 +147,24 @@ class DatabaseManager:
                 row_dict[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return row_dict
 
-    def query(self, sql, params=None, one=False):
-        """Execute a query and return rows as list of dicts."""
+    def query(self, sql, params=None, one=False, use_cache=True):
+        """Execute a query and return rows as list of dicts with smart TTL caching."""
         params = params or ()
+        sql_clean = sql.strip().upper()
+        cache_key = None
+        now = time.time()
+        
+        # Cache SELECT queries for up to 3.5 seconds to eliminate remote database round-trip overhead
+        if use_cache and sql_clean.startswith("SELECT"):
+            try:
+                cache_key = (sql, tuple(params) if isinstance(params, (list, tuple)) else params, one)
+                if cache_key in self._query_cache:
+                    cached_val, cached_time = self._query_cache[cache_key]
+                    if now - cached_time < 3.5:
+                        return cached_val
+            except Exception:
+                cache_key = None
+
         conn = self.get_connection()
         try:
             if self.use_postgres:
@@ -158,18 +173,26 @@ class DatabaseManager:
                     cur.execute(pg_sql, params)
                     rows = cur.fetchall()
                     data = [self._serialize_row(dict(r)) for r in rows]
-                    return (data[0] if data else None) if one else data
+                    result = (data[0] if data else None) if one else data
             else:
                 cur = conn.cursor()
                 cur.execute(sql, params)
                 rows = cur.fetchall()
                 data = [dict(r) for r in rows]
-                return (data[0] if data else None) if one else data
+                result = (data[0] if data else None) if one else data
+
+            if cache_key is not None:
+                if len(self._query_cache) > 500:
+                    self._query_cache.clear()
+                self._query_cache[cache_key] = (result, now)
+
+            return result
         finally:
             self._return_connection(conn)
 
     def execute(self, sql, params=None):
         """Execute insert/update/delete and commit. Returns lastrowid or affected rows."""
+        self._query_cache.clear()  # Invalidate cached reads on any database mutation
         params = params or ()
         conn = self.get_connection()
         try:
