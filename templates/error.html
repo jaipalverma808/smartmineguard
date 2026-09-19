@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title or 'System Notice' }}{% endblock %}
+
+{% block content %}
+<div class="min-h-[60vh] flex items-center justify-center py-10 px-4">
+  <div class="max-w-lg w-full">
+    <div class="gov-card shadow-sm border border-slate-300 overflow-hidden">
+      <div class="p-6 text-center border-b border-slate-200 bg-slate-50">
+        <div class="w-16 h-16 mx-auto mb-3 rounded-full {% if code == 403 %}bg-amber-100 text-amber-800 border-2 border-amber-300{% elif code == 404 %}bg-slate-100 text-slate-800 border-2 border-slate-300{% elif code == 429 %}bg-orange-100 text-orange-800 border-2 border-orange-300{% else %}bg-red-100 text-red-800 border-2 border-red-300{% endif %} flex items-center justify-center font-bold text-2xl shadow">
+          {% if code == 403 %}🔒{% elif code == 404 %}🔍{% elif code == 429 %}⏳{% else %}⚠️{% endif %}
+        </div>
+        <div class="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 mb-1">
+          Statutory Error {{ code or 500 }}
+        </div>
+        <h2 class="text-xl font-bold text-slate-900 tracking-tight">
+          {{ title or 'Operation Restricted' }}
+        </h2>
+      </div>
+
+      <div class="p-6 text-center space-y-4">
+        <p class="text-sm text-slate-600 leading-relaxed">
+          {{ message or 'The requested surveillance operation could not be authorized or processed under active mining regulatory rules.' }}
+        </p>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded text-xs text-slate-500 text-left font-mono">
+          <div><span class="text-slate-400">Timestamp:</span> {{ current_time or 'Current Session' }}</div>
+          <div><span class="text-slate-400">Security Scope:</span> Role-Based Concession Boundary Interlock</div>
+        </div>
+
+        <div class="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+          <a href="{{ url_for('dashboard') if current_user else url_for('index') }}" class="btn-gov btn-gov-primary text-xs uppercase tracking-wider font-bold py-2 px-4">
+            Return to Dashboard
+          </a>
+          <a href="javascript:history.back()" class="btn-gov btn-gov-secondary text-xs uppercase tracking-wider font-semibold py-2 px-4">
+            Go Back
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -23,6 +23,9 @@
    <!-- Custom Administrative Stylesheet with Cache Busting -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2.6">
   
+  <!-- Server-Side Synchronized CSRF Defense Token -->
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+
   {% block head %}{% endblock %}
 </head>
 <body class="flex flex-col min-h-screen">

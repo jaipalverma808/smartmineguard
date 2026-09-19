@@ -3,6 +3,34 @@
  * Strictly Vanilla JavaScript — No React / No Node.js.
  */
 
+// Global CSRF Protection Interceptor for all fetch / AJAX requests
+(function setupCsrfDefense() {
+  const originalFetch = window.fetch;
+  window.fetch = function(url, options = {}) {
+    const method = (options.method || "GET").toUpperCase();
+    if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      if (csrfMeta && csrfMeta.content) {
+        if (options.headers instanceof Headers) {
+          if (!options.headers.has("X-CSRF-Token")) {
+            options.headers.append("X-CSRF-Token", csrfMeta.content);
+          }
+        } else if (Array.isArray(options.headers)) {
+          if (!options.headers.some(([k]) => k.toLowerCase() === "x-csrf-token")) {
+            options.headers.push(["X-CSRF-Token", csrfMeta.content]);
+          }
+        } else {
+          options.headers = options.headers || {};
+          if (!options.headers["X-CSRF-Token"]) {
+            options.headers["X-CSRF-Token"] = csrfMeta.content;
+          }
+        }
+      }
+    }
+    return originalFetch.call(this, url, options);
+  };
+})();
+
 // Initialize Socket.IO connection (use polling to avoid gunicorn sync worker timeouts)
 const socket = io({ transports: ["polling"] });
 

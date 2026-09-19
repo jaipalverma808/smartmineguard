@@ -23,6 +23,7 @@
       <!-- Login Form -->
       <div class="p-6">
         <form method="POST" action="{{ url_for('login') }}" class="space-y-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div>
             <label for="username" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
               Officer Username / Service ID

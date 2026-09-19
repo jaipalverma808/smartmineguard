@@ -13,6 +13,7 @@ import time
 import math
 import uuid
 import traceback
+import secrets
 from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
@@ -21,6 +22,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for, 
     session, jsonify, send_file, flash, abort, Response
 )
+from werkzeug.utils import secure_filename
 
 try:
     from flask_socketio import SocketIO, emit
@@ -94,12 +96,25 @@ class ErrorLoggingMiddleware:
         except Exception as e:
             tb = traceback.format_exc()
             logger.critical(f"Unhandled WSGI Exception: {tb}")
-            body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
-            start_response("200 OK", [
-                ("Content-Type", "text/plain; charset=utf-8"),
-                ("Content-Length", str(len(body)))
-            ])
-            return [body]
+            is_debug = False
+            try:
+                is_debug = bool(Config.DEBUG)
+            except Exception:
+                pass
+            if is_debug:
+                body = f"SmartMineGuard Runtime Exception:\n\n{tb}".encode("utf-8")
+                start_response("500 Internal Server Error", [
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Length", str(len(body)))
+                ])
+                return [body]
+            else:
+                body = b"<!DOCTYPE html><html><head><title>System Notice - SmartMineGuard</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Directorate of Mines &amp; Geology</h2><p>A secure operational error occurred. The incident has been recorded in the statutory audit ledger.</p></body></html>"
+                start_response("500 Internal Server Error", [
+                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Length", str(len(body)))
+                ])
+                return [body]
 
 app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 
@@ -107,17 +122,52 @@ app.wsgi_app = ErrorLoggingMiddleware(app.wsgi_app)
 @app.before_request
 def check_boot_error_on_request():
     if _BOOT_ERROR:
-        return Response(f"SmartMineGuard Boot Error:\n\n{_BOOT_ERROR}\n\nSys.path:\n{sys.path}", mimetype="text/plain", status=200)
+        if getattr(Config, "DEBUG", False):
+            return Response(f"SmartMineGuard Boot Error:\n\n{_BOOT_ERROR}\n\nSys.path:\n{sys.path}", mimetype="text/plain", status=500)
+        return Response("SmartMineGuard Statutory System Unavailable. Please contact Directorate IT Administrator.", mimetype="text/plain", status=500)
 
 
 socketio = SocketIO()
 try:
     if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
-        socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
+        socketio.init_app(app, cors_allowed_origins=getattr(Config, "CORS_ALLOWED_ORIGINS", "*"), async_mode="threading")
     if 'simulator' in locals():
         simulator.set_socketio(socketio)
 except Exception as _e:
     logger.warning(f"SocketIO initialization deferred: {_e}")
+
+
+def generate_csrf_token():
+    """Generates or retrieves a cryptographically secure session-bound CSRF token."""
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_hex(32)
+    return session["_csrf_token"]
+
+
+@app.before_request
+def enforce_csrf_protection():
+    """Validates CSRF token for all state-changing HTTP requests."""
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        # Public search is strictly GET; if any public endpoint is POST, handle exemptions
+        if request.path.startswith("/api/public/"):
+            return None
+
+        sent_token = (
+            request.headers.get("X-CSRF-Token") or 
+            request.form.get("csrf_token") or
+            (request.is_json and (request.get_json(silent=True) or {}).get("csrf_token"))
+        )
+        # For login endpoint, brute-force rate-limiting, session regeneration, and credential checks govern access
+        if request.endpoint == "login":
+            return None
+
+        expected_token = session.get("_csrf_token")
+        if not expected_token or not sent_token or not secrets.compare_digest(sent_token, expected_token):
+            logger.warning(f"CSRF defense triggered: token mismatch or absent for {request.path} from {request.remote_addr}")
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Forbidden: CSRF authentication failure. Please refresh and retry.", "success": False}), 403
+            flash("Your secure browser token expired or was invalid. Please re-submit.", "error")
+            return redirect(request.referrer or url_for("index"))
 
 
 @app.after_request
@@ -126,7 +176,27 @@ def apply_security_headers(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(self), microphone=(), camera=()"
+    response.headers["Permissions-Policy"] = "geolocation=(self), microphone=(), camera=(self)"
+
+    # Comprehensive Content-Security-Policy accommodating all verified dependencies
+    csp_directives = [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdn.socket.io",
+        "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net",
+        "connect-src 'self' ws: wss: https://smartmineguard.onrender.com https://cdn.socket.io https://unpkg.com",
+        "frame-ancestors 'self'",
+        "object-src 'none'",
+        "base-uri 'self'"
+    ]
+    response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+
+    # Enforce Strict Transport Security in production HTTPS environments
+    is_prod = getattr(Config, "ENVIRONMENT", "development") == "production"
+    if is_prod and (request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
     return response
 
 
@@ -275,39 +345,158 @@ def get_operator_truck_ids(mine_id=None, sub_mine_id=None):
 
 def validate_operator_truck_access(truck_id):
     """Returns True if the current user can access this truck, False otherwise."""
-    if session.get("user_role") != "OPERATOR":
+    return validate_user_truck_access(truck_id)
+
+
+def validate_user_truck_access(truck_id):
+    """
+    Validates truck access according to strict RBAC boundaries:
+    - ADMIN: Full statewide fleet access.
+    - OFFICER: Strictly trucks assigned to or operating in their assigned mine.
+    - OPERATOR: Strictly trucks belonging to their assigned sub-mine / contractor organization.
+    """
+    role = session.get("user_role")
+    if not role:
+        return False
+    if role == "ADMIN":
         return True
-    allowed_trucks = get_operator_truck_ids()
-    return truck_id in allowed_trucks
+    if role == "OPERATOR":
+        allowed_trucks = get_operator_truck_ids()
+        return truck_id in allowed_trucks
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if not officer_mine_id:
+            return False
+        t = db.query("""
+            SELECT id FROM trucks WHERE id = ? AND (
+                assigned_mine_id = ?
+                OR id IN (SELECT truck_id FROM permits WHERE mine_id = ?)
+                OR id IN (SELECT truck_id FROM trips WHERE mine_id = ?)
+            )
+        """, (truck_id, officer_mine_id, officer_mine_id, officer_mine_id), one=True)
+        return t is not None
+    return False
 
 
 def validate_operator_permit_access(permit_id):
     """Returns True if the current user can access this permit, False otherwise."""
-    if session.get("user_role") != "OPERATOR":
+    return validate_user_permit_access(permit_id)
+
+
+def validate_user_permit_access(permit_id):
+    """
+    Validates permit access according to strict RBAC boundaries:
+    - ADMIN: Full statewide permit access.
+    - OFFICER: Strictly permits issued under their assigned mine.
+    - OPERATOR: Strictly permits assigned to their sub-mine / quarry block.
+    """
+    role = session.get("user_role")
+    if not role:
+        return False
+    if role == "ADMIN":
         return True
-    sub_mine_id = get_operator_sub_mine_id()
-    if sub_mine_id:
-        p = db.query("""
-            SELECT id FROM permits 
-            WHERE id = ? AND (quarry_block_id = ? OR truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?))
-        """, (permit_id, sub_mine_id, sub_mine_id), one=True)
-        return p is not None
-    mine_id = get_operator_mine_id()
-    if mine_id:
-        p = db.query("SELECT id FROM permits WHERE id = ? AND mine_id = ?", (permit_id, mine_id), one=True)
+    if role == "OPERATOR":
+        sub_mine_id = get_operator_sub_mine_id()
+        if sub_mine_id:
+            p = db.query("""
+                SELECT id FROM permits 
+                WHERE id = ? AND (quarry_block_id = ? OR truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?))
+            """, (permit_id, sub_mine_id, sub_mine_id), one=True)
+            return p is not None
+        mine_id = get_operator_mine_id()
+        if mine_id:
+            p = db.query("SELECT id FROM permits WHERE id = ? AND mine_id = ?", (permit_id, mine_id), one=True)
+            return p is not None
+        return False
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if not officer_mine_id:
+            return False
+        p = db.query("SELECT id FROM permits WHERE id = ? AND mine_id = ?", (permit_id, officer_mine_id), one=True)
         return p is not None
     return False
 
 
 def validate_operator_trip_access(trip_id):
     """Returns True if the current user can access this trip, False otherwise."""
-    if session.get("user_role") != "OPERATOR":
-        return True
-    allowed_trucks = get_operator_truck_ids()
-    tr = db.query("SELECT truck_id FROM trips WHERE id = ?", (trip_id,), one=True)
-    if not tr:
+    return validate_user_trip_access(trip_id)
+
+
+def validate_user_trip_access(trip_id):
+    """
+    Validates trip access according to strict RBAC boundaries:
+    - ADMIN: Full statewide transit trip access.
+    - OFFICER: Strictly trips originating from or passing through their assigned mine.
+    - OPERATOR: Strictly trips associated with their assigned trucks / permits.
+    """
+    role = session.get("user_role")
+    if not role:
         return False
-    return tr["truck_id"] in allowed_trucks
+    if role == "ADMIN":
+        return True
+    if role == "OPERATOR":
+        allowed_trucks = get_operator_truck_ids()
+        tr = db.query("SELECT truck_id FROM trips WHERE id = ?", (trip_id,), one=True)
+        if not tr:
+            return False
+        return tr["truck_id"] in allowed_trucks
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if not officer_mine_id:
+            return False
+        tr = db.query("SELECT id FROM trips WHERE id = ? AND mine_id = ?", (trip_id, officer_mine_id), one=True)
+        return tr is not None
+    return False
+
+
+def validate_user_weighment_access(weighment_id):
+    """Validates weighment access according to strict RBAC boundaries."""
+    role = session.get("user_role")
+    if not role:
+        return False
+    if role == "ADMIN":
+        return True
+    w = db.query("""
+        SELECT w.*, tr.mine_id as tr_mine_id, p.mine_id as p_mine_id, t.assigned_mine_id as t_mine_id
+        FROM weighments w
+        LEFT JOIN trips tr ON tr.id = w.trip_id
+        LEFT JOIN permits p ON p.id = w.permit_id
+        LEFT JOIN trucks t ON t.id = w.truck_id
+        WHERE w.id = ?
+    """, (weighment_id,), one=True)
+    if not w:
+        return False
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        w_mines = {w.get("tr_mine_id"), w.get("p_mine_id"), w.get("t_mine_id")}
+        return officer_mine_id in w_mines
+    if role == "OPERATOR":
+        return w.get("truck_id") in get_operator_truck_ids()
+    return False
+
+
+def validate_user_investigation_access(inv_id):
+    """Validates investigation case access according to strict RBAC boundaries."""
+    role = session.get("user_role")
+    if role == "ADMIN":
+        return True
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if not officer_mine_id:
+            return False
+        inv_mine = db.query("""
+            SELECT p.mine_id as p_mine, tr.mine_id as tr_mine, t.assigned_mine_id as t_mine
+            FROM investigations inv
+            LEFT JOIN permits p ON p.id = inv.permit_id
+            LEFT JOIN trips tr ON tr.id = inv.trip_id
+            LEFT JOIN trucks t ON t.id = inv.truck_id
+            WHERE inv.id = ?
+        """, (inv_id,), one=True)
+        if inv_mine:
+            m_ids = {inv_mine["p_mine"], inv_mine["tr_mine"], inv_mine["t_mine"]}
+            return officer_mine_id in m_ids
+        return False
+    return False
 
 
 def get_current_user():
@@ -386,7 +575,8 @@ def inject_global_context():
         "active_mine_id": active_mine_id,
         "active_mine": active_mine,
         "all_mines": all_mines,
-        "current_year": datetime.now().year
+        "current_year": datetime.now().year,
+        "csrf_token": generate_csrf_token
     }
 
 
@@ -446,30 +636,43 @@ def index():
 
 
 _FAILED_LOGIN_ATTEMPTS = {}
+_LOGIN_LOCKOUTS = {}
 
 def _check_rate_limit(ip):
     now = time.time()
+    # Check if IP is currently in timed lockout
+    lockout_until = _LOGIN_LOCKOUTS.get(ip, 0)
+    if now < lockout_until:
+        return False, int(lockout_until - now)
+    
     attempts = [t for t in _FAILED_LOGIN_ATTEMPTS.get(ip, []) if now - t < 300]
     _FAILED_LOGIN_ATTEMPTS[ip] = attempts
-    return len(attempts) < 8
+    if len(attempts) >= 5:
+        _LOGIN_LOCKOUTS[ip] = now + 120  # 2 minute progressive suspension
+        return False, 120
+    return True, 0
 
 def _record_failed_login(ip):
     now = time.time()
     attempts = _FAILED_LOGIN_ATTEMPTS.get(ip, [])
     attempts.append(now)
     _FAILED_LOGIN_ATTEMPTS[ip] = attempts
+    if len(attempts) >= 5:
+        _LOGIN_LOCKOUTS[ip] = now + 120
 
 def _clear_failed_logins(ip):
     _FAILED_LOGIN_ATTEMPTS.pop(ip, None)
+    _LOGIN_LOCKOUTS.pop(ip, None)
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         client_ip = request.remote_addr or "127.0.0.1"
-        if not _check_rate_limit(client_ip):
-            flash("Too many failed sign-in attempts. Access is temporarily suspended for 2 minutes for security.", "error")
-            logger.warning(f"Rate limited sign-in attempt from IP: {client_ip}")
+        allowed, wait_secs = _check_rate_limit(client_ip)
+        if not allowed:
+            flash(f"Security Alert: Excessive failed sign-in attempts detected. Access suspended for {wait_secs}s to safeguard portal credentials.", "error")
+            logger.warning(f"Rate limited sign-in attempt from IP: {client_ip} (locked for {wait_secs}s)")
             return render_template("login.html"), 429
 
         username = request.form.get("username", "").strip()
@@ -478,7 +681,9 @@ def login():
         user = db.query("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,), one=True)
         if user and check_password_hash(user["password_hash"], password):
             _clear_failed_logins(client_ip)
+            # Regenerate session to protect against session fixation attacks
             session.clear()
+            session["_csrf_token"] = secrets.token_hex(32)
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["user_fullname"] = user["full_name"]
@@ -498,7 +703,7 @@ def login():
         else:
             _record_failed_login(client_ip)
             log_audit("FAILED_LOGIN_ATTEMPT", f"Failed authentication attempt for username '{username}' from IP {client_ip}.")
-            flash("Invalid credentials. Please verify your officer username and password.", "error")
+            flash("Invalid statutory credentials. Please verify your officer username and password.", "error")
 
     return render_template("login.html")
 
@@ -1367,7 +1572,7 @@ def download_permit_pdf(permit_id):
     if doc_type not in ["erawana", "invoice", "weighment", "packet", "all"]:
         doc_type = "erawana"
 
-    if not validate_operator_permit_access(permit_id):
+    if not validate_user_permit_access(permit_id):
         abort(403)
 
     rel_path = generate_erawana_pdf(permit_id, doc_type=doc_type)
@@ -1375,16 +1580,18 @@ def download_permit_pdf(permit_id):
         flash("Could not generate e-Rawana PDF for this permit.", "error")
         return redirect(url_for("permits"))
 
-    abs_path = os.path.join(Config.BASE_DIR, rel_path)
-    if not os.path.exists(abs_path):
-        flash("Generated PDF artifact not found on server.", "error")
+    # Canonical path verification to prevent path traversal
+    abs_path = (Config.BASE_DIR / Path(rel_path)).resolve()
+    base_resolved = Path(Config.BASE_DIR).resolve()
+    if not abs_path.is_relative_to(base_resolved) or not abs_path.exists():
+        flash("Generated PDF artifact not found or inaccessible.", "error")
         return redirect(url_for("permits"))
 
     permit = db.query("SELECT permit_number FROM permits WHERE id = ?", (permit_id,), one=True)
-    p_clean = (permit["permit_number"] if permit else f"permit_{permit_id}").replace("/", "_").replace(" ", "_")
+    p_clean = secure_filename((permit["permit_number"] if permit else f"permit_{permit_id}").replace("/", "_").replace(" ", "_"))
     download_name = f"{doc_type}_{p_clean}.pdf"
 
-    return send_file(abs_path, as_attachment=True, download_name=download_name, mimetype="application/pdf")
+    return send_file(str(abs_path), as_attachment=True, download_name=download_name, mimetype="application/pdf")
 
 
 @app.route("/api/permits/<int:permit_id>/details")
@@ -1719,6 +1926,10 @@ def admin_users_create():
         flash("Username, password, and full name are required.", "error")
         return redirect(url_for("admin_users"))
 
+    if len(password) < 8 or not re.search(r"[A-Za-z]", password) or not re.search(r"[0-9]", password):
+        flash("Password policy violation: Password must be at least 8 characters long and contain both letters and numbers.", "error")
+        return redirect(url_for("admin_users"))
+
     existing = db.query("SELECT id FROM users WHERE username = ?", (username,), one=True)
     if existing:
         flash(f"Username '{username}' already exists.", "error")
@@ -1859,12 +2070,19 @@ def operator_dispatch():
 
 
 @app.route("/mines/<int:mine_id>/seizure-notice")
-@login_required()
+@login_required(roles=["ADMIN", "OFFICER"])
 def download_mine_seizure_notice(mine_id):
     """
     Downloads official Section 21 MMDR Statutory Seizure Notice PDF
     triggered when a mine hits 100% of its annual environmental concession quota.
+    Restricted strictly to State Administrators and the Field Officer assigned to that mine.
     """
+    role = session.get("user_role")
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if officer_mine_id != mine_id:
+            abort(403)
+
     mine = db.query("SELECT * FROM mines WHERE id = ?", (mine_id,), one=True)
     if not mine:
         flash("Mine record not found.", "error")
@@ -1875,13 +2093,14 @@ def download_mine_seizure_notice(mine_id):
         flash("Unable to build seizure order document.", "error")
         return redirect(request.referrer or url_for("dashboard"))
 
-    abs_path = os.path.join(app.root_path, pdf_rel_path.replace("/", os.sep))
-    if not os.path.exists(abs_path):
-        flash("Seizure document file not found.", "error")
+    abs_path = (Path(app.root_path) / Path(pdf_rel_path)).resolve()
+    root_resolved = Path(app.root_path).resolve()
+    if not abs_path.is_relative_to(root_resolved) or not abs_path.exists():
+        flash("Seizure document file not found or inaccessible.", "error")
         return redirect(request.referrer or url_for("dashboard"))
 
-    filename = f"MMDR_Section21_Seizure_Order_{mine['mine_code']}.pdf"
-    return send_file(abs_path, as_attachment=True, download_name=filename)
+    filename = secure_filename(f"MMDR_Section21_Seizure_Order_{mine['mine_code']}.pdf")
+    return send_file(str(abs_path), as_attachment=True, download_name=filename)
 
 
 @app.route("/operator/weighbridge")
@@ -2310,8 +2529,8 @@ def api_trucks():
 @app.route("/api/trucks/<int:truck_id>")
 @login_required()
 def api_truck_detail(truck_id):
-    if not validate_operator_truck_access(truck_id):
-        return jsonify({"error": "Forbidden: Access denied to another operator's vehicle record", "success": False}), 403
+    if not validate_user_truck_access(truck_id):
+        return jsonify({"error": "Forbidden: Access denied to vehicle record outside your authorized jurisdiction.", "success": False}), 403
 
     truck = db.query("SELECT * FROM trucks WHERE id = ?", (truck_id,), one=True)
     if not truck:
@@ -2328,8 +2547,8 @@ def api_truck_route(truck_id):
     Returns complete corridor from Source Mine -> Weighbridge -> Checkpoints -> Destination,
     split into travelled vs remaining routes with breadcrumbs and key route pins.
     """
-    if not validate_operator_truck_access(truck_id):
-        return jsonify({"error": "Forbidden: Access denied to another operator's vehicle record", "success": False}), 403
+    if not validate_user_truck_access(truck_id):
+        return jsonify({"error": "Forbidden: Access denied to vehicle record outside your authorized jurisdiction.", "success": False}), 403
 
     truck = db.query("SELECT * FROM trucks WHERE id = ?", (truck_id,), one=True)
     if not truck:
@@ -2886,6 +3105,9 @@ def api_verify_permit():
     elif status == "SUSPICIOUS":
         is_suspicious = True
         warning_reasons.append("FLAGGED PERMIT: This permit is flagged under an active enforcement inquiry.")
+    elif status == "CANCELLED":
+        is_suspicious = True
+        warning_reasons.append("REVOKED / CANCELLED PERMIT: This e-Rawaana transit pass was officially revoked or cancelled under Section 21 MMDR Act.")
 
     # Check latest weighment
     weighment = db.query("SELECT * FROM weighments WHERE permit_id = ? ORDER BY id DESC LIMIT 1", (permit["id"],), one=True)
@@ -2916,20 +3138,29 @@ def api_verify_permit():
 @app.route("/api/reports/pdf/<case_id>")
 @login_required(roles=["ADMIN", "OFFICER"])
 def download_pdf_report(case_id):
-    inv = db.query("SELECT * FROM investigations WHERE case_id = ?", (case_id,), one=True)
+    clean_case_id = secure_filename(case_id)
+    inv = db.query("SELECT * FROM investigations WHERE case_id = ?", (clean_case_id,), one=True)
     if not inv:
         abort(404)
 
-    pdf_rel_path = generate_evidence_pdf(inv["id"], case_id)
-    full_path = Config.BASE_DIR / pdf_rel_path
-    
-    if not full_path.exists():
+    # Multi-tenant IDOR protection: verify officer has jurisdiction over this case's mine
+    if not validate_user_investigation_access(inv["id"]):
+        abort(403)
+
+    pdf_rel_path = generate_evidence_pdf(inv["id"], clean_case_id)
+    if not pdf_rel_path:
         abort(404)
 
+    full_path = (Path(Config.BASE_DIR) / Path(pdf_rel_path)).resolve()
+    base_resolved = Path(Config.BASE_DIR).resolve()
+    if not full_path.is_relative_to(base_resolved) or not full_path.exists():
+        abort(404)
+
+    download_name = secure_filename(f"Evidence_Dossier_{clean_case_id}.pdf")
     return send_file(
         str(full_path),
         as_attachment=True,
-        download_name=f"Evidence_Dossier_{case_id}.pdf",
+        download_name=download_name,
         mimetype="application/pdf"
     )
 
@@ -3329,6 +3560,8 @@ def api_crud_permits():
 @app.route("/api/trucks/<int:truck_id>/permit-eligibility", methods=["GET"])
 @login_required()
 def api_truck_permit_eligibility(truck_id):
+    if not validate_user_truck_access(truck_id):
+        return jsonify({"error": "Forbidden: Access denied to vehicle record", "success": False}), 403
     driver_id = request.args.get("driver_id", type=int)
     res = DetectionEngine.check_permit_issuance_eligibility(truck_id, driver_id=driver_id)
     return jsonify(res)
@@ -3590,6 +3823,9 @@ def api_weighment_override(weighment_id):
     if not w:
         return jsonify({"error": "Weighment record not found", "success": False}), 404
 
+    if not validate_user_weighment_access(weighment_id):
+        return jsonify({"error": "Forbidden: Access denied to weighment record outside your jurisdiction.", "success": False}), 403
+
     data = request.get_json() or {}
     reason = data.get("reason", "").strip()
     if not reason:
@@ -3672,11 +3908,8 @@ def api_permit_reconcile(permit_id):
     if not p:
         return jsonify({"error": "Permit record not found", "success": False}), 404
 
-    role = session.get("user_role")
-    if role == "OPERATOR":
-        mine_id = get_operator_mine_id()
-        if p["mine_id"] != mine_id:
-            return jsonify({"error": "Forbidden: Cannot reconcile permit for another concession.", "success": False}), 403
+    if not validate_user_permit_access(permit_id):
+        return jsonify({"error": "Forbidden: Cannot reconcile permit outside your concession jurisdiction.", "success": False}), 403
 
     data = request.get_json() or {}
     action = data.get("action", "RECONCILE").upper()
@@ -3721,6 +3954,9 @@ def api_trip_timeline(trip_id):
     trip = db.query("SELECT * FROM trips WHERE id = ?", (trip_id,), one=True)
     if not trip:
         return jsonify({"error": "Trip not found", "success": False}), 404
+
+    if not validate_user_trip_access(trip_id):
+        return jsonify({"error": "Forbidden: Access denied to transit trip timeline.", "success": False}), 403
 
     timeline = []
     if trip.get("timeline_events_json"):
@@ -3886,9 +4122,32 @@ def api_crud_delete(entity, record_id):
     if not rec:
         return jsonify({"error": "Record not found.", "success": False}), 404
 
-    # Permission check
-    mine_id = rec.get("mine_id") or rec.get("assigned_mine_id")
-    truck_id = rec.get("truck_id") or rec.get("assigned_truck_id")
+    # Permission check with entity-aware key resolution
+    if entity == "trucks":
+        truck_id = rec["id"]
+        mine_id = rec.get("assigned_mine_id")
+    elif entity == "drivers":
+        truck_id = rec.get("assigned_truck_id")
+        mine_id = None
+    elif entity == "permits":
+        truck_id = rec.get("truck_id")
+        mine_id = rec.get("mine_id")
+    elif entity == "trips":
+        truck_id = rec.get("truck_id")
+        mine_id = rec.get("mine_id")
+    elif entity == "sub-mines":
+        mine_id = rec.get("mine_id")
+        truck_id = None
+    else:
+        mine_id = rec.get("mine_id") or rec.get("assigned_mine_id")
+        truck_id = rec.get("truck_id") or rec.get("assigned_truck_id")
+
+    # Statutory safety: prevent deletion of active or in-flight regulatory records
+    if entity == "permits" and rec.get("status") in ("ACTIVE", "IN_USE", "WEIGHED"):
+        return jsonify({"error": "Statutory compliance restriction: Active or weighed e-Rawaana passes cannot be deleted. Use the Reconcile/Cancel workflow instead.", "success": False}), 400
+    if entity == "trips" and rec.get("status") in ("IN_TRANSIT", "DISPATCHED"):
+        return jsonify({"error": "Statutory compliance restriction: Active transit journeys cannot be deleted while in-transit.", "success": False}), 400
+
     allowed, err, code = check_crud_permission(entity, mine_id=mine_id, truck_id=truck_id)
     if not allowed:
         return jsonify({"error": err, "success": False}), code
@@ -3984,26 +4243,111 @@ def api_unclosed_entries():
 # SOCKETIO REAL-TIME EVENTS
 # ============================================================
 
+_LAST_GPS_STEP_TIME = {}
+
 @socketio.on("connect")
 def handle_connect():
     logger.info(f"SocketIO client connected: {request.sid}")
-    # Send initial fleet locations to connected client
-    trucks = db.query("""
-        SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
-        FROM trucks WHERE current_lat IS NOT NULL AND current_lng IS NOT NULL
-    """)
+    role = session.get("user_role")
+    if role == "ADMIN":
+        trucks = db.query("""
+            SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
+            FROM trucks WHERE current_lat IS NOT NULL AND current_lng IS NOT NULL
+        """)
+    elif role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        trucks = db.query("""
+            SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
+            FROM trucks WHERE (assigned_mine_id = ? OR id IN (SELECT truck_id FROM permits WHERE mine_id = ?))
+              AND current_lat IS NOT NULL AND current_lng IS NOT NULL
+        """, (officer_mine_id, officer_mine_id))
+    elif role == "OPERATOR":
+        truck_ids = get_operator_truck_ids()
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            trucks = db.query(f"""
+                SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
+                FROM trucks WHERE id IN ({placeholders}) AND current_lat IS NOT NULL AND current_lng IS NOT NULL
+            """, truck_ids)
+        else:
+            trucks = []
+    else:
+        # Public / unauthenticated visitors do not receive operational fleet GPS feeds
+        trucks = []
     emit("gps_initial_fleet", {"trucks": trucks})
 
 
 @socketio.on("disconnect")
 def handle_disconnect():
     logger.info(f"SocketIO client disconnected: {request.sid}")
+    _LAST_GPS_STEP_TIME.pop(request.sid, None)
 
 
 @socketio.on("request_gps_step")
 def handle_request_step():
+    role = session.get("user_role")
+    if not role:
+        return
+    client_sid = request.sid
+    now = time.time()
+    last_t = _LAST_GPS_STEP_TIME.get(client_sid, 0)
+    if now - last_t < 0.4:  # Rate limit: max 2.5 steps/sec per client
+        return
+    _LAST_GPS_STEP_TIME[client_sid] = now
+
     updates = simulator.step_simulation()
-    emit("gps_batch_update", {"trucks": updates})
+    if role == "ADMIN":
+        filtered_updates = updates
+    elif role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        allowed_truck_ids = {t["id"] for t in db.query("SELECT id FROM trucks WHERE assigned_mine_id = ?", (officer_mine_id,))}
+        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
+    elif role == "OPERATOR":
+        allowed_truck_ids = set(get_operator_truck_ids())
+        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
+    else:
+        filtered_updates = []
+    emit("gps_batch_update", {"trucks": filtered_updates})
+
+
+# ============================================================
+# STATUTORY PRODUCTION ERROR HANDLERS
+# ============================================================
+
+@app.errorhandler(400)
+def handle_bad_request(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Bad Request", "message": str(e), "success": False}), 400
+    return render_template("error.html", code=400, title="Bad Request", message="The request could not be processed under active regulatory standards."), 400
+
+
+@app.errorhandler(403)
+def handle_forbidden(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Forbidden: Insufficient role permissions or multi-tenant boundary violation.", "success": False}), 403
+    return render_template("error.html", code=403, title="Access Forbidden", message="Access denied under statutory role boundaries. Cross-concession or unauthorized access is strictly prohibited."), 403
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not Found", "message": "The requested resource does not exist.", "success": False}), 404
+    return render_template("error.html", code=404, title="Record Not Found", message="The requested surveillance document or record could not be found in the central database."), 404
+
+
+@app.errorhandler(429)
+def handle_rate_limited(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Too Many Requests", "message": "Rate limit exceeded. Please slow down.", "success": False}), 429
+    return render_template("error.html", code=429, title="Access Suspended", message="Access temporarily throttled due to excessive requests. Please wait a moment before trying again."), 429
+
+
+@app.errorhandler(500)
+def handle_internal_error(e):
+    logger.error(f"Statutory 500 runtime error on {request.path}: {traceback.format_exc()}")
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Internal Server Error", "message": "An internal operational error occurred and has been audited.", "success": False}), 500
+    return render_template("error.html", code=500, title="Operational Error", message="An unexpected system error occurred. The incident has been recorded in the statutory audit log."), 500
 
 
 _db_initialized = False

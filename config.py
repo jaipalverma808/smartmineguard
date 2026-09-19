@@ -50,15 +50,24 @@ class Config:
         SQLITE_PATH = BASE_DIR / "database" / "smartmineguard.db"
         REPORTS_DIR = BASE_DIR / "static" / "reports"
 
+    # Environment & Demo Mode
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+    DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() in ("true", "1", "yes")
+
     # Session & Cookie Security
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() in ("true", "1")
+    _cookie_secure_env = os.getenv("SESSION_COOKIE_SECURE")
+    if _cookie_secure_env is not None:
+        SESSION_COOKIE_SECURE = _cookie_secure_env.lower() in ("true", "1", "yes")
+    else:
+        SESSION_COOKIE_SECURE = (ENVIRONMENT == "production")
     PERMANENT_SESSION_LIFETIME = int(os.getenv("SESSION_LIFETIME_SECONDS", 28800))  # 8 hours
     
     # Server configuration
     PORT = int(os.getenv("PORT", 5000))
-    DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+    DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes") and (ENVIRONMENT != "production")
+    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else ["*"]
     
     # Detection Engine Thresholds (Rule-Based, Deterministic)
     WEIGHT_TOLERANCE_PERCENT = float(os.getenv("WEIGHT_TOLERANCE_PERCENT", 5.0))
