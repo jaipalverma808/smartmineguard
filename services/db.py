@@ -362,6 +362,7 @@ class DatabaseManager:
         """Initialize database schema and seed data."""
         if self.use_postgres:
             conn = self.get_connection()
+            is_bad = False
             try:
                 with conn.cursor() as cur:
                     cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'")
@@ -425,9 +426,10 @@ class DatabaseManager:
                             pass
                         logger.warning(f"PostgreSQL auxiliary tables setup non-fatal: {_t_err}")
             except Exception as e:
+                is_bad = True
                 logger.error(f"PostgreSQL initialization check failed: {e}")
             finally:
-                self._return_connection(conn)
+                self._return_connection(conn, is_bad=is_bad)
         else:
             self.init_sqlite(force=force)
 
