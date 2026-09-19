@@ -3983,8 +3983,13 @@ def ensure_db_ready():
             logger.error(f"Lazy DB setup error: {e}")
 
 # Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
-if not Config.IS_SERVERLESS:
-    simulator.start()
+if not _BOOT_ERROR and globals().get("simulator") is not None:
+    try:
+        is_serverless = getattr(Config, "IS_SERVERLESS", False) if "Config" in globals() else False
+        if not is_serverless:
+            simulator.start()
+    except Exception as _sim_err:
+        logger.warning(f"GPS simulator start failed: {_sim_err}")
 
 
 
