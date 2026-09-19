@@ -84,7 +84,7 @@ let currentBeaconTruck = null;
 
 // Initialize Socket.IO listener for targeted intercept beacon (Idea 5)
 if (typeof io !== "undefined") {
-  const socket = io();
+  const socket = io({ transports: ["polling"] });
   socket.on("targeted_intercept_beacon", (beacon) => {
     console.log("Targeted Intercept Beacon received:", beacon);
     const box = document.getElementById("targeted-intercept-box");
