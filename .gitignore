@@ -1,6 +1,7 @@
 # Security & Tokens
 .mcp.json
 .env
+.env.*
 *.token
 .agents/
 
