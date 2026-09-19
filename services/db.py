@@ -4,9 +4,10 @@ Supports PostgreSQL / PostGIS with seamless SQLite spatial-emulated fallback.
 """
 import sqlite3
 import math
+import time
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from config import Config
 
@@ -70,11 +71,15 @@ class DatabaseManager:
         self._test_postgres()
 
     def _test_postgres(self):
+        import os
+        if os.getenv("USE_SQLITE", "false").lower() in ("true", "1", "yes"):
+            self.use_postgres = False
+            logger.info("USE_SQLITE is enabled. Operating in local SQLite mode.")
+            return
         if not PSYCOPG2_AVAILABLE:
             self.use_postgres = False
             return
         # In serverless environments, only test Postgres if explicit DATABASE_URL env var is provided
-        import os
         if Config.IS_SERVERLESS and "DATABASE_URL" not in os.environ:
             self.use_postgres = False
             return
@@ -123,6 +128,11 @@ class DatabaseManager:
         """Return a PostgreSQL connection back to the pool, or close SQLite connection."""
         if self.use_postgres and self._pg_pool is not None:
             try:
+                if not conn.closed:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                 self._pg_pool.putconn(conn)
             except Exception:
                 try:
@@ -130,7 +140,10 @@ class DatabaseManager:
                 except Exception:
                     pass
         else:
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _format_pg_sql(self, sql):
         import re
@@ -298,6 +311,50 @@ class DatabaseManager:
                         logger.info("PostgreSQL database initialized and seeded.")
                     else:
                         logger.info("PostgreSQL database verified and ready.")
+
+                    try:
+                        cur.execute("""
+                            CREATE TABLE IF NOT EXISTS quarry_blocks (
+                                id SERIAL PRIMARY KEY,
+                                mine_id INTEGER REFERENCES mines(id),
+                                block_code VARCHAR(50) NOT NULL,
+                                block_name VARCHAR(200) NOT NULL,
+                                leaseholder_name VARCHAR(200) NOT NULL,
+                                operator_name VARCHAR(150) NOT NULL,
+                                contact_phone VARCHAR(50),
+                                allocated_quota_mt DOUBLE PRECISION DEFAULT 15000.0,
+                                dispatched_mt DOUBLE PRECISION DEFAULT 0.0,
+                                active_trucks_count INTEGER DEFAULT 4,
+                                status VARCHAR(50) DEFAULT 'OPERATIONAL',
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                            CREATE TABLE IF NOT EXISTS gps_tamper_events (
+                                id SERIAL PRIMARY KEY,
+                                truck_id INTEGER REFERENCES trucks(id),
+                                trip_id INTEGER REFERENCES trips(id),
+                                event_type VARCHAR(100) NOT NULL,
+                                severity VARCHAR(50) NOT NULL,
+                                latitude DOUBLE PRECISION,
+                                longitude DOUBLE PRECISION,
+                                location_name VARCHAR(255),
+                                satellite_count INTEGER DEFAULT 0,
+                                external_power_volts DOUBLE PRECISION DEFAULT 24.0,
+                                battery_level_pct INTEGER DEFAULT 100,
+                                duration_seconds INTEGER DEFAULT 0,
+                                detection_method TEXT,
+                                evidence_notes TEXT,
+                                action_taken TEXT,
+                                status VARCHAR(50) DEFAULT 'ACTIVE',
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                        """)
+                        conn.commit()
+                    except Exception as _t_err:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        logger.warning(f"PostgreSQL auxiliary tables setup non-fatal: {_t_err}")
             except Exception as e:
                 logger.error(f"PostgreSQL initialization check failed: {e}")
             finally:
