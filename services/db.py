@@ -134,7 +134,7 @@ class DatabaseManager:
 
     def _format_pg_sql(self, sql):
         import re
-        pg_sql = sql.replace("?", "%s")
+        pg_sql = sql.replace("%", "%%").replace("?", "%s")
         pg_sql = pg_sql.replace("datetime('now')", "CURRENT_TIMESTAMP")
         pg_sql = pg_sql.replace("datetime('now', 'localtime')", "CURRENT_TIMESTAMP")
         pg_sql = re.sub(r'substr\(([\w\.]*timestamp),', r'substr(\1::text,', pg_sql)
