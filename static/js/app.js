@@ -3,8 +3,8 @@
  * Strictly Vanilla JavaScript — No React / No Node.js.
  */
 
-// Initialize Socket.IO connection
-const socket = io();
+// Initialize Socket.IO connection (use polling to avoid gunicorn sync worker timeouts)
+const socket = io({ transports: ["polling"] });
 
 socket.on("connect", () => {
   console.log("Connected to SmartMineGuard real-time telemetry stream.");
