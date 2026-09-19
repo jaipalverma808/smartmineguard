@@ -116,7 +116,7 @@ class GPSSimulator:
                 self.step_simulation()
             except Exception as e:
                 logger.error(f"Simulator step error: {e}")
-            time.sleep(4.0)
+            time.sleep(10.0)
 
     def step_simulation(self):
         """Execute a single simulation cycle for all active fleet trucks."""
