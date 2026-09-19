@@ -1,7 +1,6 @@
 """
-SmartMineGuard - Flask Web Application & Real-Time Monitoring Server
+SmartMineGuard - Web Application & Monitoring Server
 Mining & Mineral Transport Monitoring System
-STRICTLY PURE SOFTWARE — NO AI / NO MACHINE LEARNING / NO NODE.JS.
 """
 import os
 import sys
@@ -109,7 +108,7 @@ class ErrorLoggingMiddleware:
                 ])
                 return [body]
             else:
-                body = b"<!DOCTYPE html><html><head><title>System Notice - SmartMineGuard</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Directorate of Mines &amp; Geology</h2><p>A secure operational error occurred. The incident has been recorded in the statutory audit ledger.</p></body></html>"
+                body = b"<!DOCTYPE html><html><head><title>System Notice - SmartMineGuard</title></head><body style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Directorate of Mines &amp; Geology</h2><p>An unexpected server error occurred. Please try again later.</p></body></html>"
                 start_response("500 Internal Server Error", [
                     ("Content-Type", "text/html; charset=utf-8"),
                     ("Content-Length", str(len(body)))
@@ -124,7 +123,7 @@ def check_boot_error_on_request():
     if _BOOT_ERROR:
         if getattr(Config, "DEBUG", False):
             return Response(f"SmartMineGuard Boot Error:\n\n{_BOOT_ERROR}\n\nSys.path:\n{sys.path}", mimetype="text/plain", status=500)
-        return Response("SmartMineGuard Statutory System Unavailable. Please contact Directorate IT Administrator.", mimetype="text/plain", status=500)
+        return Response("SmartMineGuard service temporarily unavailable. Please try again in a few moments.", mimetype="text/plain", status=500)
 
 
 socketio = SocketIO()
@@ -138,7 +137,7 @@ except Exception as _e:
 
 
 def generate_csrf_token():
-    """Generates or retrieves a cryptographically secure session-bound CSRF token."""
+    # generate a session CSRF token if not present
     if "_csrf_token" not in session:
         session["_csrf_token"] = secrets.token_hex(32)
     return session["_csrf_token"]
@@ -146,7 +145,7 @@ def generate_csrf_token():
 
 @app.before_request
 def enforce_csrf_protection():
-    """Validates CSRF token for all state-changing HTTP requests."""
+    # check CSRF token on POST/PUT/DELETE requests
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
         # Public search is strictly GET; if any public endpoint is POST, handle exemptions
         if request.path.startswith("/api/public/"):
@@ -178,7 +177,7 @@ def apply_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(self), microphone=(), camera=(self)"
 
-    # Comprehensive Content-Security-Policy accommodating all verified dependencies
+    # Content Security Policy (Leaflet, Tailwind, Chart.js, SocketIO)
     csp_directives = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net https://cdn.socket.io",
@@ -192,7 +191,7 @@ def apply_security_headers(response):
     ]
     response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
-    # Enforce Strict Transport Security in production HTTPS environments
+    # enable HSTS in production
     is_prod = getattr(Config, "ENVIRONMENT", "development") == "production"
     if is_prod and (request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
@@ -200,9 +199,7 @@ def apply_security_headers(response):
     return response
 
 
-# ============================================================
-# AUTHENTICATION & ACCESS CONTROL
-# ============================================================
+# --- AUTHENTICATION & ACCESS CONTROL ---
 
 def login_required(roles=None):
     def decorator(f):
@@ -349,12 +346,7 @@ def validate_operator_truck_access(truck_id):
 
 
 def validate_user_truck_access(truck_id):
-    """
-    Validates truck access according to strict RBAC boundaries:
-    - ADMIN: Full statewide fleet access.
-    - OFFICER: Strictly trucks assigned to or operating in their assigned mine.
-    - OPERATOR: Strictly trucks belonging to their assigned sub-mine / contractor organization.
-    """
+    # check truck access: Admin has full access, Officer sees their mine, Operator sees their sub-mine/quarry
     role = session.get("user_role")
     if not role:
         return False
@@ -384,12 +376,7 @@ def validate_operator_permit_access(permit_id):
 
 
 def validate_user_permit_access(permit_id):
-    """
-    Validates permit access according to strict RBAC boundaries:
-    - ADMIN: Full statewide permit access.
-    - OFFICER: Strictly permits issued under their assigned mine.
-    - OPERATOR: Strictly permits assigned to their sub-mine / quarry block.
-    """
+    # check permit access: Admin has full access, Officer sees their mine, Operator sees their sub-mine/quarry
     role = session.get("user_role")
     if not role:
         return False
@@ -612,9 +599,7 @@ def set_mine_filter():
     return redirect(next_url)
 
 
-# ============================================================
-# PAGE ROUTES (HTML + JINJA2)
-# ============================================================
+# --- PAGE ROUTES (HTML + JINJA2) ---
 
 @app.route("/")
 def index():
@@ -635,34 +620,38 @@ def index():
     )
 
 
-_FAILED_LOGIN_ATTEMPTS = {}
-_LOGIN_LOCKOUTS = {}
+# Track failed logins (lock out for 2 minutes after 5 failed tries within 5 mins)
+_failed_logins = {}
+_login_lockouts = {}
+_FAILED_LOGIN_ATTEMPTS = _failed_logins
+_LOGIN_LOCKOUTS = _login_lockouts
 
 def _check_rate_limit(ip):
     now = time.time()
-    # Check if IP is currently in timed lockout
-    lockout_until = _LOGIN_LOCKOUTS.get(ip, 0)
+    # check if currently locked out
+    lockout_until = _login_lockouts.get(ip, 0)
     if now < lockout_until:
         return False, int(lockout_until - now)
     
-    attempts = [t for t in _FAILED_LOGIN_ATTEMPTS.get(ip, []) if now - t < 300]
-    _FAILED_LOGIN_ATTEMPTS[ip] = attempts
+    # keep failed attempts within last 5 minutes
+    attempts = [t for t in _failed_logins.get(ip, []) if now - t < 300]
+    _failed_logins[ip] = attempts
     if len(attempts) >= 5:
-        _LOGIN_LOCKOUTS[ip] = now + 120  # 2 minute progressive suspension
+        _login_lockouts[ip] = now + 120  # 2 minute lockout
         return False, 120
     return True, 0
 
 def _record_failed_login(ip):
     now = time.time()
-    attempts = _FAILED_LOGIN_ATTEMPTS.get(ip, [])
+    attempts = _failed_logins.get(ip, [])
     attempts.append(now)
-    _FAILED_LOGIN_ATTEMPTS[ip] = attempts
+    _failed_logins[ip] = attempts
     if len(attempts) >= 5:
-        _LOGIN_LOCKOUTS[ip] = now + 120
+        _login_lockouts[ip] = now + 120
 
 def _clear_failed_logins(ip):
-    _FAILED_LOGIN_ATTEMPTS.pop(ip, None)
-    _LOGIN_LOCKOUTS.pop(ip, None)
+    _failed_logins.pop(ip, None)
+    _login_lockouts.pop(ip, None)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -703,7 +692,7 @@ def login():
         else:
             _record_failed_login(client_ip)
             log_audit("FAILED_LOGIN_ATTEMPT", f"Failed authentication attempt for username '{username}' from IP {client_ip}.")
-            flash("Invalid statutory credentials. Please verify your officer username and password.", "error")
+            flash("Invalid username or password. Please try again.", "error")
 
     return render_template("login.html")
 
@@ -1083,9 +1072,7 @@ def live_map():
     return render_template("map.html", mines=mines, geofences=geofences, trucks=trucks)
 
 
-# ============================================================
-# GPS & ANTI-TAMPER TELEMETRY SURVEILLANCE
-# ============================================================
+# --- GPS & ANTI-TAMPER TELEMETRY SURVEILLANCE ---
 
 @app.route("/gps-telemetry")
 @login_required()
@@ -1580,7 +1567,7 @@ def download_permit_pdf(permit_id):
         flash("Could not generate e-Rawana PDF for this permit.", "error")
         return redirect(url_for("permits"))
 
-    # Canonical path verification to prevent path traversal
+    # ensure file path stays within static reports directory
     abs_path = (Config.BASE_DIR / Path(rel_path)).resolve()
     base_resolved = Path(Config.BASE_DIR).resolve()
     if not abs_path.is_relative_to(base_resolved) or not abs_path.exists():
@@ -1900,9 +1887,7 @@ def officer_verification():
     return render_template("officer.html")
 
 
-# ============================================================
-# ADMINISTRATOR USER & ROLE MANAGEMENT
-# ============================================================
+# --- ADMINISTRATOR USER & ROLE MANAGEMENT ---
 
 @app.route("/admin/users")
 @login_required(roles=["ADMIN"])
@@ -1963,9 +1948,7 @@ def admin_users_toggle(user_id):
     return redirect(url_for("admin_users"))
 
 
-# ============================================================
-# MASTER DATA MANAGEMENT & OPERATOR OPERATIONAL VIEWS
-# ============================================================
+# --- MASTER DATA MANAGEMENT & OPERATOR OPERATIONAL VIEWS ---
 
 @app.route("/admin/data")
 @app.route("/master-data")
@@ -2158,9 +2141,7 @@ def operator_weighbridge():
     return render_template("operator_weighbridge.html", mine=mine, weighments=weighments, weighbridges=weighbridges, active_trips=active_trips)
 
 
-# ============================================================
-# PUBLIC REST API ENDPOINTS (UNAUTHENTICATED & WHITELISTED)
-# ============================================================
+# --- PUBLIC REST API ENDPOINTS (UNAUTHENTICATED & WHITELISTED) ---
 
 @app.route("/api/public/search")
 def api_public_search():
@@ -2358,9 +2339,7 @@ def api_public_mine_stats():
     })
 
 
-# ============================================================
-# AUTHENTICATED REST API ENDPOINTS
-# ============================================================
+# --- AUTHENTICATED REST API ENDPOINTS ---
 
 # --- Material & Dispatch Monitoring APIs ---
 
@@ -3143,7 +3122,7 @@ def download_pdf_report(case_id):
     if not inv:
         abort(404)
 
-    # Multi-tenant IDOR protection: verify officer has jurisdiction over this case's mine
+    # ensure user has permission to view this case
     if not validate_user_investigation_access(inv["id"]):
         abort(403)
 
@@ -3165,9 +3144,7 @@ def download_pdf_report(case_id):
     )
 
 
-# ============================================================
-# MASTER DATA CRUD API ENDPOINTS (STRICT ROLE-BASED ACCESS CONTROL)
-# ============================================================
+# --- MASTER DATA CRUD API ENDPOINTS (STRICT ROLE-BASED ACCESS CONTROL) ---
 
 def check_crud_permission(entity_type, mine_id=None, truck_id=None):
     """
@@ -3829,7 +3806,7 @@ def api_weighment_override(weighment_id):
     data = request.get_json() or {}
     reason = data.get("reason", "").strip()
     if not reason:
-        return jsonify({"error": "A valid statutory reason is mandatory for manual weight override.", "success": False}), 400
+        return jsonify({"error": "A reason is required for manual weight override.", "success": False}), 400
 
     try:
         new_net = float(data.get("corrected_net_weight_mt", w["net_weight_mt"]))
@@ -4142,11 +4119,11 @@ def api_crud_delete(entity, record_id):
         mine_id = rec.get("mine_id") or rec.get("assigned_mine_id")
         truck_id = rec.get("truck_id") or rec.get("assigned_truck_id")
 
-    # Statutory safety: prevent deletion of active or in-flight regulatory records
+    # do not allow deleting active permits or in-transit trips
     if entity == "permits" and rec.get("status") in ("ACTIVE", "IN_USE", "WEIGHED"):
-        return jsonify({"error": "Statutory compliance restriction: Active or weighed e-Rawaana passes cannot be deleted. Use the Reconcile/Cancel workflow instead.", "success": False}), 400
+        return jsonify({"error": "Active or weighed permits cannot be deleted. Please cancel or reconcile the permit instead.", "success": False}), 400
     if entity == "trips" and rec.get("status") in ("IN_TRANSIT", "DISPATCHED"):
-        return jsonify({"error": "Statutory compliance restriction: Active transit journeys cannot be deleted while in-transit.", "success": False}), 400
+        return jsonify({"error": "Cannot delete a trip while it is actively in transit.", "success": False}), 400
 
     allowed, err, code = check_crud_permission(entity, mine_id=mine_id, truck_id=truck_id)
     if not allowed:
@@ -4157,9 +4134,7 @@ def api_crud_delete(entity, record_id):
     return jsonify({"success": True, "message": f"{entity.title()} record deleted successfully."})
 
 
-# ============================================================
-# SIH DEMONSTRATION & SIMULATOR CONTROL APIS
-# ============================================================
+# --- SIH DEMONSTRATION & SIMULATOR CONTROL APIS ---
 
 @app.route("/api/simulator/action", methods=["POST"])
 @login_required(roles=["ADMIN", "OFFICER", "OPERATOR"])
@@ -4239,9 +4214,7 @@ def api_unclosed_entries():
 
 
 
-# ============================================================
-# SOCKETIO REAL-TIME EVENTS
-# ============================================================
+# --- SOCKETIO REAL-TIME EVENTS ---
 
 _LAST_GPS_STEP_TIME = {}
 
@@ -4310,44 +4283,42 @@ def handle_request_step():
     emit("gps_batch_update", {"trucks": filtered_updates})
 
 
-# ============================================================
-# STATUTORY PRODUCTION ERROR HANDLERS
-# ============================================================
+# --- Error Handlers ---
 
 @app.errorhandler(400)
 def handle_bad_request(e):
     if request.path.startswith("/api/"):
         return jsonify({"error": "Bad Request", "message": str(e), "success": False}), 400
-    return render_template("error.html", code=400, title="Bad Request", message="The request could not be processed under active regulatory standards."), 400
+    return render_template("error.html", code=400, title="Bad Request", message="The request could not be processed. Please check your input."), 400
 
 
 @app.errorhandler(403)
 def handle_forbidden(e):
     if request.path.startswith("/api/"):
-        return jsonify({"error": "Forbidden: Insufficient role permissions or multi-tenant boundary violation.", "success": False}), 403
-    return render_template("error.html", code=403, title="Access Forbidden", message="Access denied under statutory role boundaries. Cross-concession or unauthorized access is strictly prohibited."), 403
+        return jsonify({"error": "Forbidden: Access denied.", "success": False}), 403
+    return render_template("error.html", code=403, title="Access Denied", message="You do not have permission to view or access this resource."), 403
 
 
 @app.errorhandler(404)
 def handle_not_found(e):
     if request.path.startswith("/api/"):
         return jsonify({"error": "Not Found", "message": "The requested resource does not exist.", "success": False}), 404
-    return render_template("error.html", code=404, title="Record Not Found", message="The requested surveillance document or record could not be found in the central database."), 404
+    return render_template("error.html", code=404, title="Page Not Found", message="The page or record you are looking for could not be found."), 404
 
 
 @app.errorhandler(429)
 def handle_rate_limited(e):
     if request.path.startswith("/api/"):
         return jsonify({"error": "Too Many Requests", "message": "Rate limit exceeded. Please slow down.", "success": False}), 429
-    return render_template("error.html", code=429, title="Access Suspended", message="Access temporarily throttled due to excessive requests. Please wait a moment before trying again."), 429
+    return render_template("error.html", code=429, title="Too Many Requests", message="Too many requests. Please wait a moment and try again."), 429
 
 
 @app.errorhandler(500)
 def handle_internal_error(e):
-    logger.error(f"Statutory 500 runtime error on {request.path}: {traceback.format_exc()}")
+    logger.error(f"Server error on {request.path}: {traceback.format_exc()}")
     if request.path.startswith("/api/"):
-        return jsonify({"error": "Internal Server Error", "message": "An internal operational error occurred and has been audited.", "success": False}), 500
-    return render_template("error.html", code=500, title="Operational Error", message="An unexpected system error occurred. The incident has been recorded in the statutory audit log."), 500
+        return jsonify({"error": "Internal Server Error", "message": "An internal server error occurred.", "success": False}), 500
+    return render_template("error.html", code=500, title="Server Error", message="An unexpected error occurred. Please try again later."), 500
 
 
 _db_initialized = False

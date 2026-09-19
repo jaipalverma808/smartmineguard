@@ -12,7 +12,7 @@ class Config:
     BASE_DIR = BASE_DIR
     SECRET_KEY = os.getenv("SECRET_KEY", "smartmineguard-secure-secret-key-2026")
     
-    # Administrative & Statutory User Accounts (Read securely from .env)
+    # User accounts (configured in .env)
     ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
     ADMIN_NAME = os.getenv("ADMIN_NAME", "Sanjay Verma, IAS")
@@ -31,7 +31,7 @@ class Config:
     OPERATOR_EMAIL = os.getenv("OPERATOR_EMAIL", "virendra@aravalliminerals.com")
     OPERATOR_PHONE = os.getenv("OPERATOR_PHONE", "+91 99280 33445")
 
-    # PostgreSQL Configuration (Read strictly from .env, zero hardcoded secrets)
+    # Database settings
     DATABASE_URL = os.getenv("DATABASE_URL", "")
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", 5432))
@@ -42,7 +42,7 @@ class Config:
     # Serverless runtime detection (Vercel, AWS Lambda)
     IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
-    # SQLite Fallback Path (enables zero-friction local and serverless run)
+    # SQLite fallback for local development
     if IS_SERVERLESS:
         SQLITE_PATH = Path("/tmp") / "smartmineguard.db"
         REPORTS_DIR = Path("/tmp") / "reports"
