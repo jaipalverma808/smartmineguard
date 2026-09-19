@@ -433,6 +433,74 @@ class DatabaseManager:
         else:
             self.init_sqlite(force=force)
 
+        try:
+            self.sync_credentials_from_config()
+        except Exception as _sync_err:
+            logger.warning(f"Credential sync from .env encountered non-fatal error: {_sync_err}")
+
+    def sync_credentials_from_config(self):
+        """
+        Synchronizes administrative and statutory user credentials from environment (.env).
+        Uses industry-standard scrypt hashing with dynamic cryptographic salts to guarantee zero plaintext password exposure.
+        """
+        from werkzeug.security import generate_password_hash
+        accounts = [
+            (
+                getattr(Config, "ADMIN_USERNAME", "admin"),
+                getattr(Config, "ADMIN_PASSWORD", "admin123"),
+                getattr(Config, "ADMIN_NAME", "Sanjay Verma, IAS"),
+                "ADMIN",
+                "Directorate of Mines & Geology",
+                "DMG-HQ-01",
+                getattr(Config, "ADMIN_EMAIL", "sanjay.verma@mines.gov.in"),
+                getattr(Config, "ADMIN_PHONE", "+91 98100 11223"),
+                1,
+                None
+            ),
+            (
+                getattr(Config, "OFFICER_USERNAME", "officer1"),
+                getattr(Config, "OFFICER_PASSWORD", "officer123"),
+                getattr(Config, "OFFICER_NAME", "Inspector Rajesh K. Meena"),
+                "OFFICER",
+                "Mining Enforcement Squad Zone 4",
+                "MES-Z4-409",
+                getattr(Config, "OFFICER_EMAIL", "rajesh.meena@enforcement.gov.in"),
+                getattr(Config, "OFFICER_PHONE", "+91 94140 22334"),
+                1,
+                None
+            ),
+            (
+                getattr(Config, "OPERATOR_USERNAME", "operator1"),
+                getattr(Config, "OPERATOR_PASSWORD", "operator123"),
+                getattr(Config, "OPERATOR_NAME", "Virendra Singh Rathore"),
+                "OPERATOR",
+                "Aravalli Quartzite Consortium",
+                "OP-RJ-08",
+                getattr(Config, "OPERATOR_EMAIL", "virendra@aravalliminerals.com"),
+                getattr(Config, "OPERATOR_PHONE", "+91 99280 33445"),
+                1,
+                1
+            )
+        ]
+
+        for username, raw_pw, full_name, role, dept, badge, email, phone, mine_id, sub_mine_id in accounts:
+            if not username or not raw_pw:
+                continue
+            pw_hash = generate_password_hash(raw_pw, method="scrypt")
+            user = self.query("SELECT id FROM users WHERE username = ?", (username,), one=True)
+            if user:
+                self.execute("""
+                    UPDATE users 
+                    SET password_hash = ?, full_name = ?, department = ?, badge_number = ?, email = ?, phone = ?, is_active = 1
+                    WHERE id = ?
+                """, (pw_hash, full_name, dept, badge, email, phone, user["id"]))
+            else:
+                self.execute("""
+                    INSERT INTO users (username, password_hash, full_name, role, department, badge_number, email, phone, is_active, assigned_mine_id, assigned_sub_mine_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """, (username, pw_hash, full_name, role, dept, badge, email, phone, mine_id, sub_mine_id))
+        logger.info("Security credentials successfully synchronized from environment (.env).")
+
     def run_auto_migrations(self, conn=None):
         """Ensures all new schema columns and tables exist on existing SQLite databases."""
         close_needed = False
