@@ -120,7 +120,14 @@ except Exception as _e:
     logger.warning(f"SocketIO initialization deferred: {_e}")
 
 
-
+@app.after_request
+def apply_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(self), microphone=(), camera=()"
+    return response
 
 
 # ============================================================
@@ -438,14 +445,39 @@ def index():
     )
 
 
+_FAILED_LOGIN_ATTEMPTS = {}
+
+def _check_rate_limit(ip):
+    now = time.time()
+    attempts = [t for t in _FAILED_LOGIN_ATTEMPTS.get(ip, []) if now - t < 300]
+    _FAILED_LOGIN_ATTEMPTS[ip] = attempts
+    return len(attempts) < 8
+
+def _record_failed_login(ip):
+    now = time.time()
+    attempts = _FAILED_LOGIN_ATTEMPTS.get(ip, [])
+    attempts.append(now)
+    _FAILED_LOGIN_ATTEMPTS[ip] = attempts
+
+def _clear_failed_logins(ip):
+    _FAILED_LOGIN_ATTEMPTS.pop(ip, None)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        client_ip = request.remote_addr or "127.0.0.1"
+        if not _check_rate_limit(client_ip):
+            flash("Too many failed sign-in attempts. Access is temporarily suspended for 2 minutes for security.", "error")
+            logger.warning(f"Rate limited sign-in attempt from IP: {client_ip}")
+            return render_template("login.html"), 429
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
         user = db.query("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,), one=True)
         if user and check_password_hash(user["password_hash"], password):
+            _clear_failed_logins(client_ip)
             session.clear()
             session["user_id"] = user["id"]
             session["username"] = user["username"]
@@ -464,6 +496,8 @@ def login():
             next_url = request.args.get("next")
             return redirect(next_url or url_for("dashboard"))
         else:
+            _record_failed_login(client_ip)
+            log_audit("FAILED_LOGIN_ATTEMPT", f"Failed authentication attempt for username '{username}' from IP {client_ip}.")
             flash("Invalid credentials. Please verify your officer username and password.", "error")
 
     return render_template("login.html")
