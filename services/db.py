@@ -103,9 +103,19 @@ class DatabaseManager:
         """Get a connection from the pool (PostgreSQL) or create a SQLite connection."""
         if self.use_postgres:
             if self._pg_pool is None:
-                # Fallback: create a direct connection if pool is somehow unavailable
                 return psycopg2.connect(Config.DATABASE_URL)
-            return self._pg_pool.getconn()
+            try:
+                conn = self._pg_pool.getconn()
+                if getattr(conn, "closed", 0) != 0:
+                    try:
+                        self._pg_pool.putconn(conn, close=True)
+                    except Exception:
+                        pass
+                    return psycopg2.connect(Config.DATABASE_URL)
+                return conn
+            except Exception as e:
+                logger.warning(f"Connection pool getconn failed ({e}), creating fresh direct connection.")
+                return psycopg2.connect(Config.DATABASE_URL)
         else:
             try:
                 Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -124,17 +134,35 @@ class DatabaseManager:
                 conn.row_factory = sqlite3.Row
             return conn
 
-    def _return_connection(self, conn):
+    def _return_connection(self, conn, is_bad=False):
         """Return a PostgreSQL connection back to the pool, or close SQLite connection."""
-        if self.use_postgres and self._pg_pool is not None:
-            try:
-                if not conn.closed:
+        if self.use_postgres:
+            if is_bad or getattr(conn, "closed", 0) != 0:
+                try:
+                    if self._pg_pool is not None:
+                        self._pg_pool.putconn(conn, close=True)
+                    else:
+                        conn.close()
+                except Exception:
+                    pass
+                return
+
+            if self._pg_pool is not None:
+                try:
+                    if not conn.closed:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            # Rollback failed, connection is likely dead
+                            self._pg_pool.putconn(conn, close=True)
+                            return
+                    self._pg_pool.putconn(conn)
+                except Exception:
                     try:
-                        conn.rollback()
+                        conn.close()
                     except Exception:
                         pass
-                self._pg_pool.putconn(conn)
-            except Exception:
+            else:
                 try:
                     conn.close()
                 except Exception:
@@ -179,6 +207,7 @@ class DatabaseManager:
                 cache_key = None
 
         conn = self.get_connection()
+        is_bad = False
         try:
             if self.use_postgres:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -200,14 +229,36 @@ class DatabaseManager:
                 self._query_cache[cache_key] = (result, now)
 
             return result
+        except Exception as e:
+            is_bad = True
+            is_operational = ("SSL error" in str(e) or "closed" in str(e) or "terminat" in str(e) or 
+                              (PSYCOPG2_AVAILABLE and isinstance(e, psycopg2.OperationalError)))
+            if is_operational and self.use_postgres:
+                logger.warning(f"Database connection error ({e}), retrying once with fresh connection...")
+                try:
+                    self._return_connection(conn, is_bad=True)
+                    conn = psycopg2.connect(Config.DATABASE_URL)
+                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                        pg_sql = self._format_pg_sql(sql)
+                        cur.execute(pg_sql, params)
+                        rows = cur.fetchall()
+                        data = [self._serialize_row(dict(r)) for r in rows]
+                        result = (data[0] if data else None) if one else data
+                    is_bad = False
+                    return result
+                except Exception as retry_err:
+                    logger.error(f"Retry query failed: {retry_err}")
+                    raise e
+            raise
         finally:
-            self._return_connection(conn)
+            self._return_connection(conn, is_bad=is_bad)
 
     def execute(self, sql, params=None):
         """Execute insert/update/delete and commit. Returns lastrowid or affected rows."""
         self._query_cache.clear()  # Invalidate cached reads on any database mutation
         params = params or ()
         conn = self.get_connection()
+        is_bad = False
         try:
             if self.use_postgres:
                 with conn.cursor() as cur:
@@ -223,15 +274,33 @@ class DatabaseManager:
                 cur.execute(sql, params)
                 conn.commit()
                 return cur.lastrowid
-        except Exception:
-            # On error, rollback and return connection in a clean state
+        except Exception as e:
+            is_bad = True
+            is_operational = ("SSL error" in str(e) or "closed" in str(e) or "terminat" in str(e) or 
+                              (PSYCOPG2_AVAILABLE and isinstance(e, psycopg2.OperationalError)))
+            if is_operational and self.use_postgres:
+                logger.warning(f"Database execute error ({e}), retrying once with fresh connection...")
+                try:
+                    self._return_connection(conn, is_bad=True)
+                    conn = psycopg2.connect(Config.DATABASE_URL)
+                    with conn.cursor() as cur:
+                        pg_sql = self._format_pg_sql(sql)
+                        cur.execute(pg_sql, params)
+                        conn.commit()
+                        try:
+                            return cur.fetchone()[0]
+                        except Exception:
+                            return cur.rowcount
+                except Exception as retry_err:
+                    logger.error(f"Retry execute failed: {retry_err}")
+                    raise e
             try:
                 conn.rollback()
             except Exception:
                 pass
             raise
         finally:
-            self._return_connection(conn)
+            self._return_connection(conn, is_bad=is_bad)
 
     def log_audit(self, action, details_or_entity="", *args, **kwargs):
         """
