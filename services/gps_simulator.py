@@ -115,6 +115,10 @@ class GPSSimulator:
             try:
                 self.step_simulation()
             except Exception as e:
+                err_msg = str(e).lower()
+                if "does not exist" in err_msg or "no such table" in err_msg:
+                    time.sleep(2.0)
+                    continue
                 logger.error(f"Simulator step error: {e}")
             time.sleep(10.0)
 

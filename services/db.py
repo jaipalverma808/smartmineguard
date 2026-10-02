@@ -425,6 +425,19 @@ class DatabaseManager:
                         except Exception:
                             pass
                         logger.warning(f"PostgreSQL auxiliary tables setup non-fatal: {_t_err}")
+
+                    try:
+                        seq_tables = ['alerts', 'trips', 'trucks', 'permits', 'mines', 'weighments', 'checkpoints', 'users', 'audit_logs', 'stock_production', 'quarry_blocks', 'gps_tamper_events']
+                        for tbl in seq_tables:
+                            cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1));")
+                        conn.commit()
+                        logger.info("PostgreSQL sequences synchronized successfully.")
+                    except Exception as _seq_err:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        logger.warning(f"PostgreSQL sequence synchronization non-fatal: {_seq_err}")
             except Exception as e:
                 is_bad = True
                 logger.error(f"PostgreSQL initialization check failed: {e}")
@@ -491,13 +504,13 @@ class DatabaseManager:
             if user:
                 self.execute("""
                     UPDATE users 
-                    SET password_hash = ?, full_name = ?, department = ?, badge_number = ?, email = ?, phone = ?, is_active = 1
+                    SET password_hash = ?, full_name = ?, department = ?, badge_number = ?, email = ?, phone = ?, is_active = TRUE
                     WHERE id = ?
                 """, (pw_hash, full_name, dept, badge, email, phone, user["id"]))
             else:
                 self.execute("""
                     INSERT INTO users (username, password_hash, full_name, role, department, badge_number, email, phone, is_active, assigned_mine_id, assigned_sub_mine_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?)
                 """, (username, pw_hash, full_name, role, dept, badge, email, phone, mine_id, sub_mine_id))
         logger.info("Security credentials successfully synchronized from environment (.env).")
 
