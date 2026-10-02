@@ -599,6 +599,13 @@ def set_mine_filter():
     return redirect(next_url)
 
 
+# --- HEALTH & KEEP-ALIVE ---
+
+@app.route("/health")
+def health():
+    return {"status": "ok"}, 200
+
+
 # --- PAGE ROUTES (HTML + JINJA2) ---
 
 @app.route("/")
