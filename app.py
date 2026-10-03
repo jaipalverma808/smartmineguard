@@ -848,17 +848,43 @@ def dashboard():
             assigned_contractor_trucks = []
 
         # Supervisory Vigilance Audit: High-risk detections and officer actions
-        officer_audits = db.query("""
-            SELECT a.*, t.registration_number, p.permit_number,
-                   u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
-            FROM alerts a
-            LEFT JOIN trucks t ON t.id = a.truck_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
-            WHERE a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH')
-            ORDER BY a.id DESC
-            LIMIT 6
-        """)
+        if selected_mine_id:
+            officer_audits = db.query("""
+                SELECT a.*, t.registration_number, p.permit_number,
+                       u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
+                FROM alerts a
+                LEFT JOIN trucks t ON t.id = a.truck_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
+                WHERE (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+                  AND (a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH'))
+                ORDER BY a.id DESC
+                LIMIT 6
+            """, (selected_mine_id, selected_mine_id, selected_mine_id))
+        else:
+            officer_audits = db.query("""
+                SELECT a.*, t.registration_number, p.permit_number,
+                       u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
+                FROM alerts a
+                LEFT JOIN trucks t ON t.id = a.truck_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
+                WHERE a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH')
+                ORDER BY a.id DESC
+                LIMIT 6
+            """)
+
+        if selected_sub_mine_id:
+            assigned_contractor_permits = db.query("""
+                SELECT p.*, t.registration_number 
+                FROM permits p 
+                LEFT JOIN trucks t ON t.id = p.truck_id 
+                WHERE p.quarry_block_id = ? OR t.sub_mine_id = ?
+                ORDER BY p.id DESC LIMIT 8
+            """, (selected_sub_mine_id, selected_sub_mine_id))
+        else:
+            assigned_contractor_permits = []
 
         all_quarry_blocks = db.query("""
             SELECT qb.*, m.name as mine_name, m.district as mine_district
@@ -896,6 +922,7 @@ def dashboard():
             selected_sub_mine=selected_sub_mine,
             mine_quarry_blocks=mine_quarry_blocks,
             assigned_contractor_trucks=assigned_contractor_trucks,
+            assigned_contractor_permits=assigned_contractor_permits,
             daily_summary=daily_summary,
             dispatch_control=dispatch_control,
             mismatch_check=mismatch_check,
@@ -3002,14 +3029,26 @@ def api_alert_admin_review(alert_id):
             WHERE id = ?
         """, (notes or "Clearance audited and confirmed by State Mining Administrator.", now_str, admin_id, alert_id))
 
-        log_audit("VIGILANCE_AUDIT_CONFIRMED",
-                  f"Admin {admin_name} confirmed field clearance on Alert {alert['alert_code']} (Vehicle {alert['registration_number']}). Remarks: '{notes}'")
-        return jsonify({"success": True, "status": "CONFIRMED_BY_ADMIN", "message": "Officer action successfully audited and confirmed."})
+        order_ref = f"DIR-MMDR-2026-ORD-{alert_id:04d}"
+        return jsonify({
+            "success": True,
+            "status": "CONFIRMED_BY_ADMIN",
+            "order_id": order_ref,
+            "timestamp": now_str,
+            "admin_name": admin_name,
+            "alert_code": alert.get("alert_code"),
+            "vehicle": alert.get("registration_number") or "Unassigned Carrier",
+            "officer": f"{alert.get('officer_name') or 'Duty Squad'} (Badge: {alert.get('officer_badge') or 'N/A'})",
+            "decision": "Supervisory Clearance Confirmed",
+            "directive": notes or "Clearance audited and approved under Section 21 MMDR authority.",
+            "message": "Officer action successfully audited and confirmed."
+        })
 
     elif decision == "FLAG_INQUIRY":
         # Elevated to Formal Anti-Corruption Inquiry
         case_num = db.query("SELECT COUNT(*) as c FROM investigations", one=True)["c"] + 42
         case_id = f"SMG-2026-{case_num:05d}"
+        order_ref = f"DIR-MMDR-2026-VIG-{alert_id:04d}"
         
         officer_info = f"{alert.get('officer_name') or 'Field Officer'} ({alert.get('officer_badge') or 'N/A'})"
         title = f"Vigilance Inquiry: Officer Override Audit ({alert['alert_code']})"
@@ -3046,9 +3085,17 @@ def api_alert_admin_review(alert_id):
         return jsonify({
             "success": True,
             "status": "FLAGGED_FOR_INQUIRY",
+            "order_id": order_ref,
+            "timestamp": now_str,
+            "admin_name": admin_name,
             "investigation_id": inv_id,
             "case_id": case_id,
             "pdf_path": pdf_path,
+            "alert_code": alert.get("alert_code"),
+            "vehicle": alert.get("registration_number") or "Unassigned Carrier",
+            "officer": officer_info,
+            "decision": "Formal Anti-Corruption Inquiry Ordered",
+            "directive": notes or "Ground override rejected; inquiry initiated under Section 21(4) MMDR.",
             "message": f"Suspicious clearance flagged for Vigilance Inquiry (Case {case_id})."
         })
 

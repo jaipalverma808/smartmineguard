@@ -290,6 +290,7 @@
     </div>
   </div>
 
+  {% if not selected_mine_id %}
   <!-- Mine-Wise Material Summary Table (Section 21) -->
   <div class="gov-card">
     <div class="gov-card-header">
@@ -428,6 +429,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   {# ============================================================== #}
   {# LEVEL 1: STATEWIDE VIEW (When no mine is selected)             #}
@@ -586,6 +588,80 @@
     </div>
   </div>
 
+  <!-- Dedicated Carrier Fleet Table for this Contractor -->
+  <div class="gov-card">
+    <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200">
+          Dedicated Carrier Fleet &bull; {{ selected_sub_mine.leaseholder_name }}
+        </h3>
+        <span class="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+          {{ assigned_contractor_trucks|length }} Registered Trucks
+        </span>
+      </div>
+      <div class="text-xs text-slate-400 font-mono">
+        AIS-140 GPS &amp; Tare Certified Fleet
+      </div>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs">
+        <thead>
+          <tr>
+            <th>Vehicle Reg. No.</th>
+            <th>Type / Class</th>
+            <th>Registered Driver</th>
+            <th>Contact</th>
+            <th>Tare (Empty)</th>
+            <th>Max Gross Cap</th>
+            <th>AIS-140 GPS Device</th>
+            <th>Telematics Status</th>
+            <th>Transit Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for trk in assigned_contractor_trucks %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=trk.id) }}" class="text-emerald-900 hover:underline">
+                {{ trk.registration_number }}
+              </a>
+            </td>
+            <td>{{ trk.vehicle_type or 'Multi-Axle Tipper' }}</td>
+            <td class="font-medium text-slate-800">{{ trk.driver_name or 'Assigned Driver' }}</td>
+            <td class="font-mono text-slate-600">{{ trk.driver_phone or '—' }}</td>
+            <td class="font-mono font-semibold">{{ trk.tare_weight_mt or 12.5 }} MT</td>
+            <td class="font-mono font-bold text-slate-900">{{ trk.max_capacity_mt or 28.0 }} MT</td>
+            <td class="font-mono text-xs text-slate-600">{{ trk.gps_device_id or 'AIS-140-STD' }}</td>
+            <td>
+              <span class="badge {% if trk.gps_status in ('HEALTHY', 'ACTIVE', 'NORMAL') %}badge-low{% elif trk.gps_status == 'TAMPERED' %}badge-critical{% else %}badge-medium{% endif %} text-[10px]">
+                {{ trk.gps_status or 'HEALTHY' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge {% if trk.status == 'IN_TRANSIT' %}badge-high{% elif trk.status == 'IDLE' %}badge-low{% else %}badge-medium{% endif %} text-[10px]">
+                {{ trk.status }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('truck_detail', truck_id=trk.id) }}" class="btn-gov btn-gov-secondary btn-sm text-[10px] py-0.5 px-2">
+                Inspect GPS &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="text-center py-4 text-slate-500">
+              No carrier vehicles specifically registered under this sub-mine plot yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Truck-Wise Material Movement Table (Section 20 - Drill-Down for this contractor) -->
   <div class="gov-card">
     <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center gap-2">
@@ -680,7 +756,10 @@
   </div>
   {% endif %}
 
-  <!-- State Mining Leases & Annual Quota Monitoring (Preserved) -->
+  {# ============================================================== #}
+  {# LEVEL 1 ONLY: STATEWIDE MINING LEASES (Hidden in Level 2 & 3)  #}
+  {# ============================================================== #}
+  {% if not selected_mine_id %}
   <div class="gov-card">
     <div class="gov-card-header flex flex-wrap justify-between items-center gap-2">
       <div class="flex items-center gap-2">
@@ -748,15 +827,19 @@
       </table>
     </div>
   </div>
+  {% endif %}
 
-  <!-- Statewide Officer Vigilance & Override Feed (Anti-Collusion Audit) -->
+  {# ============================================================== #}
+  {# OFFICER VIGILANCE AUDIT FEED (Shown on Level 1 & 2; Hidden in 3)#}
+  {# ============================================================== #}
+  {% if not selected_sub_mine_id %}
   <div class="gov-card">
     <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
         <h3 class="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2">
           <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-          <span>Statewide Officer Vigilance &amp; Field Clearance Audit Feed</span>
+          <span>{% if selected_mine %}{{ selected_mine.name }} &bull; Field Clearance &amp; Officer Vigilance Feed{% else %}Statewide Officer Vigilance &amp; Field Clearance Audit Feed{% endif %}</span>
         </h3>
         <span class="text-[10px] bg-amber-900/60 border border-amber-500/40 text-amber-200 px-2 py-0.5 rounded font-mono">
           Anti-Collusion Oversight
@@ -781,7 +864,7 @@
         </thead>
         <tbody>
           {% for a in officer_audits %}
-          <tr class="{% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' %}bg-amber-50/50{% elif a.admin_review_status == 'FLAGGED_FOR_INQUIRY' %}bg-red-50/60{% endif %}">
+          <tr class="{% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' %}bg-amber-50/50{% elif a.admin_review_status == 'FLAGGED_FOR_INQUIRY' %}bg-red-50/60{% endif %}" id="admin-audit-row-{{ a.id }}">
             <td class="font-mono font-bold text-slate-800">{{ a.alert_code }}</td>
             <td>
               <div class="font-semibold text-slate-900 font-mono">{{ a.registration_number or 'Unassigned' }}</div>
@@ -816,7 +899,7 @@
               <span class="text-slate-400">Pending Field Triage</span>
               {% endif %}
             </td>
-            <td>
+            <td id="admin-action-cell-{{ a.id }}">
               {% if a.admin_review_status == 'PENDING_VIGILANCE_REVIEW' or (a.escalated_to_admin and a.admin_review_status in ('NONE', None)) %}
               <div class="flex items-center gap-1">
                 <button onclick="adminReviewAlert({{ a.id }}, 'CONFIRM')" class="btn-gov btn-gov-secondary btn-sm text-[10px] text-emerald-800 border-emerald-400 py-0.5 px-2" title="Confirm clearance">
@@ -837,98 +920,14 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-center py-4 text-slate-500">No pending officer overrides or critical detections.</td>
+            <td colspan="7" class="text-center py-4 text-slate-500">No pending officer overrides or critical detections for this view.</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
-
-  <!-- Registered Users & Platform Audit Logs -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div class="gov-card">
-      <div class="gov-card-header">
-        <h3 class="gov-card-title flex items-center gap-2">
-          <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          <span>User &amp; Role Management</span>
-        </h3>
-        <a href="{{ url_for('admin_users') }}" class="text-xs text-emerald-800 hover:text-emerald-900 font-semibold">
-          Manage All &rarr;
-        </a>
-      </div>
-      <div class="gov-table-container">
-        <table class="gov-table text-xs">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Officer / Operator Name</th>
-              <th>Role</th>
-              <th>Department / Authority</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for u in users %}
-            <tr>
-              <td class="font-mono font-bold text-slate-900">{{ u.username }}</td>
-              <td class="font-semibold text-slate-800">{{ u.full_name }}</td>
-              <td>
-                <span class="badge {% if u.role == 'ADMIN' %}badge-high{% elif u.role == 'OFFICER' %}badge-low{% else %}badge-medium{% endif %}">
-                  {{ u.role }}
-                </span>
-              </td>
-              <td class="text-[11px] text-slate-600">{{ u.department }}</td>
-              <td>
-                <span class="text-emerald-700 font-semibold flex items-center gap-1 text-[11px]">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
-                </span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="gov-card">
-      <div class="gov-card-header">
-        <h3 class="gov-card-title flex items-center gap-2">
-          <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-          <span>System Audit &amp; Event Logs</span>
-        </h3>
-        <span class="text-xs text-slate-500">Immutable Activity Records</span>
-      </div>
-      <div class="gov-table-container">
-        <table class="gov-table text-xs">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Event Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for log in audit_logs %}
-            <tr>
-              <td class="font-mono text-[11px] text-slate-500 whitespace-nowrap">{{ log.timestamp }}</td>
-              <td class="font-mono font-semibold text-slate-800">{{ log.username }}</td>
-              <td>
-                <span class="font-mono text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
-                  {{ log.action }}
-                </span>
-              </td>
-              <td class="text-slate-600 text-[11px]">{{ log.details }}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="4" class="text-center py-4 text-slate-500">No logs recorded yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  {% endif %}
 
 </div>
 
@@ -1036,6 +1035,89 @@
   </div>
 </div>
 
+<!-- Admin Action Executive Statutory Receipt Modal -->
+<div id="modal-admin-action-receipt" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-lg border border-slate-300 max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-2">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🏛️</span>
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm uppercase">Executive Administrative Order Receipt</h3>
+          <p class="text-[11px] text-slate-500">State Directorate of Mines &amp; Geology &bull; Statutory Audit Record</p>
+        </div>
+      </div>
+      <button onclick="closeAdminActionReceiptModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+    </div>
+
+    <!-- Order Header Card -->
+    <div class="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-2">
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500 uppercase font-mono font-bold text-[10px]">Order Reference No.</span>
+        <span id="receipt-order-id" class="font-mono font-bold text-emerald-900 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-xs">—</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500 font-medium">Timestamp</span>
+        <span id="receipt-timestamp" class="font-mono text-slate-700 text-[11px]">—</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500 font-medium">Statutory Authority</span>
+        <span id="receipt-admin-name" class="font-semibold text-slate-900">—</span>
+      </div>
+    </div>
+
+    <!-- Decision & Subject Grid -->
+    <div class="grid grid-cols-2 gap-3 text-xs">
+      <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] text-slate-500 uppercase font-bold">Target Entity / Carrier</div>
+        <div id="receipt-vehicle" class="font-mono font-bold text-slate-900 mt-1 text-sm">—</div>
+        <div id="receipt-alert-code" class="text-[10px] font-mono text-slate-500 mt-0.5">—</div>
+      </div>
+      <div class="p-2.5 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] text-slate-500 uppercase font-bold">Accountable Officer / Route</div>
+        <div id="receipt-officer" class="font-semibold text-slate-900 mt-1">—</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Statutory Corridor Enforcement</div>
+      </div>
+    </div>
+
+    <!-- Administrative Order Directive -->
+    <div class="p-3 bg-emerald-50/60 border border-emerald-200 rounded text-xs space-y-1">
+      <div class="text-[10px] text-emerald-900 font-bold uppercase flex items-center gap-1">
+        <span>⚖️</span>
+        <span id="receipt-decision-title">Statutory Decision Applied</span>
+      </div>
+      <div id="receipt-directive" class="text-slate-800 text-xs italic bg-white p-2 rounded border border-emerald-100">
+        —
+      </div>
+    </div>
+
+    <!-- Automated Downstream Interlocks -->
+    <div class="p-3 bg-slate-900 text-white rounded text-xs space-y-1.5">
+      <div class="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Automated Enforcement Measures Activated</div>
+      <ul class="text-[11px] space-y-1 text-slate-300">
+        <li class="flex items-center gap-1.5">
+          <span class="text-emerald-400">✓</span> Immutable Audit Log record committed to Directorate database.
+        </li>
+        <li class="flex items-center gap-1.5">
+          <span class="text-emerald-400">✓</span> Weighbridge Fastag and Barrier interlock updated in real-time.
+        </li>
+        <li class="flex items-center gap-1.5">
+          <span class="text-emerald-400">✓</span> Corridor checkpost squads and mobile flying units notified.
+        </li>
+      </ul>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex gap-2 pt-2 border-t border-slate-200">
+      <button type="button" onclick="closeAdminActionReceiptModal()" class="btn-gov btn-gov-secondary flex-1 py-2 text-xs font-semibold">
+        Close / Return to Dashboard
+      </button>
+      <a id="receipt-action-btn" href="#" class="btn-gov btn-gov-primary flex-1 py-2 text-xs text-center font-bold bg-emerald-800 hover:bg-emerald-700 text-white">
+        Open Investigation Dossier &rarr;
+      </a>
+    </div>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
 <script>
 function filterTruckLedger() {
@@ -1071,6 +1153,92 @@ function closeAdminEmergencyModal() {
   if (modal) {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+  }
+}
+
+function showAdminActionReceipt(data) {
+  document.getElementById('receipt-order-id').textContent = data.order_id || 'DIR-MMDR-2026';
+  document.getElementById('receipt-timestamp').textContent = data.timestamp || new Date().toLocaleString();
+  document.getElementById('receipt-admin-name').textContent = data.admin_name || 'State Mining Directorate Admin';
+  document.getElementById('receipt-vehicle').textContent = data.vehicle || '—';
+  document.getElementById('receipt-alert-code').textContent = data.alert_code ? 'Ref Code: ' + data.alert_code : '';
+  document.getElementById('receipt-officer').textContent = data.officer || 'Duty Enforcement Squad';
+  document.getElementById('receipt-decision-title').textContent = data.decision || 'Administrative Decision Logged';
+  document.getElementById('receipt-directive').textContent = '“' + (data.directive || data.message || 'Statutory order executed.') + '”';
+
+  const actionBtn = document.getElementById('receipt-action-btn');
+  if (data.investigation_id) {
+    actionBtn.href = `/investigations/${data.investigation_id}`;
+    actionBtn.innerHTML = '⚖️ Open Case Investigation Dossier &rarr;';
+    actionBtn.className = 'btn-gov btn-gov-primary flex-1 py-2 text-xs text-center font-bold bg-red-800 hover:bg-red-700 text-white';
+    actionBtn.style.display = 'inline-block';
+  } else if (data.permit_id) {
+    actionBtn.href = `/permits/${data.permit_id}/view`;
+    actionBtn.innerHTML = '🏛️ View &amp; Print Official Transit Pass &rarr;';
+    actionBtn.className = 'btn-gov btn-gov-primary flex-1 py-2 text-xs text-center font-bold bg-emerald-900 hover:bg-emerald-800 text-white';
+    actionBtn.style.display = 'inline-block';
+  } else {
+    actionBtn.style.display = 'none';
+  }
+
+  const modal = document.getElementById('modal-admin-action-receipt');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+}
+
+function closeAdminActionReceiptModal() {
+  const modal = document.getElementById('modal-admin-action-receipt');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+async function adminReviewAlert(alertId, decision) {
+  let notes = "";
+  if (decision === "CONFIRM") {
+    notes = prompt("Enter supervisory audit remarks (optional):", "Supervisory review confirmed. Ground officer justification accepted under MMDR standards.") || "Supervisory review confirmed.";
+  } else if (decision === "FLAG_INQUIRY") {
+    notes = prompt(
+      "⚖️ ORDER VIGILANCE INQUIRY:\nEnter administrative directive / grounds for investigating this officer override:",
+      "Suspicious clearance of severe statutory anomaly. Formal Anti-Corruption & Vigilance Inquiry ordered under Section 21(4) MMDR."
+    );
+    if (notes === null) return;
+  }
+
+  try {
+    const res = await fetch(`/api/alerts/${alertId}/admin_review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: decision, notes: notes })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const cell = document.getElementById(`admin-action-cell-${alertId}`);
+      const row = document.getElementById(`admin-audit-row-${alertId}`);
+      if (cell) {
+        if (decision === "CONFIRM") {
+          cell.innerHTML = '<span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">✓ Confirmed</span>';
+          if (row) {
+            row.classList.remove("bg-amber-50/50", "bg-red-50/60");
+            row.classList.add("bg-emerald-50/40");
+          }
+        } else {
+          cell.innerHTML = '<span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">⚖️ Case Opened</span>';
+          if (row) {
+            row.classList.remove("bg-amber-50/50");
+            row.classList.add("bg-red-50/60");
+          }
+        }
+      }
+      showAdminActionReceipt(data);
+    } else {
+      alert("Error processing review: " + (data.error || "Unknown error"));
+    }
+  } catch (err) {
+    alert("Network error executing review: " + err);
   }
 }
 
@@ -1126,22 +1294,20 @@ async function submitAdminEmergencyPermit(event) {
     });
     const result = await res.json();
     if (res.ok && result.success) {
-      fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold space-y-1.5';
-      fb.innerHTML = `
-        <div class="flex items-center gap-1.5 text-emerald-800 font-bold">
-          <span>✓</span> Statutory Emergency e-Rawaana Issued!
-        </div>
-        <div>Pass Number: <strong class="font-mono text-slate-900">${result.permit_number}</strong> (${result.issuance_type})</div>
-        <div class="pt-1">
-          <a href="/permits/${result.permit_id}/view" target="_blank" class="btn-gov btn-gov-primary btn-sm text-[11px] py-1 px-2.5 inline-flex items-center gap-1 bg-emerald-900 text-white font-bold">
-            <span>🏛️ View &amp; Print Official Pass &rarr;</span>
-          </a>
-        </div>
-      `;
-      fb.classList.remove('hidden');
-      setTimeout(() => {
-        window.location.reload();
-      }, 2500);
+      closeAdminEmergencyModal();
+      showAdminActionReceipt({
+        order_id: result.permit_number,
+        timestamp: new Date().toLocaleString(),
+        admin_name: 'State Mining Directorate Admin',
+        vehicle: `Assigned Heavy Carrier (Truck #${payload.truck_id})`,
+        alert_code: `Mineral: ${payload.mineral} (${payload.permitted_weight_mt} MT)`,
+        officer: `Destination: ${payload.destination_name}`,
+        decision: `Emergency e-Rawaana Transit Pass Issued`,
+        directive: payload.emergency_reason,
+        permit_id: result.permit_id
+      });
+      btn.disabled = false;
+      btn.innerHTML = '🚨 Issue Emergency e-Rawaana Pass';
     } else {
       fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 font-semibold';
       fb.textContent = result.error || 'Failed to issue emergency permit. Please check details.';
