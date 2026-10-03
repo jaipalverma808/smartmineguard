@@ -424,7 +424,34 @@ class DatabaseManager:
                             conn.rollback()
                         except Exception:
                             pass
-                        logger.warning(f"PostgreSQL auxiliary tables setup non-fatal: {_t_err}")
+                    try:
+                        cur.execute("""
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS quarry_block_id INTEGER;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS issuance_type VARCHAR(50) DEFAULT 'AUTOMATED_SCALE_DISPATCH';
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_mine_id INTEGER DEFAULT 1;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_sub_mine_id INTEGER;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS handled_by_user_id INTEGER;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS action_taken TEXT;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS officer_remarks TEXT;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS escalated_to_admin INTEGER DEFAULT 0;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_review_status VARCHAR(50) DEFAULT 'NONE';
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP;
+                            ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_reviewed_by INTEGER;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS opening_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS current_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
+                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
+                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS completed_rounds_today INTEGER DEFAULT 0;
+                        """)
+                        conn.commit()
+                        logger.info("PostgreSQL schema migrations applied successfully.")
+                    except Exception as _m_err:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        logger.warning(f"PostgreSQL schema migrations non-fatal: {_m_err}")
 
                     try:
                         seq_tables = ['alerts', 'trips', 'trucks', 'permits', 'mines', 'weighments', 'checkpoints', 'users', 'audit_logs', 'stock_production', 'quarry_blocks', 'gps_tamper_events']

@@ -674,7 +674,7 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
-        user = db.query("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,), one=True)
+        user = db.query("SELECT * FROM users WHERE username = ? AND is_active = TRUE", (username,), one=True)
         if user and check_password_hash(user["password_hash"], password):
             _clear_failed_logins(client_ip)
             # Regenerate session to protect against session fixation attacks
@@ -1947,7 +1947,7 @@ def admin_users_toggle(user_id):
 
     user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True)
     if user:
-        new_status = 0 if user["is_active"] else 1
+        new_status = False if user["is_active"] else True
         db.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_status, user_id))
         status_text = "activated" if new_status else "deactivated"
         log_audit("USER_STATUS_CHANGE", f"Admin {status_text} account: {user['username']}")

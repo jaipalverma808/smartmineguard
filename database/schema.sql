@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS permits (
     status VARCHAR(40) DEFAULT 'ACTIVE' CHECK (status IN ('ISSUED', 'ACTIVE', 'TRUCK_ARRIVED', 'LOADING', 'WEIGHED', 'DISPATCHED', 'COMPLETED', 'CONSUMED', 'EXPIRED', 'CANCELLED', 'SUSPICIOUS', 'RECONCILIATION_REQUIRED')),
     reconciliation_reason TEXT,
     route_waypoints_json TEXT,
+    quarry_block_id INT,
+    issuance_type VARCHAR(50) DEFAULT 'AUTOMATED_SCALE_DISPATCH',
+    consumed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
