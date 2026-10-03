@@ -446,11 +446,89 @@ class DatabaseManager:
                             pass
                     try:
                         cur.execute("""
+                            -- TRUCKS
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS gps_status VARCHAR(50) DEFAULT 'HEALTHY';
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS network_blindspot_count INTEGER DEFAULT 0;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS jammer_detected_count INTEGER DEFAULT 0;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS tamper_count INTEGER DEFAULT 0;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS prohibited_zone_count INTEGER DEFAULT 0;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS satellite_count INTEGER DEFAULT 12;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS external_power_volts DOUBLE PRECISION DEFAULT 24.2;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS backup_battery_pct INTEGER DEFAULT 100;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS signal_strength_dbm INTEGER DEFAULT -65;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS carrier_noise_ratio_cno DOUBLE PRECISION DEFAULT 44.5;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_tamper_time TIMESTAMP;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_tamper_type TEXT;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS transponder_model VARCHAR(100) DEFAULT 'AIS-140 IRNSS Rugged v4.2';
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS assigned_mine_id INTEGER DEFAULT 1;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS completed_rounds_today INTEGER DEFAULT 0;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS current_round_number INTEGER DEFAULT 1;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS is_inside_mine BOOLEAN DEFAULT FALSE;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS current_mine_id INTEGER;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_mine_entry TIMESTAMP;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_mine_exit TIMESTAMP;
+
+                            -- PERMITS
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS quarry_block_id INTEGER;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS issuance_type VARCHAR(50) DEFAULT 'AUTOMATED_SCALE_DISPATCH';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS reconciliation_reason TEXT;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS buyer_type VARCHAR(100) DEFAULT 'Registered Entity';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS buyer_address TEXT;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS buyer_gstn VARCHAR(50);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS quarry_name VARCHAR(150);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_name VARCHAR(150);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_gstn VARCHAR(50);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS rate_per_mt DOUBLE PRECISION DEFAULT 336.00;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS taxable_amount DOUBLE PRECISION;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS cgst_rate DOUBLE PRECISION DEFAULT 2.50;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS cgst_amount DOUBLE PRECISION;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS sgst_rate DOUBLE PRECISION DEFAULT 2.50;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS sgst_amount DOUBLE PRECISION;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS total_amount DOUBLE PRECISION;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS hsn_code VARCHAR(20) DEFAULT '2517';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS weighment_slip_no VARCHAR(50);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS auction_no VARCHAR(50);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS pit_lot_no VARCHAR(50) DEFAULT '21';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS customer_code VARCHAR(50) DEFAULT '61';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS balance_amount DOUBLE PRECISION DEFAULT 262969.59;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS cctv_image_front VARCHAR(255) DEFAULT 'static/images/weighbridge/scale_front_cam.jpg';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS cctv_image_back VARCHAR(255) DEFAULT 'static/images/weighbridge/scale_back_cam.jpg';
+
+                            -- WEIGHMENTS
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS measurement_source VARCHAR(100) DEFAULT 'AUTOMATED_WEIGHBRIDGE_SCALE';
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS measurement_status VARCHAR(50) DEFAULT 'VERIFIED';
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS is_manual_override INTEGER DEFAULT 0;
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS original_net_weight_mt DOUBLE PRECISION;
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS override_reason TEXT;
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS override_by_user_id INTEGER;
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS slip_number VARCHAR(50);
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS pit_lot_no VARCHAR(50) DEFAULT '21';
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS customer_code VARCHAR(50) DEFAULT '61';
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS balance_amount DOUBLE PRECISION DEFAULT 262969.59;
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS auction_number VARCHAR(50);
+                            ALTER TABLE weighments ADD COLUMN IF NOT EXISTS cctv_image_url VARCHAR(255) DEFAULT 'static/images/weighbridge/weighment_proof.jpg';
+
+                            -- TRIPS
+                            ALTER TABLE trips ADD COLUMN IF NOT EXISTS round_number INTEGER DEFAULT 1;
+                            ALTER TABLE trips ADD COLUMN IF NOT EXISTS timeline_events_json TEXT DEFAULT '[]';
+
+                            -- MINES
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS opening_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS current_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS daily_production_mt DOUBLE PRECISION DEFAULT 500.0;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS daily_planned_dispatch_mt DOUBLE PRECISION DEFAULT 600.0;
+
+                            -- DRIVERS
+                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
+                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS completed_rounds_today INTEGER DEFAULT 0;
+
+                            -- USERS
                             ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_mine_id INTEGER DEFAULT 1;
                             ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_sub_mine_id INTEGER;
+
+                            -- ALERTS
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS handled_by_user_id INTEGER;
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS action_taken TEXT;
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS officer_remarks TEXT;
@@ -459,10 +537,12 @@ class DatabaseManager:
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_notes TEXT;
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP;
                             ALTER TABLE alerts ADD COLUMN IF NOT EXISTS admin_reviewed_by INTEGER;
-                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS opening_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
-                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS current_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
-                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
-                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS completed_rounds_today INTEGER DEFAULT 0;
+
+                            -- AUDIT LOGS
+                            ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity VARCHAR(100);
+                            ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS previous_state TEXT;
+                            ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_state TEXT;
+                            ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason TEXT;
                         """)
                         conn.commit()
                         logger.info("PostgreSQL schema migrations applied successfully.")
