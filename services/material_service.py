@@ -233,7 +233,7 @@ class MaterialMonitoringService:
         return result
 
     @staticmethod
-    def get_truck_wise_material_ledger(mine_id=None, mineral=None, status_filter=None, search_query=None):
+    def get_truck_wise_material_ledger(mine_id=None, mineral=None, status_filter=None, search_query=None, sub_mine_id=None):
         sql_cumulative = """
             SELECT 
                 tr.truck_id,
@@ -261,6 +261,9 @@ class MaterialMonitoringService:
         if mine_id:
             conditions.append("tr.mine_id = ?")
             params.append(mine_id)
+        if sub_mine_id:
+            conditions.append("(t.sub_mine_id = ? OR p.quarry_block_id = ?)")
+            params.extend([sub_mine_id, sub_mine_id])
         if mineral:
             conditions.append("p.mineral LIKE ?")
             params.append(f"%{mineral}%")

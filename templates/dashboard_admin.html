@@ -17,17 +17,33 @@
     </div>
     
     <div class="flex flex-wrap items-center gap-3">
-      <!-- Mine Selector Filter Form -->
-      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="flex items-center gap-1.5">
-        <label for="admin-mine-filter" class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Filter Mine:</label>
-        <select id="admin-mine-filter" name="mine_id" onchange="this.form.submit()" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-700">
-          <option value="" {% if not active_mine_id %}selected{% endif %}>All Mines (Statewide Grid)</option>
-          {% for m in all_mines or mines %}
-          <option value="{{ m.id }}" {% if active_mine_id == m.id %}selected{% endif %}>
-            {{ m.name }} ({{ m.district }})
-          </option>
-          {% endfor %}
-        </select>
+      <!-- Mine & Sub-Mine Selector Filter Form -->
+      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5">
+          <label for="admin-mine-filter" class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Mine:</label>
+          <select id="admin-mine-filter" name="mine_id" onchange="this.form.submit()" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-700">
+            <option value="" {% if not selected_mine_id %}selected{% endif %}>All Mines (Statewide Grid)</option>
+            {% for m in all_mines or mines %}
+            <option value="{{ m.id }}" {% if selected_mine_id == m.id %}selected{% endif %}>
+              {{ m.name }} ({{ m.district }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        {% if selected_mine_id and mine_quarry_blocks %}
+        <div class="flex items-center gap-1.5">
+          <label for="admin-submine-filter" class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Sub-Mine:</label>
+          <select id="admin-submine-filter" name="sub_mine_id" onchange="this.form.submit()" class="bg-emerald-50/70 border border-emerald-300 rounded px-2 py-1 text-xs font-semibold text-emerald-950 focus:outline-none focus:border-emerald-700 max-w-[200px] truncate">
+            <option value="" {% if not selected_sub_mine_id %}selected{% endif %}>All Sub-Mines ({{ mine_quarry_blocks|length }})</option>
+            {% for qb in mine_quarry_blocks %}
+            <option value="{{ qb.id }}" {% if selected_sub_mine_id == qb.id %}selected{% endif %}>
+              {{ qb.block_code }} - {{ qb.block_name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
       </form>
 
       <a href="{{ url_for('admin_users') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1">
@@ -47,6 +63,43 @@
       <a href="{{ url_for('set_mine_filter', mine_id='') }}" class="btn-gov btn-gov-secondary btn-sm">
         Reset Filter
       </a>
+    </div>
+  </div>
+
+  <!-- Hierarchical Progressive Navigation Bar -->
+  <div class="flex flex-wrap items-center justify-between bg-slate-100 border border-slate-300 rounded px-4 py-2 text-xs shadow-xs gap-2">
+    <div class="flex items-center gap-2 flex-wrap font-medium">
+      <span class="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Concession Level:</span>
+      <a href="{{ url_for('dashboard', mine_id='') }}" class="{% if not selected_mine_id %}text-slate-900 font-extrabold bg-white px-2.5 py-1 rounded border border-slate-300 shadow-2xs{% else %}text-emerald-700 hover:underline{% endif %} flex items-center gap-1">
+        <span>🏛️ All Mines (Statewide View)</span>
+      </a>
+
+      {% if selected_mine %}
+      <span class="text-slate-400 font-bold">&rsaquo;</span>
+      <a href="{{ url_for('dashboard', mine_id=selected_mine.id, sub_mine_id='') }}" class="{% if not selected_sub_mine_id %}text-slate-900 font-extrabold bg-white px-2.5 py-1 rounded border border-slate-300 shadow-2xs{% else %}text-emerald-700 hover:underline{% endif %} flex items-center gap-1">
+        <span>⛏️ {{ selected_mine.name }}</span>
+      </a>
+      {% endif %}
+
+      {% if selected_sub_mine %}
+      <span class="text-slate-400 font-bold">&rsaquo;</span>
+      <span class="text-emerald-950 font-extrabold bg-emerald-100/90 px-2.5 py-1 rounded border border-emerald-300 shadow-2xs flex items-center gap-1">
+        <span>🏗️ {{ selected_sub_mine.block_name }} &bull; {{ selected_sub_mine.leaseholder_name }}</span>
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2">
+      {% if selected_sub_mine %}
+      <a href="{{ url_for('dashboard', mine_id=selected_mine.id) }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] font-bold">
+        &larr; Back to All Sub-Mines in {{ selected_mine.name }}
+      </a>
+      {% endif %}
+      {% if selected_mine_id %}
+      <a href="{{ url_for('dashboard', mine_id='') }}" class="text-slate-600 hover:text-slate-900 text-[11px] font-semibold underline">
+        ✕ Reset to Statewide Grid
+      </a>
+      {% endif %}
     </div>
   </div>
 
@@ -376,18 +429,41 @@
     </div>
   </div>
 
-  <!-- Statewide Sub-Mines & Contractor Concessions Directory (Concessions Oversight) -->
+  {# ============================================================== #}
+  {# LEVEL 1: STATEWIDE VIEW (When no mine is selected)             #}
+  {# ============================================================== #}
+  {% if not selected_mine_id %}
+  <div class="bg-slate-50 border border-slate-300 rounded p-4 text-xs text-slate-700 flex flex-wrap items-center justify-between shadow-xs gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 text-sm font-bold flex-shrink-0">
+        🏛️
+      </div>
+      <div>
+        <div class="font-bold text-slate-900 uppercase text-xs">Statewide Overview Grid Active</div>
+        <div class="text-slate-600 mt-0.5">
+          Displaying statewide macro data across all 5 mining leases in Haryana. 
+          To inspect sub-mine pit concessions, contractors, and carrier trucks, click <strong>"Inspect Mine &amp; Sub-Mines &rarr;"</strong> on any lease in the table below or select a lease in the filter above.
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ============================================================== #}
+  {# LEVEL 2: SELECTED MINE VIEW (Sub-Mines & Contractor Concessions)#}
+  {# ============================================================== #}
+  {% if selected_mine_id and not selected_sub_mine_id %}
   <div class="gov-card">
     <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center gap-3">
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
         <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200">
-          Statewide Sub-Mines &amp; Contractor Concessions Directory
+          {{ selected_mine.name }} &bull; Sub-Mines &amp; Contractor Concessions Directory
         </h3>
-        <span class="text-[10px] bg-emerald-800 text-white font-mono px-2 py-0.5 rounded font-bold" id="admin-submines-count-badge">{{ all_quarry_blocks|length }} Active Tenders</span>
+        <span class="text-[10px] bg-emerald-800 text-white font-mono px-2 py-0.5 rounded font-bold" id="admin-submines-count-badge">{{ mine_quarry_blocks|length }} Active Tenders</span>
       </div>
       <div class="flex items-center gap-2">
-        <input type="text" id="admin-submine-search" oninput="filterAdminSubminesTable()" placeholder="🔍 Search sub-mine, pit, contractor, district..." class="gov-input text-xs w-64 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 px-3 py-1 rounded focus:outline-none focus:border-emerald-500 shadow-xs" />
+        <input type="text" id="admin-submine-search" oninput="filterAdminSubminesTable()" placeholder="🔍 Search sub-mine, pit, contractor..." class="gov-input text-xs w-64 bg-slate-800 text-white placeholder-slate-400 border border-slate-700 px-3 py-1 rounded focus:outline-none focus:border-emerald-500 shadow-xs" />
         <span class="text-[11px] text-slate-400 font-mono hidden md:inline">Scrollable Ledger &darr;</span>
       </div>
     </div>
@@ -396,7 +472,6 @@
         <thead class="sticky top-0 bg-slate-100 z-10 shadow-xs">
           <tr>
             <th>Sub-Plot Code</th>
-            <th>Parent Mining Area</th>
             <th>Sub-Mine / Pit Location</th>
             <th>Contractor / Leaseholder Entity</th>
             <th>Authorized Operator</th>
@@ -407,15 +482,14 @@
           </tr>
         </thead>
         <tbody id="admin-submines-tbody">
-          {% for qb in all_quarry_blocks %}
+          {% for qb in mine_quarry_blocks %}
           {% set pct = (qb.dispatched_mt / qb.allocated_quota_mt * 100)|round(1) if qb.allocated_quota_mt > 0 else 0 %}
-          <tr class="admin-submine-row hover:bg-slate-50 transition" data-search="{{ (qb.block_code ~ ' ' ~ qb.block_name ~ ' ' ~ qb.mine_name ~ ' ' ~ qb.mine_district ~ ' ' ~ qb.leaseholder_name ~ ' ' ~ qb.operator_name)|lower }}">
+          <tr class="admin-submine-row hover:bg-slate-50 transition" data-search="{{ (qb.block_code ~ ' ' ~ qb.block_name ~ ' ' ~ qb.leaseholder_name ~ ' ' ~ qb.operator_name)|lower }}">
             <td class="font-mono font-bold text-slate-900">
               <span class="bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-[11px]">{{ qb.block_code }}</span>
             </td>
-            <td class="font-semibold text-slate-800">{{ qb.mine_name }} ({{ qb.mine_district }})</td>
             <td class="font-bold text-emerald-950">{{ qb.block_name }}</td>
-            <td class="text-slate-800">{{ qb.leaseholder_name }}</td>
+            <td class="text-slate-800 font-semibold">{{ qb.leaseholder_name }}</td>
             <td class="text-slate-700 font-medium">{{ qb.operator_name }}</td>
             <td>
               <div class="flex justify-between items-center text-[11px] mb-1">
@@ -433,9 +507,15 @@
               </span>
             </td>
             <td>
-              <a href="{{ url_for('dashboard', mine_id=qb.mine_id) }}" class="btn-gov btn-gov-secondary btn-sm text-[11px]">
-                Inspect Sector &rarr;
+              <a href="{{ url_for('dashboard', mine_id=selected_mine_id, sub_mine_id=qb.id) }}" class="btn-gov btn-gov-primary btn-sm text-[11px] font-bold whitespace-nowrap">
+                Inspect Contractor &amp; Fleet &rarr;
               </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-6 text-slate-500">
+              No sub-mine contractor concessions currently registered under this lease.
             </td>
           </tr>
           {% endfor %}
@@ -444,98 +524,173 @@
     </div>
   </div>
 
-  <!-- Truck-Wise Material Movement Table (Section 20 - Drill-Down / Secondary Audit) -->
-  <div class="gov-card">
-    <details class="group">
-      <summary class="gov-card-header cursor-pointer select-none hover:bg-slate-50 transition list-none flex flex-wrap justify-between items-center">
-        <div class="flex items-center gap-2">
-          <svg class="w-4 h-4 text-slate-700 transition group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          <h3 class="gov-card-title">Truck-Wise Material Movement Ledger (Audit Drill-Down)</h3>
-          <span class="text-[10px] bg-slate-200 text-slate-700 font-semibold px-2 py-0.5 rounded">Operational Drill-Down &bull; Click to Expand</span>
-        </div>
-        <div class="flex items-center gap-2 text-xs" onclick="event.stopPropagation()">
-          <span class="text-slate-500">Filter Status:</span>
-          <select id="truck-table-status-filter" onchange="filterTruckLedger()" class="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold text-slate-800">
-            <option value="">All Statuses</option>
-            <option value="OVER QUANTITY">Over Quantity</option>
-            <option value="PENDING WEIGHMENT">Pending Weighment</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="NORMAL">Normal</option>
-          </select>
-        </div>
-      </summary>
-      <div class="gov-table-container border-t border-slate-200">
-        <table class="gov-table" id="admin-truck-ledger-table">
-          <thead>
-            <tr>
-              <th>Vehicle No.</th>
-              <th>Mine</th>
-              <th>Mineral</th>
-              <th>Permit No.</th>
-              <th>Permitted Qty</th>
-              <th>Actual Qty</th>
-              <th>Difference</th>
-              <th>Trips Today</th>
-              <th>Cum. Transported</th>
-              <th>Last Dispatch</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in truck_material_ledger %}
-            <tr class="truck-ledger-row" data-status="{{ r.status }}">
-              <td class="font-mono font-bold text-slate-900">
-                <a href="{{ url_for('truck_detail', truck_id=r.truck_id) }}" class="text-emerald-900 hover:underline">
-                  {{ r.vehicle_number }}
-                </a>
-              </td>
-              <td class="text-slate-800">{{ r.mine_name }}</td>
-              <td>{{ r.mineral }}</td>
-              <td class="font-mono text-xs">{{ r.permit_number }}</td>
-              <td class="font-mono font-semibold">{{ r.permitted_qty_mt }} MT</td>
-              <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-red-700{% elif r.actual_qty_mt %}text-slate-900{% else %}text-slate-400{% endif %}">
-                {{ r.actual_qty_mt ~ ' MT' if r.actual_qty_mt is not none else 'Pending' }}
-              </td>
-              <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-red-700{% elif r.difference_mt %}text-emerald-800{% else %}text-slate-400{% endif %}">
-                {% if r.difference_mt is not none %}
-                  {% if r.difference_mt > 0 %}+{% endif %}{{ r.difference_mt }} MT
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td class="text-center font-bold text-slate-800">{{ r.trips_today }}</td>
-              <td class="font-mono font-bold text-emerald-950">{{ r.cumulative_actual_mt }} MT</td>
-              <td class="text-xs text-slate-500 font-mono">{{ r.last_dispatch }}</td>
-              <td>
-                <span class="badge {% if r.status == 'OVER QUANTITY' %}badge-critical{% elif r.status == 'PENDING WEIGHMENT' %}badge-medium{% elif r.status == 'COMPLETED' %}badge-low{% else %}badge-low{% endif %} text-[11px] font-bold">
-                  {{ r.status }}
-                </span>
-              </td>
-              <td>
-                <a href="{{ url_for('truck_detail', truck_id=r.truck_id) }}" class="btn-gov btn-gov-secondary btn-sm text-[11px]">
-                  Audit &rarr;
-                </a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
+  <div class="bg-emerald-50/70 border border-emerald-200 rounded p-3 text-xs text-emerald-950 flex items-center justify-between shadow-xs">
+    <div class="flex items-center gap-2">
+      <span class="text-base">🚚</span>
+      <span><strong>Contractor Fleet Drill-Down:</strong> Select any contractor tender above (click <em>"Inspect Contractor &amp; Fleet &rarr;"</em>) to inspect their dedicated carrier trucks, e-Rawaana permits, and weighbridge transit records.</span>
+    </div>
   </div>
+  {% endif %}
+
+  {# ============================================================== #}
+  {# LEVEL 3: SELECTED SUB-MINE / CONTRACTOR VIEW                   #}
+  {# ============================================================== #}
+  {% if selected_sub_mine_id and selected_sub_mine %}
+  <!-- Contractor Concession Operations Profile -->
+  <div class="gov-card border-2 border-emerald-700/60 shadow-md">
+    <div class="gov-card-header bg-emerald-950 text-white flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200">
+          Contractor Operations Profile: {{ selected_sub_mine.leaseholder_name }}
+        </h3>
+        <span class="text-[10px] bg-emerald-800 text-white font-mono px-2 py-0.5 rounded font-bold">{{ selected_sub_mine.block_code }}</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('dashboard', mine_id=selected_mine_id, sub_mine_id='') }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] font-bold">
+          &larr; Switch Contractor
+        </a>
+      </div>
+    </div>
+    <div class="p-4 bg-white grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] uppercase font-bold text-slate-500">Pit / Sub-Plot Location</div>
+        <div class="text-sm font-extrabold text-slate-900 mt-1">{{ selected_sub_mine.block_name }}</div>
+        <div class="text-[11px] text-slate-600 mt-0.5">Parent Lease: {{ selected_mine.name }}</div>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] uppercase font-bold text-slate-500">Authorized Scale Operator</div>
+        <div class="text-sm font-extrabold text-slate-900 mt-1">{{ selected_sub_mine.operator_name }}</div>
+        <div class="text-[11px] text-slate-600 mt-0.5">Phone: {{ selected_sub_mine.contact_phone or 'Registered on Scale Console' }}</div>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] uppercase font-bold text-slate-500">Concession Quota Extraction</div>
+        {% set sub_pct = (selected_sub_mine.dispatched_mt / selected_sub_mine.allocated_quota_mt * 100)|round(1) if selected_sub_mine.allocated_quota_mt > 0 else 0 %}
+        <div class="flex items-baseline justify-between mt-1">
+          <span class="text-sm font-extrabold text-slate-900">{{ "{:,.0f}".format(selected_sub_mine.dispatched_mt) }} MT</span>
+          <span class="text-slate-500 text-[11px]">/ {{ "{:,.0f}".format(selected_sub_mine.allocated_quota_mt) }} MT ({{ sub_pct }}%)</span>
+        </div>
+        <div class="w-full bg-slate-200 rounded-full h-1.5 mt-1 overflow-hidden">
+          <div class="h-1.5 rounded-full {% if sub_pct >= 90 %}bg-red-600{% elif sub_pct >= 70 %}bg-amber-500{% else %}bg-emerald-600{% endif %}" style="width: {{ [sub_pct, 100]|min }}%"></div>
+        </div>
+      </div>
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded">
+        <div class="text-[10px] uppercase font-bold text-slate-500">Fleet Allocation &amp; Status</div>
+        <div class="text-sm font-extrabold text-emerald-900 mt-1">{{ selected_sub_mine.active_trucks_count or 4 }} Carriers Sanctioned</div>
+        <div class="mt-1">
+          <span class="badge {% if selected_sub_mine.status == 'OPERATIONAL' %}badge-low{% else %}badge-medium{% endif %} text-[10px] font-bold">
+            {{ selected_sub_mine.status }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Truck-Wise Material Movement Table (Section 20 - Drill-Down for this contractor) -->
+  <div class="gov-card">
+    <div class="gov-card-header bg-slate-900 text-white flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-200">
+          Contractor Fleet &amp; Material Movement Ledger &bull; {{ selected_sub_mine.leaseholder_name }}
+        </h3>
+        <span class="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+          {{ truck_material_ledger|length }} Outbound Dispatches
+        </span>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="text-slate-400">Filter Status:</span>
+        <select id="truck-table-status-filter" onchange="filterTruckLedger()" class="bg-slate-800 border border-slate-700 text-white rounded px-2 py-0.5 text-xs font-semibold focus:outline-none focus:border-emerald-500">
+          <option value="">All Statuses</option>
+          <option value="OVER QUANTITY">Over Quantity</option>
+          <option value="PENDING WEIGHMENT">Pending Weighment</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="NORMAL">Normal</option>
+        </select>
+      </div>
+    </div>
+    <div class="gov-table-container">
+      <table class="gov-table text-xs" id="admin-truck-ledger-table">
+        <thead>
+          <tr>
+            <th>Vehicle No.</th>
+            <th>Mine</th>
+            <th>Mineral</th>
+            <th>Permit No.</th>
+            <th>Permitted Qty</th>
+            <th>Actual Qty</th>
+            <th>Difference</th>
+            <th>Trips Today</th>
+            <th>Cum. Transported</th>
+            <th>Last Dispatch</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in truck_material_ledger %}
+          <tr class="truck-ledger-row" data-status="{{ r.status }}">
+            <td class="font-mono font-bold text-slate-900">
+              <a href="{{ url_for('truck_detail', truck_id=r.truck_id) }}" class="text-emerald-900 hover:underline">
+                {{ r.vehicle_number }}
+              </a>
+            </td>
+            <td class="text-slate-800">{{ r.mine_name }}</td>
+            <td>{{ r.mineral }}</td>
+            <td class="font-mono text-xs">{{ r.permit_number }}</td>
+            <td class="font-mono font-semibold">{{ r.permitted_qty_mt }} MT</td>
+            <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-red-700{% elif r.actual_qty_mt %}text-slate-900{% else %}text-slate-400{% endif %}">
+              {{ r.actual_qty_mt ~ ' MT' if r.actual_qty_mt is not none else 'Pending' }}
+            </td>
+            <td class="font-mono font-bold {% if r.difference_mt and r.difference_mt > 0 %}text-red-700{% elif r.difference_mt %}text-emerald-800{% else %}text-slate-400{% endif %}">
+              {% if r.difference_mt is not none %}
+                {% if r.difference_mt > 0 %}+{% endif %}{{ r.difference_mt }} MT
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-center font-bold text-slate-800">{{ r.trips_today }}</td>
+            <td class="font-mono font-bold text-emerald-950">{{ r.cumulative_actual_mt }} MT</td>
+            <td class="text-xs text-slate-500 font-mono">{{ r.last_dispatch }}</td>
+            <td>
+              <span class="badge {% if r.status == 'OVER QUANTITY' %}badge-critical{% elif r.status == 'PENDING WEIGHMENT' %}badge-medium{% elif r.status == 'COMPLETED' %}badge-low{% else %}badge-low{% endif %} text-[11px] font-bold">
+                {{ r.status }}
+              </span>
+            </td>
+            <td>
+              <a href="{{ url_for('truck_detail', truck_id=r.truck_id) }}" class="btn-gov btn-gov-secondary btn-sm text-[11px]">
+                Audit &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="12" class="text-center py-6 text-slate-500">
+              <div class="flex flex-col items-center justify-center gap-1">
+                <span class="text-2xl">🚛</span>
+                <span class="font-semibold">No material movement dispatches recorded today for this contractor concession.</span>
+                <span class="text-[11px] text-slate-400">All registered carriers for this sub-mine are currently idle or awaiting scale loading.</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- State Mining Leases & Annual Quota Monitoring (Preserved) -->
   <div class="gov-card">
-    <div class="gov-card-header">
-      <h3 class="gov-card-title flex items-center gap-2">
+    <div class="gov-card-header flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-        <span>Authorized State Mining Leases &amp; Quota Compliance</span>
-      </h3>
-      <span class="text-xs text-slate-500">MMDR Statutory Extraction Thresholds</span>
+        <h3 class="gov-card-title">Authorized State Mining Leases &amp; Quota Compliance</h3>
+      </div>
+      <span class="text-xs text-slate-500 font-mono">MMDR Statutory Extraction Thresholds</span>
     </div>
     <div class="gov-table-container">
-      <table class="gov-table">
+      <table class="gov-table text-xs">
         <thead>
           <tr>
             <th>Mine Code</th>
@@ -547,12 +702,13 @@
             <th>Quota Progress</th>
             <th>Authorized Operator</th>
             <th>Status</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {% for m in mines %}
           {% set pct = (m.current_dispatch_mt / m.authorized_annual_quota_mt * 100)|round(1) if m.authorized_annual_quota_mt > 0 else 0 %}
-          <tr>
+          <tr class="{% if selected_mine_id == m.id %}bg-emerald-50/70 border-l-4 border-l-emerald-700 font-semibold{% endif %} hover:bg-slate-50 transition">
             <td class="font-mono font-bold text-slate-900">{{ m.mine_code }}</td>
             <td class="font-semibold text-slate-800">{{ m.name }}</td>
             <td>{{ m.mineral }}</td>
@@ -574,6 +730,17 @@
               <span class="badge {% if m.status == 'OPERATIONAL' %}badge-low{% elif m.status == 'QUOTA_EXCEEDED' %}badge-critical{% else %}badge-medium{% endif %}">
                 {{ m.status }}
               </span>
+            </td>
+            <td>
+              {% if selected_mine_id == m.id %}
+              <a href="{{ url_for('dashboard', mine_id='') }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] font-bold whitespace-nowrap">
+                ✕ Reset View
+              </a>
+              {% else %}
+              <a href="{{ url_for('dashboard', mine_id=m.id) }}" class="btn-gov btn-gov-primary btn-sm text-[11px] font-bold whitespace-nowrap">
+                Inspect Mine &amp; Sub-Mines &rarr;
+              </a>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -872,7 +1039,9 @@
 <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
 <script>
 function filterTruckLedger() {
-  const selectedStatus = document.getElementById('truck-table-status-filter').value;
+  const filterElem = document.getElementById('truck-table-status-filter');
+  if (!filterElem) return;
+  const selectedStatus = filterElem.value;
   const rows = document.querySelectorAll('.truck-ledger-row');
   rows.forEach(r => {
     const status = r.getAttribute('data-status');
@@ -990,7 +1159,9 @@ async function submitAdminEmergencyPermit(event) {
 }
 
 function filterAdminSubminesTable() {
-  const query = (document.getElementById('admin-submine-search').value || '').toLowerCase().trim();
+  const searchInput = document.getElementById('admin-submine-search');
+  if (!searchInput) return;
+  const query = (searchInput.value || '').toLowerCase().trim();
   const rows = document.querySelectorAll('.admin-submine-row');
   let count = 0;
   rows.forEach(r => {
@@ -1004,7 +1175,7 @@ function filterAdminSubminesTable() {
   });
   const badge = document.getElementById('admin-submines-count-badge');
   if (badge) {
-    badge.innerText = query ? `${count} Matches` : '{{ all_quarry_blocks|length }} Active Tenders';
+    badge.innerText = query ? `${count} Matches` : '{{ mine_quarry_blocks|length }} Active Tenders';
   }
 }
 </script>

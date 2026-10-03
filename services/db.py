@@ -732,6 +732,8 @@ class DatabaseManager:
                 cur.execute("ALTER TABLE trucks ADD COLUMN last_tamper_type TEXT")
             if "transponder_model" not in truck_cols:
                 cur.execute("ALTER TABLE trucks ADD COLUMN transponder_model TEXT DEFAULT 'AIS-140 IRNSS Rugged v4.2'")
+            if "sub_mine_id" not in truck_cols:
+                cur.execute("ALTER TABLE trucks ADD COLUMN sub_mine_id INTEGER REFERENCES quarry_blocks(id)")
 
             # GPS tamper events table
             cur.execute("""
@@ -878,6 +880,8 @@ class DatabaseManager:
                 cur.execute("ALTER TABLE drivers ADD COLUMN allowed_rounds_per_day INTEGER DEFAULT 4")
             if "completed_rounds_today" not in driver_cols:
                 cur.execute("ALTER TABLE drivers ADD COLUMN completed_rounds_today INTEGER DEFAULT 0")
+            if "sub_mine_id" not in driver_cols:
+                cur.execute("ALTER TABLE drivers ADD COLUMN sub_mine_id INTEGER REFERENCES quarry_blocks(id)")
 
             # alert columns (Supervisory Vigilance Audit & Officer Triage)
             alert_cols = [r[1] for r in cur.execute("PRAGMA table_info(alerts)").fetchall()]
@@ -907,10 +911,12 @@ class DatabaseManager:
             if "consumed_at" not in permit_cols:
                 cur.execute("ALTER TABLE permits ADD COLUMN consumed_at DATETIME")
 
-            # users columns (Assigned Concession Leasehold)
+            # users columns (Assigned Concession Leasehold & Sub-Mine)
             user_cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
             if "assigned_mine_id" not in user_cols:
                 cur.execute("ALTER TABLE users ADD COLUMN assigned_mine_id INTEGER DEFAULT 1")
+            if "assigned_sub_mine_id" not in user_cols:
+                cur.execute("ALTER TABLE users ADD COLUMN assigned_sub_mine_id INTEGER REFERENCES quarry_blocks(id)")
             cur.execute("UPDATE users SET assigned_mine_id = 1 WHERE username IN ('officer1', 'operator1') AND (assigned_mine_id IS NULL OR assigned_mine_id = 0)")
 
             # quarry_blocks table (Mine Sub-Locations / Businessmen Concessions)

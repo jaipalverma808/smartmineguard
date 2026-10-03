@@ -580,8 +580,10 @@ def set_mine_filter():
         return redirect(request.referrer or url_for("dashboard"))
 
     mine_id = request.values.get("mine_id")
+    sub_mine_id = request.values.get("sub_mine_id")
     if not mine_id or str(mine_id).lower() in ("all", "0", "", "none"):
         session.pop("selected_mine_id", None)
+        session.pop("selected_sub_mine_id", None)
         flash("Displaying statewide grid for all mining leaseholds.", "info")
     else:
         try:
@@ -589,11 +591,24 @@ def set_mine_filter():
             mine = db.query("SELECT * FROM mines WHERE id = ?", (m_id,), one=True)
             if mine:
                 session["selected_mine_id"] = m_id
-                flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
+                if sub_mine_id and str(sub_mine_id).isdigit() and int(sub_mine_id) > 0:
+                    sm_id = int(sub_mine_id)
+                    qb = db.query("SELECT * FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, m_id), one=True)
+                    if qb:
+                        session["selected_sub_mine_id"] = sm_id
+                        flash(f"Filter applied: {mine['name']} › {qb['block_name']} ({qb['leaseholder_name']}).", "success")
+                    else:
+                        session.pop("selected_sub_mine_id", None)
+                        flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
+                else:
+                    session.pop("selected_sub_mine_id", None)
+                    flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
             else:
                 session.pop("selected_mine_id", None)
+                session.pop("selected_sub_mine_id", None)
         except Exception:
             session.pop("selected_mine_id", None)
+            session.pop("selected_sub_mine_id", None)
 
     next_url = request.values.get("next") or request.referrer or url_for("dashboard")
     return redirect(next_url)
@@ -725,12 +740,41 @@ def dashboard():
                 session["selected_mine_id"] = int(m_param)
             else:
                 session.pop("selected_mine_id", None)
+                session.pop("selected_sub_mine_id", None)
+
+        if "sub_mine_id" in request.args:
+            sm_param = request.args.get("sub_mine_id")
+            if sm_param and sm_param.isdigit() and int(sm_param) > 0:
+                session["selected_sub_mine_id"] = int(sm_param)
+            else:
+                session.pop("selected_sub_mine_id", None)
     else:
         session.pop("selected_mine_id", None)  # Strictly disallowed for OFFICER/OPERATOR
+        session.pop("selected_sub_mine_id", None)
 
     selected_mine_id = get_active_mine_id()
 
     if role == "ADMIN":
+        selected_mine = None
+        if selected_mine_id:
+            selected_mine = db.query("SELECT * FROM mines WHERE id = ?", (selected_mine_id,), one=True)
+            if not selected_mine:
+                selected_mine_id = None
+                session.pop("selected_mine_id", None)
+                session.pop("selected_sub_mine_id", None)
+
+        selected_sub_mine_id = session.get("selected_sub_mine_id") if selected_mine_id else None
+        selected_sub_mine = None
+        if selected_mine_id and selected_sub_mine_id:
+            selected_sub_mine = db.query(
+                "SELECT qb.*, m.name as mine_name, m.district as mine_district FROM quarry_blocks qb LEFT JOIN mines m ON m.id = qb.mine_id WHERE qb.id = ? AND qb.mine_id = ?",
+                (selected_sub_mine_id, selected_mine_id),
+                one=True
+            )
+            if not selected_sub_mine:
+                selected_sub_mine_id = None
+                session.pop("selected_sub_mine_id", None)
+
         if selected_mine_id:
             total_mines = 1
             truck_ids = get_operator_truck_ids(selected_mine_id)
@@ -774,9 +818,34 @@ def dashboard():
         mismatch_check = DetectionEngine.check_production_dispatch_reconciliation(mine_id=selected_mine_id)
         stock_recon = MaterialMonitoringService.get_stock_reconciliation(mine_id=selected_mine_id)
         mine_wise_summary = MaterialMonitoringService.get_mine_wise_material_summary()
-        truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(mine_id=selected_mine_id)
         top_rankings = MaterialMonitoringService.get_top_material_rankings(mine_id=selected_mine_id)
         mineral_summary = MaterialMonitoringService.get_mineral_wise_summary(mine_id=selected_mine_id)
+
+        # Level 2: Sub-Mines under selected mine
+        if selected_mine_id:
+            mine_quarry_blocks = db.query("""
+                SELECT qb.*, m.name as mine_name, m.district as mine_district
+                FROM quarry_blocks qb
+                LEFT JOIN mines m ON m.id = qb.mine_id
+                WHERE qb.mine_id = ?
+                ORDER BY qb.id ASC
+            """, (selected_mine_id,))
+        else:
+            mine_quarry_blocks = []
+
+        # Level 3: Truck-Wise Material Movement Ledger ONLY loaded when a specific contractor/sub-mine is selected
+        if selected_sub_mine_id:
+            truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(
+                mine_id=selected_mine_id,
+                sub_mine_id=selected_sub_mine_id
+            )
+            assigned_contractor_trucks = db.query(
+                "SELECT * FROM trucks WHERE sub_mine_id = ? ORDER BY registration_number ASC",
+                (selected_sub_mine_id,)
+            )
+        else:
+            truck_material_ledger = []
+            assigned_contractor_trucks = []
 
         # Supervisory Vigilance Audit: High-risk detections and officer actions
         officer_audits = db.query("""
@@ -822,6 +891,11 @@ def dashboard():
             users=users,
             audit_logs=audit_logs,
             selected_mine_id=selected_mine_id,
+            selected_mine=selected_mine,
+            selected_sub_mine_id=selected_sub_mine_id,
+            selected_sub_mine=selected_sub_mine,
+            mine_quarry_blocks=mine_quarry_blocks,
+            assigned_contractor_trucks=assigned_contractor_trucks,
             daily_summary=daily_summary,
             dispatch_control=dispatch_control,
             mismatch_check=mismatch_check,
