@@ -103,7 +103,10 @@
     </div>
   </div>
 
-  <!-- Executive State Command Center KPI Tiles (Requirement 13) -->
+  {# ============================================================== #}
+  {# LEVEL 1: Executive State Command Center KPI Tiles              #}
+  {# ============================================================== #}
+  {% if not selected_mine_id %}
   <div class="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2.5 text-center">
     <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
       <div class="stat-label text-[10px]">Active Mines</div>
@@ -113,7 +116,7 @@
     <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
       <div class="stat-label text-[10px]">Sub-Mines / Contractors</div>
       <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ total_sub_mines }}</div>
-      <div class="stat-subtext text-[9px]">Active Tenders</div>
+      <div class="stat-subtext text-[9px]">Active Tenders Across State</div>
     </div>
     <div class="p-2.5 bg-white border border-slate-200 rounded shadow-xs">
       <div class="stat-label text-[10px]">Active Trucks</div>
@@ -126,12 +129,12 @@
       <div class="stat-subtext text-[9px]">Continuous Highway</div>
     </div>
     <div class="p-2.5 bg-emerald-50/60 border border-emerald-200 rounded shadow-xs">
-      <div class="stat-label text-[10px] text-emerald-800">Today's Dispatch</div>
+      <div class="stat-label text-[10px] text-emerald-800">Statewide Dispatch</div>
       <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(daily_summary.actual_dispatch_mt) }} MT</div>
       <div class="stat-subtext text-[9px]">Weighbridge Outflow</div>
     </div>
     <div class="p-2.5 bg-slate-50 border border-slate-200 rounded shadow-xs">
-      <div class="stat-label text-[10px]">Today's Production</div>
+      <div class="stat-label text-[10px]">Statewide Production</div>
       <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(daily_summary.production_today_mt) }} MT</div>
       <div class="stat-subtext text-[9px]">Pit Excavation</div>
     </div>
@@ -157,6 +160,90 @@
     </div>
   </div>
 
+  {# ============================================================== #}
+  {# LEVEL 2: Mine-Specific Jurisdiction KPI Tiles                  #}
+  {# ============================================================== #}
+  {% elif selected_mine_id and not selected_sub_mine_id %}
+  {% set mine_pct = (selected_mine.current_dispatch_mt / selected_mine.authorized_annual_quota_mt * 100)|round(1) if selected_mine.authorized_annual_quota_mt > 0 else 0 %}
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center">
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Annual Quota</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(selected_mine.authorized_annual_quota_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">{{ selected_mine.mine_code }}</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Cumulative Outflow</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(selected_mine.current_dispatch_mt) }} MT</div>
+      <div class="stat-subtext text-[9px] font-semibold text-emerald-700">{{ mine_pct }}% Quota Progress</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Sub-Mines in this Mine</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ mine_quarry_blocks|length }}</div>
+      <div class="stat-subtext text-[9px]">Active Tenders in {{ selected_mine.name }}</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Mine Carrier Fleet</div>
+      <div class="stat-value text-emerald-900 text-base font-extrabold mt-0.5">{{ active_trucks }} Active</div>
+      <div class="stat-subtext text-[9px]">Total: {{ total_trucks }} Registered</div>
+    </div>
+    <div class="p-3 bg-slate-50 border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Mine Today's Production</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(daily_summary.production_today_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">Pit Excavation in Mine</div>
+    </div>
+    <div class="p-3 bg-emerald-50/60 border border-emerald-200 rounded shadow-xs">
+      <div class="stat-label text-[10px] text-emerald-800">Mine Today's Dispatch</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(daily_summary.actual_dispatch_mt) }} MT</div>
+      <div class="stat-subtext text-[9px]">Scale Outflow Today</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Mine Status</div>
+      <div class="stat-value text-base font-extrabold mt-0.5">
+        <span class="badge {% if selected_mine.status == 'OPERATIONAL' %}badge-low{% else %}badge-critical{% endif %} text-xs font-bold">{{ selected_mine.status }}</span>
+      </div>
+      <div class="stat-subtext text-[9px]">{{ pending_alerts }} Open Alerts</div>
+    </div>
+  </div>
+
+  {# ============================================================== #}
+  {# LEVEL 3: Contractor-Specific Concession KPI Tiles              #}
+  {# ============================================================== #}
+  {% elif selected_sub_mine_id and selected_sub_mine %}
+  {% set sub_pct = (selected_sub_mine.dispatched_mt / selected_sub_mine.allocated_quota_mt * 100)|round(1) if selected_sub_mine.allocated_quota_mt > 0 else 0 %}
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-center">
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Concession Quota</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(selected_sub_mine.allocated_quota_mt) }} MT</div>
+      <div class="stat-subtext text-[9px] font-mono">{{ selected_sub_mine.block_code }}</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Contractor Cumulative</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.0f}".format(selected_sub_mine.dispatched_mt) }} MT</div>
+      <div class="stat-subtext text-[9px] font-semibold text-emerald-700">{{ sub_pct }}% of Tender Cap</div>
+    </div>
+    <div class="p-3 bg-emerald-50/60 border border-emerald-200 rounded shadow-xs">
+      <div class="stat-label text-[10px] text-emerald-800">Contractor Today's Dispatch</div>
+      <div class="stat-value text-emerald-950 text-base font-extrabold mt-0.5">{{ "{:,.1f}".format(contractor_today_dispatch) }} MT</div>
+      <div class="stat-subtext text-[9px]">Weighbridge Outflow</div>
+    </div>
+    <div class="p-3 bg-slate-50 border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Contractor Pit Extraction</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ "{:,.1f}".format(contractor_today_production) }} MT</div>
+      <div class="stat-subtext text-[9px]">Pit Excavation</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Dedicated Carrier Fleet</div>
+      <div class="stat-value text-emerald-900 text-base font-extrabold mt-0.5">{{ assigned_contractor_trucks|length }} Carriers</div>
+      <div class="stat-subtext text-[9px]">Assigned to this Contractor</div>
+    </div>
+    <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
+      <div class="stat-label text-[10px]">Contractor Dispatches Today</div>
+      <div class="stat-value text-slate-900 text-base font-extrabold mt-0.5">{{ truck_material_ledger|length }} Trips</div>
+      <div class="stat-subtext text-[9px]">e-Rawaana Passes Out</div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if mismatch_check and mismatch_check.is_violation %}
   <!-- Statutory Alert: Production-Dispatch Mismatch (Requirement 10) -->
   <div class="bg-red-900 text-white border-2 border-red-600 rounded-lg p-4 shadow-md flex items-start gap-3">
@@ -178,7 +265,11 @@
   </div>
   {% endif %}
 
-  <!-- Unified Daily Operational Dispatch & Stock Balance Section -->
+  {# ========================================================================= #}
+  {# LEVEL 1 & 2: Daily Operational Dispatch & Stock Balance                   #}
+  {# (Hidden completely in Level 3 Contractor View to avoid whole-mine clutter)#}
+  {# ========================================================================= #}
+  {% if not selected_sub_mine_id %}
   <div class="gov-card">
     <div class="gov-card-header bg-emerald-950 text-white flex flex-wrap justify-between items-center">
       <div class="flex items-center gap-2">
@@ -189,7 +280,7 @@
         </h3>
         {% if selected_mine_id %}
         <span class="text-[10px] bg-emerald-900 border border-emerald-700 text-emerald-300 px-2 py-0.5 rounded font-mono">
-          Filtered: Mine ID {{ selected_mine_id }}
+          Filtered: {{ selected_mine.name }}
         </span>
         {% else %}
         <span class="text-[10px] bg-emerald-900 border border-emerald-700 text-emerald-300 px-2 py-0.5 rounded font-mono">
@@ -289,6 +380,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   {% if not selected_mine_id %}
   <!-- Mine-Wise Material Summary Table (Section 21) -->

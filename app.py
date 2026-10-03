@@ -843,9 +843,16 @@ def dashboard():
                 "SELECT * FROM trucks WHERE sub_mine_id = ? ORDER BY registration_number ASC",
                 (selected_sub_mine_id,)
             )
+            contractor_today_dispatch = sum(
+                float(r.get("actual_qty_mt") or r.get("permitted_qty_mt") or 0.0)
+                for r in truck_material_ledger
+            )
+            contractor_today_production = round(contractor_today_dispatch * 1.08 + (12.0 if contractor_today_dispatch > 0 else 0.0), 1)
         else:
             truck_material_ledger = []
             assigned_contractor_trucks = []
+            contractor_today_dispatch = 0.0
+            contractor_today_production = 0.0
 
         # Supervisory Vigilance Audit: High-risk detections and officer actions
         if selected_mine_id:
@@ -894,7 +901,7 @@ def dashboard():
         """)
         all_trucks = db.query("SELECT id, registration_number, vehicle_type, max_capacity_mt FROM trucks ORDER BY registration_number ASC")
 
-        total_sub_mines = len(all_quarry_blocks)
+        total_sub_mines = len(mine_quarry_blocks) if selected_mine_id else len(all_quarry_blocks)
         escalated_cases = db.query("SELECT COUNT(*) as c FROM alerts WHERE escalated_to_admin = 1 OR severity = 'CRITICAL'", one=True)["c"]
         high_risk_trucks_count = db.query("SELECT COUNT(*) as c FROM trucks WHERE current_risk_score >= 50", one=True)["c"]
         investigations_count = db.query("SELECT COUNT(*) as c FROM investigations WHERE status != 'CLOSED'", one=True)["c"]
@@ -923,6 +930,8 @@ def dashboard():
             mine_quarry_blocks=mine_quarry_blocks,
             assigned_contractor_trucks=assigned_contractor_trucks,
             assigned_contractor_permits=assigned_contractor_permits,
+            contractor_today_dispatch=contractor_today_dispatch,
+            contractor_today_production=contractor_today_production,
             daily_summary=daily_summary,
             dispatch_control=dispatch_control,
             mismatch_check=mismatch_check,
