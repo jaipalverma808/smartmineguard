@@ -922,17 +922,21 @@ def dashboard():
             ORDER BY qb.id ASC
         """, (officer_mine_id,))
 
+        # Batch aggregate sub_mine / quarry block counts efficiently
+        truck_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT sub_mine_id, COUNT(*) as c FROM trucks WHERE sub_mine_id IS NOT NULL GROUP BY sub_mine_id")}
+        trip_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT t.sub_mine_id, COUNT(tr.id) as c FROM trips tr JOIN trucks t ON t.id = tr.truck_id WHERE t.sub_mine_id IS NOT NULL GROUP BY t.sub_mine_id")}
+        alert_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT t.sub_mine_id, COUNT(a.id) as c FROM alerts a JOIN trucks t ON t.id = a.truck_id WHERE t.sub_mine_id IS NOT NULL AND a.status IN ('NEW', 'UNDER_REVIEW') GROUP BY t.sub_mine_id")}
+        high_risk_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT sub_mine_id, COUNT(*) as c FROM trucks WHERE sub_mine_id IS NOT NULL AND current_risk_score >= 50 GROUP BY sub_mine_id")}
+        critical_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT sub_mine_id, COUNT(*) as c FROM trucks WHERE sub_mine_id IS NOT NULL AND current_risk_score >= 80 GROUP BY sub_mine_id")}
+
         for qb in quarry_blocks:
             qb_id = qb["id"]
-            qb["active_trucks_count"] = db.query("SELECT COUNT(*) as c FROM trucks WHERE sub_mine_id = ?", (qb_id,), one=True)["c"]
-            qb["trips_today"] = db.query("SELECT COUNT(*) as c FROM trips WHERE truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?)", (qb_id,), one=True)["c"]
-            qb["alerts_count"] = db.query("""
-                SELECT COUNT(*) as c FROM alerts a
-                LEFT JOIN trucks t ON t.id = a.truck_id
-                WHERE t.sub_mine_id = ? AND a.status IN ('NEW', 'UNDER_REVIEW')
-            """, (qb_id,), one=True)["c"]
-            qb["high_risk_count"] = db.query("SELECT COUNT(*) as c FROM trucks WHERE sub_mine_id = ? AND current_risk_score >= 50", (qb_id,), one=True)["c"]
-            qb["critical_count"] = db.query("SELECT COUNT(*) as c FROM trucks WHERE sub_mine_id = ? AND current_risk_score >= 80", (qb_id,), one=True)["c"]
+            qb["active_trucks_count"] = truck_counts.get(qb_id, 0)
+            qb["trips_today"] = trip_counts.get(qb_id, 0)
+            qb["alerts_count"] = alert_counts.get(qb_id, 0)
+            qb["high_risk_count"] = high_risk_counts.get(qb_id, 0)
+            qb["critical_count"] = critical_counts.get(qb_id, 0)
+
 
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)

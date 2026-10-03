@@ -176,10 +176,34 @@ class DatabaseManager:
     def _format_pg_sql(self, sql):
         import re
         pg_sql = sql.replace("%", "%%").replace("?", "%s")
+        # Handle SQLite date and time modifiers
+        pg_sql = re.sub(r"datetime\('now',\s*'-(\d+)\s+hours?'\)", r"(CURRENT_TIMESTAMP - INTERVAL '\1 hour')", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"datetime\('now',\s*'\+(\d+)\s+hours?'\)", r"(CURRENT_TIMESTAMP + INTERVAL '\1 hour')", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"datetime\('now',\s*'-(\d+)\s+minutes?'\)", r"(CURRENT_TIMESTAMP - INTERVAL '\1 minute')", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"datetime\('now',\s*'\+(\d+)\s+minutes?'\)", r"(CURRENT_TIMESTAMP + INTERVAL '\1 minute')", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"datetime\('now',\s*'-(\d+)\s+days?'\)", r"(CURRENT_TIMESTAMP - INTERVAL '\1 day')", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"datetime\('now',\s*'\+(\d+)\s+days?'\)", r"(CURRENT_TIMESTAMP + INTERVAL '\1 day')", pg_sql, flags=re.IGNORECASE)
         pg_sql = pg_sql.replace("datetime('now')", "CURRENT_TIMESTAMP")
         pg_sql = pg_sql.replace("datetime('now', 'localtime')", "CURRENT_TIMESTAMP")
+        pg_sql = re.sub(r"date\('now'(?:,\s*'localtime')?\)", "CURRENT_DATE", pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r"DATE\(([\w\.]+)\)", r"(\1::date)", pg_sql, flags=re.IGNORECASE)
         pg_sql = re.sub(r'substr\(([\w\.]*timestamp),', r'substr(\1::text,', pg_sql)
+        # Automatic boolean coercion for PostgreSQL compatibility
+        pg_sql = re.sub(r'(\b\w+\.is_inside_mine\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\b\w+\.is_inside_mine\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_inside_mine\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_inside_mine\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\b\w+\.is_active\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\b\w+\.is_active\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_active\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_active\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\b\w+\.is_overweight\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\b\w+\.is_overweight\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_overweight\s*=\s*)1\b', r'\1TRUE', pg_sql, flags=re.IGNORECASE)
+        pg_sql = re.sub(r'(\bis_overweight\s*=\s*)0\b', r'\1FALSE', pg_sql, flags=re.IGNORECASE)
         return pg_sql
+
+
 
     def _serialize_row(self, row_dict):
         from datetime import datetime, date
@@ -468,6 +492,8 @@ class DatabaseManager:
                             ALTER TABLE trucks ADD COLUMN IF NOT EXISTS current_mine_id INTEGER;
                             ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_mine_entry TIMESTAMP;
                             ALTER TABLE trucks ADD COLUMN IF NOT EXISTS last_mine_exit TIMESTAMP;
+                            ALTER TABLE trucks ADD COLUMN IF NOT EXISTS sub_mine_id INTEGER;
+
 
                             -- PERMITS
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP;
@@ -523,6 +549,8 @@ class DatabaseManager:
                             -- DRIVERS
                             ALTER TABLE drivers ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
                             ALTER TABLE drivers ADD COLUMN IF NOT EXISTS completed_rounds_today INTEGER DEFAULT 0;
+                            ALTER TABLE drivers ADD COLUMN IF NOT EXISTS sub_mine_id INTEGER;
+
 
                             -- USERS
                             ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_mine_id INTEGER DEFAULT 1;

@@ -66,8 +66,10 @@ CREATE TABLE IF NOT EXISTS trucks (
     current_mine_id INT REFERENCES mines(id),
     last_mine_entry TIMESTAMP,
     last_mine_exit TIMESTAMP,
+    sub_mine_id INT REFERENCES quarry_blocks(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- 4. e-RAWAANA PERMITS
 CREATE TABLE IF NOT EXISTS permits (
@@ -235,8 +237,10 @@ CREATE TABLE IF NOT EXISTS drivers (
     status VARCHAR(20) DEFAULT 'ACTIVE',
     allowed_rounds_per_day INT DEFAULT 4,
     completed_rounds_today INT DEFAULT 0,
+    sub_mine_id INT REFERENCES quarry_blocks(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- 13. WEIGHBRIDGES INFRASTRUCTURE
 CREATE TABLE IF NOT EXISTS weighbridges (

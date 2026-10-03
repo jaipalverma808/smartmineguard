@@ -726,8 +726,9 @@ class MaterialMonitoringService:
             SELECT t.*, p.permit_number, p.mineral as mineral_name, p.permitted_weight_mt, p.status as permit_status
             FROM trucks t
             LEFT JOIN permits p ON p.truck_id = t.id AND p.status IN ('ACTIVE', 'ISSUED', 'IN_TRANSIT')
-            WHERE t.is_inside_mine = 1 AND t.current_mine_id = ?
+            WHERE t.is_inside_mine = TRUE AND t.current_mine_id = ?
             ORDER BY t.last_mine_entry ASC
+
         """, (mine_id,))
         active_vehicles = []
         ghost_count = 0
