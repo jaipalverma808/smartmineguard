@@ -295,6 +295,21 @@ CREATE TABLE IF NOT EXISTS stock_production (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 17. AUDIT LOGS
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username VARCHAR(100),
+    action VARCHAR(100) NOT NULL,
+    details TEXT,
+    entity VARCHAR(100),
+    previous_state TEXT,
+    new_state TEXT,
+    reason TEXT,
+    ip_address VARCHAR(50) DEFAULT '127.0.0.1',
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- SPATIAL & PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_mines_geom ON mines USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_trucks_geom ON trucks USING GIST (geom);

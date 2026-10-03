@@ -417,6 +417,26 @@ class DatabaseManager:
                                 status VARCHAR(50) DEFAULT 'ACTIVE',
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             );
+                            CREATE TABLE IF NOT EXISTS audit_logs (
+                                id SERIAL PRIMARY KEY,
+                                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                                username VARCHAR(100),
+                                action VARCHAR(100) NOT NULL,
+                                details TEXT,
+                                entity VARCHAR(100),
+                                previous_state TEXT,
+                                new_state TEXT,
+                                reason TEXT,
+                                ip_address VARCHAR(50) DEFAULT '127.0.0.1',
+                                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                            INSERT INTO audit_logs (id, user_id, username, action, details, ip_address, timestamp) VALUES
+                            (1, 1, 'admin', 'SYSTEM_INIT', 'Spatial database engine and geofence corridors initialized successfully.', '127.0.0.1', '2026-09-10 08:30:00'),
+                            (2, 1, 'admin', 'QUOTA_AUDIT', 'Annual quota audit completed across 4 major state mining leaseholds.', '127.0.0.1', '2026-09-10 09:15:00'),
+                            (3, 2, 'officer1', 'CHECKPOINT_VERIFY', 'Vehicle HR26AB1234 verified via QR at Alwar Border Outpost.', '192.168.1.104', '2026-09-10 11:20:00'),
+                            (4, 2, 'officer1', 'ALERT_ELEVATION', 'Alert ALT-2026-00101 elevated to formal statutory case SMG-2026-00041.', '192.168.1.104', '2026-09-10 13:45:00'),
+                            (5, 3, 'operator1', 'PERMIT_DISPATCH', 'e-Rawaana SMG-2026-00125 generated for 20.0 MT Quartzite Aggregate.', '192.168.4.22', '2026-09-10 14:10:00')
+                            ON CONFLICT (id) DO NOTHING;
                         """)
                         conn.commit()
                     except Exception as _t_err:
