@@ -7,7 +7,7 @@
 
   <!-- Map Command Bar -->
   <div class="flex flex-wrap justify-between items-center bg-white border border-slate-300 rounded px-4 py-2 text-xs shadow-sm gap-2">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 flex-wrap">
       <span class="font-bold text-slate-800 uppercase tracking-wide">Live GIS Operations Layer</span>
       <span class="text-slate-300">|</span>
       <div class="flex items-center gap-2">
@@ -23,15 +23,60 @@
     </div>
 
     <!-- Filter & Demo Controls -->
-    <div class="flex items-center gap-2">
-      <button onclick="focusTruck('HR26AB1234')" class="btn-gov btn-gov-danger btn-sm">
-        Locate Target Truck (HR26AB1234)
+    <div class="flex items-center gap-2 flex-wrap">
+      <!-- Sub-Mine Isolation Filter for Live GIS Map -->
+      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center gap-1.5 flex-wrap">
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        {% if current_user.role == 'ADMIN' %}
+        <div class="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs">
+          <span class="text-[10px] font-bold text-slate-600 uppercase">⛏ Mine:</span>
+          <select name="mine_id" onchange="this.form.submit()" class="bg-transparent text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer max-w-[130px] truncate">
+            <option value="">All Mines</option>
+            {% for m in all_mines %}
+            <option value="{{ m.id }}" {% if active_mine_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+        <div class="flex items-center gap-1 {% if active_sub_mine_id %}bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500/30 text-emerald-950{% else %}bg-slate-50 border-slate-300 text-slate-700{% endif %} border rounded px-2 py-1 text-xs font-medium">
+          <span class="text-[10px] font-bold {% if active_sub_mine_id %}text-emerald-800{% else %}text-slate-600{% endif %} uppercase">🪨 Sub-Mine / Pit:</span>
+          <select name="sub_mine_id" onchange="this.form.submit()" class="bg-transparent font-bold text-xs focus:outline-none cursor-pointer max-w-[170px] truncate {% if active_sub_mine_id %}text-emerald-900{% else %}text-slate-800{% endif %}">
+            <option value="">All Sub-Mines (All Trucks)</option>
+            {% for sm in sub_mines %}
+            <option value="{{ sm.id }}" {% if active_sub_mine_id == sm.id %}selected{% endif %}>
+              {{ sm.block_name }} ({{ sm.block_code }})
+            </option>
+            {% endfor %}
+          </select>
+          {% if active_sub_mine_id %}
+          <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.path) }}" class="text-emerald-700 hover:text-red-700 font-black text-xs ml-1" title="Clear Sub-Mine Isolation">✕</a>
+          {% endif %}
+        </div>
+      </form>
+
+      <button onclick="focusTruck('{{ trucks[0].registration_number if trucks else 'HR26AB1234' }}')" class="btn-gov btn-gov-danger btn-sm">
+        Locate Target ({{ trucks[0].registration_number if trucks else 'Fleet' }})
       </button>
       <button onclick="resetMapView()" class="btn-gov btn-gov-secondary btn-sm">
-        Reset Map Extents
+        Reset Extents
       </button>
     </div>
   </div>
+
+  {% if active_sub_mine %}
+  <!-- Sub-Mine Isolation Alert Banner -->
+  <div class="bg-gradient-to-r from-emerald-900 to-slate-900 text-white border border-emerald-500/80 px-4 py-2 rounded shadow-md flex items-center justify-between text-xs flex-wrap gap-2">
+    <div class="flex items-center gap-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+      <span class="font-bold text-emerald-300 uppercase tracking-wider">Isolated Sub-Mine Surveillance:</span>
+      <span>Tracking strictly <strong>{{ trucks|length }}</strong> carrier{{ 's' if trucks|length != 1 else '' }} belonging to <strong>{{ active_sub_mine.block_name }}</strong> ({{ active_sub_mine.block_code }}) &bull; Concessionaire: <strong>{{ active_sub_mine.leaseholder_name }}</strong></span>
+    </div>
+    <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.path) }}" class="text-xs bg-emerald-950 hover:bg-black text-emerald-200 border border-emerald-600 font-bold px-2.5 py-1 rounded transition">
+      ✕ Clear Sub-Mine Isolation (Show All)
+    </a>
+  </div>
+  {% endif %}
 
   <!-- Map & Inspector Layout (Grid) -->
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-3">
@@ -196,7 +241,7 @@
       <!-- Active Fleet Roster -->
       <div class="border-t border-slate-200 pt-2.5">
         <div class="font-bold text-xs uppercase text-slate-700 mb-1.5 tracking-wide flex justify-between items-center">
-          <span id="active-fleet-heading">Active Fleet ({{ trucks|length }})</span>
+          <span id="active-fleet-heading">Active Fleet {% if active_sub_mine %}- {{ active_sub_mine.block_name }}{% endif %} ({{ trucks|length }})</span>
           <span class="text-[10px] text-emerald-700 font-semibold animate-pulse">● Live Updates</span>
         </div>
 
@@ -208,7 +253,7 @@
         <!-- Scrollable Active Fleet Roster with custom slide scrollbar -->
         <div class="space-y-1.5 max-h-[380px] overflow-y-auto pr-1" id="truck-roster-list" style="scrollbar-width: thin; scrollbar-color: #94a3b8 #f1f5f9;">
           {% for t in trucks %}
-          <div onclick="focusTruck('{{ t.registration_number }}')" class="truck-list-item gov-card p-2 text-xs hover:border-emerald-700 transition cursor-pointer" id="roster-item-{{ t.registration_number }}" data-plate="{{ t.registration_number|lower }}" data-permit="{{ (t.permit_number or '')|lower }}" data-mineral="{{ (t.mineral or '')|lower }}">
+          <div onclick="focusTruck('{{ t.registration_number }}')" class="truck-list-item gov-card p-2 text-xs hover:border-emerald-700 transition cursor-pointer" id="roster-item-{{ t.registration_number }}" data-plate="{{ t.registration_number|lower }}" data-permit="{{ (t.permit_number or '')|lower }}" data-mineral="{{ (t.mineral or '')|lower }}" data-submine="{{ (t.sub_mine_name or '')|lower }}">
             <div class="flex justify-between items-start">
               <span class="font-mono font-bold text-slate-800">{{ t.registration_number }}</span>
               <span class="badge {% if t.current_risk_score >= 80 %}badge-critical{% elif t.current_risk_score >= 60 %}badge-high{% else %}badge-low{% endif %} text-[10px] py-0">
@@ -216,9 +261,19 @@
               </span>
             </div>
             <div class="text-[11px] text-slate-500 truncate">{{ t.permit_number or 'No Active Permit' }}</div>
-            <div class="text-[10px] text-slate-400 mt-0.5">{{ t.status }} • {{ t.mineral or 'General' }}</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">
+              <span>{{ t.status }} • {{ t.mineral or 'General' }}</span>
+              {% if t.sub_mine_name %}
+              <div class="text-emerald-700 font-semibold truncate">🪨 {{ t.sub_mine_name }}</div>
+              {% endif %}
+            </div>
           </div>
           {% endfor %}
+          {% if not trucks %}
+          <div class="p-4 text-center text-slate-400 text-xs bg-slate-50 rounded border border-dashed border-slate-300">
+            No active transport carriers recorded for this sub-mine.
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -232,6 +287,7 @@
 {% block scripts %}
 <script>
   // Server-rendered initial datasets
+  const ACTIVE_SUB_MINE_ID = {{ active_sub_mine_id|tojson }};
   const INITIAL_MINES = {{ mines|tojson }};
   const INITIAL_GEOFENCES = {{ geofences|tojson }};
   const INITIAL_TRUCKS = {{ trucks|tojson }};

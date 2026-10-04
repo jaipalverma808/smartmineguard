@@ -293,6 +293,57 @@ def get_active_mine_id():
         return None
 
 
+def get_active_sub_mine_id():
+    """
+    Returns the currently active sub-mine ID (quarry_blocks.id):
+    - If user is OPERATOR: strictly returns their bound sub_mine_id.
+    - If user is OFFICER or ADMIN:
+        1. Checks request.args.get("sub_mine_id") if within a request context
+        2. Falls back to session.get("selected_sub_mine_id")
+        3. Validates that the sub_mine belongs to the active_mine_id (if active_mine_id is set).
+    """
+    role = session.get("user_role")
+    if role == "OPERATOR":
+        return get_operator_sub_mine_id()
+
+    val = None
+    try:
+        from flask import has_request_context
+        if has_request_context():
+            req_sm = request.args.get("sub_mine_id")
+            if req_sm is not None:
+                if str(req_sm).lower() in ("all", "0", "", "none"):
+                    session.pop("selected_sub_mine_id", None)
+                    return None
+                val = req_sm
+    except Exception:
+        pass
+
+    if val is None:
+        val = session.get("selected_sub_mine_id")
+
+    if val is not None and str(val).isdigit() and int(val) > 0:
+        sm_id = int(val)
+        active_mine_id = get_active_mine_id()
+        if active_mine_id:
+            qb = db.query("SELECT id FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, active_mine_id), one=True)
+            if qb:
+                session["selected_sub_mine_id"] = sm_id
+                return sm_id
+            else:
+                session.pop("selected_sub_mine_id", None)
+                return None
+        else:
+            qb = db.query("SELECT id FROM quarry_blocks WHERE id = ?", (sm_id,), one=True)
+            if qb:
+                session["selected_sub_mine_id"] = sm_id
+                return sm_id
+            else:
+                session.pop("selected_sub_mine_id", None)
+                return None
+    return None
+
+
 def get_operator_sub_mine_id():
     """Returns the sub_mine_id (quarry_blocks.id) strictly assigned to the logged-in OPERATOR."""
     if session.get("user_role") != "OPERATOR":
@@ -508,27 +559,44 @@ def get_current_user():
 
 @app.context_processor
 def inject_global_context():
-    """Injects user session, active mine filter, and real-time alert badge count into all templates."""
+    """Injects user session, active mine and sub-mine filter, and real-time alert badge count into all templates."""
     pending_alerts_count = 0
     role = session.get("user_role")
     active_mine_id = get_active_mine_id()
+    active_sub_mine_id = get_active_sub_mine_id()
     active_mine = None
+    active_sub_mine = None
     all_mines = []
+    all_sub_mines = []
     try:
         if role == "OFFICER":
             active_mine_id = get_officer_mine_id()
             active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
             all_mines = [active_mine] if active_mine else []
+            if active_mine_id:
+                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
         elif role == "OPERATOR":
             active_mine_id = get_operator_mine_id()
             active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
             all_mines = [active_mine] if active_mine else []
+            sub_id = get_operator_sub_mine_id()
+            if sub_id:
+                active_sub_mine = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE id = ?", (sub_id,), one=True)
+                all_sub_mines = [active_sub_mine] if active_sub_mine else []
         else:
             all_mines = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines ORDER BY id ASC")
             if active_mine_id:
                 active_mine = next((m for m in all_mines if m["id"] == active_mine_id), None)
                 if not active_mine:
                     active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
+                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
+            else:
+                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks ORDER BY mine_id, id ASC")
+
+        if active_sub_mine_id and not active_sub_mine:
+            active_sub_mine = next((sm for sm in all_sub_mines if sm["id"] == active_sub_mine_id), None)
+            if not active_sub_mine:
+                active_sub_mine = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE id = ?", (active_sub_mine_id,), one=True)
     except Exception:
         pass
 
@@ -556,12 +624,16 @@ def inject_global_context():
             "role": session.get("user_role"),
             "badge_number": session.get("user_badge"),
             "department": session.get("user_dept"),
-            "assigned_mine_id": active_mine_id
+            "assigned_mine_id": active_mine_id,
+            "assigned_sub_mine_id": active_sub_mine_id
         } if "user_id" in session else None,
         "pending_alerts_count": pending_alerts_count,
         "active_mine_id": active_mine_id,
         "active_mine": active_mine,
         "all_mines": all_mines,
+        "active_sub_mine_id": active_sub_mine_id,
+        "active_sub_mine": active_sub_mine,
+        "all_sub_mines": all_sub_mines,
         "current_year": datetime.now().year,
         "csrf_token": generate_csrf_token
     }
@@ -571,44 +643,86 @@ def inject_global_context():
 @login_required()
 def set_mine_filter():
     """
-    Sets or clears the persistent mine filter across the whole website for ADMIN ONLY.
-    Field Officers and Operators are strictly locked to their assigned concession and cannot switch mines.
+    Sets or clears the persistent mine and/or sub-mine filter across the platform.
+    - ADMIN can select any mine and/or sub-mine (or statewide/all).
+    - OFFICER is locked to their assigned mine, but can select or clear any sub-mine within their concession.
+    - OPERATOR is locked to their assigned station.
     """
     role = session.get("user_role")
-    if role != "ADMIN":
-        flash("Access Denied: Field Officers are restricted to their assigned mine concession and cannot switch mines.", "error")
+    if role not in ("ADMIN", "OFFICER"):
+        flash("Access Denied: Operators are restricted to their assigned scale station.", "error")
         return redirect(request.referrer or url_for("dashboard"))
 
     mine_id = request.values.get("mine_id")
     sub_mine_id = request.values.get("sub_mine_id")
-    if not mine_id or str(mine_id).lower() in ("all", "0", "", "none"):
-        session.pop("selected_mine_id", None)
-        session.pop("selected_sub_mine_id", None)
-        flash("Displaying statewide grid for all mining leaseholds.", "info")
-    else:
-        try:
-            m_id = int(mine_id)
-            mine = db.query("SELECT * FROM mines WHERE id = ?", (m_id,), one=True)
-            if mine:
-                session["selected_mine_id"] = m_id
-                if sub_mine_id and str(sub_mine_id).isdigit() and int(sub_mine_id) > 0:
-                    sm_id = int(sub_mine_id)
-                    qb = db.query("SELECT * FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, m_id), one=True)
-                    if qb:
-                        session["selected_sub_mine_id"] = sm_id
-                        flash(f"Filter applied: {mine['name']} › {qb['block_name']} ({qb['leaseholder_name']}).", "success")
-                    else:
-                        session.pop("selected_sub_mine_id", None)
-                        flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
+
+    if role == "OFFICER":
+        officer_mine_id = get_officer_mine_id()
+        if not sub_mine_id or str(sub_mine_id).lower() in ("all", "0", "", "none"):
+            session.pop("selected_sub_mine_id", None)
+            flash("Displaying all sub-mines/quarry pits in your assigned concession.", "info")
+        else:
+            try:
+                sm_id = int(sub_mine_id)
+                qb = db.query("SELECT * FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, officer_mine_id), one=True)
+                if qb:
+                    session["selected_sub_mine_id"] = sm_id
+                    flash(f"Sector Filter Applied: {qb['block_name']} ({qb['block_code']}).", "success")
                 else:
                     session.pop("selected_sub_mine_id", None)
-                    flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
-            else:
-                session.pop("selected_mine_id", None)
+                    flash("Selected sub-mine is not part of your assigned concession.", "warning")
+            except Exception:
                 session.pop("selected_sub_mine_id", None)
-        except Exception:
+        next_url = request.values.get("next") or request.referrer or url_for("dashboard")
+        return redirect(next_url)
+
+    # ADMIN:
+    prev_mine_id = session.get("selected_mine_id")
+    if "mine_id" in request.values:
+        if not mine_id or str(mine_id).lower() in ("all", "0", "", "none"):
             session.pop("selected_mine_id", None)
             session.pop("selected_sub_mine_id", None)
+            flash("Displaying statewide grid for all mining leaseholds.", "info")
+        else:
+            try:
+                m_id = int(mine_id)
+                mine = db.query("SELECT * FROM mines WHERE id = ?", (m_id,), one=True)
+                if mine:
+                    session["selected_mine_id"] = m_id
+                    # If mine changed, clear previous sub_mine_id unless a new sub_mine is provided in same request
+                    if prev_mine_id != m_id and "sub_mine_id" not in request.values:
+                        session.pop("selected_sub_mine_id", None)
+                    flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
+                else:
+                    session.pop("selected_mine_id", None)
+                    session.pop("selected_sub_mine_id", None)
+            except Exception:
+                session.pop("selected_mine_id", None)
+                session.pop("selected_sub_mine_id", None)
+
+    # Process sub_mine_id for Admin
+    if "sub_mine_id" in request.values:
+        if not sub_mine_id or str(sub_mine_id).lower() in ("all", "0", "", "none"):
+            session.pop("selected_sub_mine_id", None)
+            flash("Displaying all sub-mines for the selected sector.", "info")
+        else:
+            try:
+                sm_id = int(sub_mine_id)
+                current_m_id = session.get("selected_mine_id")
+                if current_m_id:
+                    qb = db.query("SELECT * FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, current_m_id), one=True)
+                else:
+                    qb = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (sm_id,), one=True)
+                if qb:
+                    session["selected_sub_mine_id"] = sm_id
+                    # Align mine filter to sub-mine's parent mine if none was selected
+                    if not current_m_id:
+                        session["selected_mine_id"] = qb["mine_id"]
+                    flash(f"Isolated to Sub-Mine: {qb['block_name']} ({qb['block_code']}).", "success")
+                else:
+                    session.pop("selected_sub_mine_id", None)
+            except Exception:
+                session.pop("selected_sub_mine_id", None)
 
     next_url = request.values.get("next") or request.referrer or url_for("dashboard")
     return redirect(next_url)
@@ -748,8 +862,16 @@ def dashboard():
                 session["selected_sub_mine_id"] = int(sm_param)
             else:
                 session.pop("selected_sub_mine_id", None)
+    elif role == "OFFICER":
+        session.pop("selected_mine_id", None)  # Strictly disallowed for OFFICER to switch mines
+        if "sub_mine_id" in request.args:
+            sm_param = request.args.get("sub_mine_id")
+            if sm_param and sm_param.isdigit() and int(sm_param) > 0:
+                session["selected_sub_mine_id"] = int(sm_param)
+            else:
+                session.pop("selected_sub_mine_id", None)
     else:
-        session.pop("selected_mine_id", None)  # Strictly disallowed for OFFICER/OPERATOR
+        session.pop("selected_mine_id", None)
         session.pop("selected_sub_mine_id", None)
 
     selected_mine_id = get_active_mine_id()
@@ -1162,16 +1284,55 @@ def dashboard():
 @login_required()
 def live_map():
     active_mine_id = get_active_mine_id()
+    active_sub_mine_id = get_active_sub_mine_id()
+
+    # Query available sub-mines for dropdown
     if active_mine_id:
+        sub_mines = db.query("SELECT * FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
+    else:
+        sub_mines = db.query("SELECT * FROM quarry_blocks ORDER BY mine_id, id ASC")
+
+    active_sub_mine = None
+    if active_sub_mine_id:
+        active_sub_mine = next((sm for sm in sub_mines if sm["id"] == active_sub_mine_id), None)
+        if not active_sub_mine:
+            active_sub_mine = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (active_sub_mine_id,), one=True)
+
+    geofences = db.query("SELECT * FROM geofences")
+
+    if active_sub_mine_id:
+        # STRICTLY isolate to only and only trucks belonging to that one sub-mine!
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
+        if active_mine_id:
+            mines = db.query("SELECT * FROM mines WHERE id = ?", (active_mine_id,))
+        else:
+            mines = db.query("SELECT * FROM mines")
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            trucks = db.query(f"""
+                SELECT t.*, p.permit_number, p.mineral, p.permitted_weight_mt, 
+                       p.source_name, p.destination_name, tr.id as trip_id,
+                       qb.block_code, qb.block_name as sub_mine_name
+                FROM trucks t
+                LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
+                LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
+                LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS')
+                WHERE t.id IN ({placeholders})
+                ORDER BY t.current_risk_score DESC
+            """, truck_ids)
+        else:
+            trucks = []
+    elif active_mine_id:
         mines = db.query("SELECT * FROM mines WHERE id = ?", (active_mine_id,))
-        geofences = db.query("SELECT * FROM geofences")
         truck_ids = get_operator_truck_ids(active_mine_id)
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)
             trucks = db.query(f"""
                 SELECT t.*, p.permit_number, p.mineral, p.permitted_weight_mt, 
-                       p.source_name, p.destination_name, tr.id as trip_id
+                       p.source_name, p.destination_name, tr.id as trip_id,
+                       qb.block_code, qb.block_name as sub_mine_name
                 FROM trucks t
+                LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
                 LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
                 LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS')
                 WHERE t.id IN ({placeholders})
@@ -1181,16 +1342,26 @@ def live_map():
             trucks = []
     else:
         mines = db.query("SELECT * FROM mines")
-        geofences = db.query("SELECT * FROM geofences")
         trucks = db.query("""
             SELECT t.*, p.permit_number, p.mineral, p.permitted_weight_mt, 
-                   p.source_name, p.destination_name, tr.id as trip_id
+                   p.source_name, p.destination_name, tr.id as trip_id,
+                   qb.block_code, qb.block_name as sub_mine_name
             FROM trucks t
+            LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
             LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
             LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS')
             ORDER BY t.current_risk_score DESC
         """)
-    return render_template("map.html", mines=mines, geofences=geofences, trucks=trucks)
+
+    return render_template(
+        "map.html", 
+        mines=mines, 
+        geofences=geofences, 
+        trucks=trucks,
+        sub_mines=sub_mines,
+        active_sub_mine_id=active_sub_mine_id,
+        active_sub_mine=active_sub_mine
+    )
 
 
 # --- GPS & ANTI-TAMPER TELEMETRY SURVEILLANCE ---
@@ -1204,16 +1375,64 @@ def gps_telemetry():
     hardware wire cuts, and prohibited riverbed incursions.
     """
     active_mine_id = get_active_mine_id()
-    
+    active_sub_mine_id = get_active_sub_mine_id()
+
+    # Query sub-mines for dropdown
     if active_mine_id:
+        sub_mines = db.query("SELECT * FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
+    else:
+        sub_mines = db.query("SELECT * FROM quarry_blocks ORDER BY mine_id, id ASC")
+
+    active_sub_mine = None
+    if active_sub_mine_id:
+        active_sub_mine = next((sm for sm in sub_mines if sm["id"] == active_sub_mine_id), None)
+        if not active_sub_mine:
+            active_sub_mine = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (active_sub_mine_id,), one=True)
+
+    if active_sub_mine_id:
+        # STRICTLY isolate to only and only this sub-mine's trucks!
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            trucks_list = db.query(f"""
+                SELECT t.*, m.name as assigned_mine_name, m.district as mine_district,
+                       p.permit_number, p.mineral, tr.trip_number, tr.id as active_trip_id,
+                       qb.block_code, qb.block_name as sub_mine_name
+                FROM trucks t
+                LEFT JOIN mines m ON m.id = t.assigned_mine_id
+                LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
+                LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
+                LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS', 'DISPATCHED')
+                WHERE t.id IN ({placeholders})
+                ORDER BY 
+                    CASE WHEN t.gps_status = 'JAMMER_DETECTED' THEN 1
+                         WHEN t.gps_status = 'TAMPERED' THEN 2
+                         WHEN t.gps_status = 'PROHIBITED_ZONE' THEN 3
+                         WHEN t.gps_status = 'BLINDSPOT' THEN 4
+                         ELSE 5 END,
+                    t.current_risk_score DESC
+            """, truck_ids)
+            recent_events = db.query(f"""
+                SELECT e.*, t.registration_number, t.driver_name, t.driver_phone
+                FROM gps_tamper_events e
+                JOIN trucks t ON t.id = e.truck_id
+                WHERE e.truck_id IN ({placeholders})
+                ORDER BY e.id DESC LIMIT 40
+            """, truck_ids)
+        else:
+            trucks_list = []
+            recent_events = []
+    elif active_mine_id:
         truck_ids = get_operator_truck_ids(active_mine_id)
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)
             trucks_list = db.query(f"""
                 SELECT t.*, m.name as assigned_mine_name, m.district as mine_district,
-                       p.permit_number, p.mineral, tr.trip_number, tr.id as active_trip_id
+                       p.permit_number, p.mineral, tr.trip_number, tr.id as active_trip_id,
+                       qb.block_code, qb.block_name as sub_mine_name
                 FROM trucks t
                 LEFT JOIN mines m ON m.id = t.assigned_mine_id
+                LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
                 LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
                 LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS', 'DISPATCHED')
                 WHERE t.id IN ({placeholders})
@@ -1238,9 +1457,11 @@ def gps_telemetry():
     else:
         trucks_list = db.query("""
             SELECT t.*, m.name as assigned_mine_name, m.district as mine_district,
-                   p.permit_number, p.mineral, tr.trip_number, tr.id as active_trip_id
+                   p.permit_number, p.mineral, tr.trip_number, tr.id as active_trip_id,
+                   qb.block_code, qb.block_name as sub_mine_name
             FROM trucks t
             LEFT JOIN mines m ON m.id = t.assigned_mine_id
+            LEFT JOIN quarry_blocks qb ON qb.id = t.sub_mine_id
             LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
             LEFT JOIN trips tr ON tr.truck_id = t.id AND tr.status IN ('IN_TRANSIT', 'SUSPICIOUS', 'DISPATCHED')
             ORDER BY 
@@ -1286,7 +1507,10 @@ def gps_telemetry():
         active_threats=active_threats,
         integrity_score=integrity_score,
         mines=mines,
-        geofences=geofences
+        geofences=geofences,
+        sub_mines=sub_mines,
+        active_sub_mine_id=active_sub_mine_id,
+        active_sub_mine=active_sub_mine
     )
 
 
@@ -1295,7 +1519,15 @@ def gps_telemetry():
 def api_gps_trucks():
     """Returns real-time fleet telemetry JSON for live map and dynamic polling."""
     active_mine_id = get_active_mine_id()
-    if active_mine_id:
+    active_sub_mine_id = get_active_sub_mine_id()
+    if active_sub_mine_id:
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            trucks_data = db.query(f"SELECT * FROM trucks WHERE id IN ({placeholders})", truck_ids)
+        else:
+            trucks_data = []
+    elif active_mine_id:
         truck_ids = get_operator_truck_ids(active_mine_id)
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)
@@ -1304,7 +1536,7 @@ def api_gps_trucks():
             trucks_data = []
     else:
         trucks_data = db.query("SELECT * FROM trucks")
-    return jsonify({"success": True, "trucks": trucks_data})
+    return jsonify(trucks_data)
 
 
 @app.route("/api/gps/trucks/<int:truck_id>/diagnostics", methods=["GET"])
@@ -4363,20 +4595,11 @@ _LAST_GPS_STEP_TIME = {}
 def handle_connect():
     logger.info(f"SocketIO client connected: {request.sid}")
     role = session.get("user_role")
-    if role == "ADMIN":
-        trucks = db.query("""
-            SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
-            FROM trucks WHERE current_lat IS NOT NULL AND current_lng IS NOT NULL
-        """)
-    elif role == "OFFICER":
-        officer_mine_id = get_officer_mine_id()
-        trucks = db.query("""
-            SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
-            FROM trucks WHERE (assigned_mine_id = ? OR id IN (SELECT truck_id FROM permits WHERE mine_id = ?))
-              AND current_lat IS NOT NULL AND current_lng IS NOT NULL
-        """, (officer_mine_id, officer_mine_id))
-    elif role == "OPERATOR":
-        truck_ids = get_operator_truck_ids()
+    active_mine_id = get_active_mine_id()
+    active_sub_mine_id = get_active_sub_mine_id()
+
+    if active_sub_mine_id:
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)
             trucks = db.query(f"""
@@ -4385,8 +4608,22 @@ def handle_connect():
             """, truck_ids)
         else:
             trucks = []
+    elif active_mine_id:
+        truck_ids = get_operator_truck_ids(active_mine_id)
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            trucks = db.query(f"""
+                SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
+                FROM trucks WHERE id IN ({placeholders}) AND current_lat IS NOT NULL AND current_lng IS NOT NULL
+            """, truck_ids)
+        else:
+            trucks = []
+    elif role == "ADMIN":
+        trucks = db.query("""
+            SELECT id, registration_number, current_lat, current_lng, current_risk_score, current_risk_level, status
+            FROM trucks WHERE current_lat IS NOT NULL AND current_lng IS NOT NULL
+        """)
     else:
-        # Public / unauthenticated visitors do not receive operational fleet GPS feeds
         trucks = []
     emit("gps_initial_fleet", {"trucks": trucks})
 
@@ -4410,15 +4647,17 @@ def handle_request_step():
     _LAST_GPS_STEP_TIME[client_sid] = now
 
     updates = simulator.step_simulation()
-    if role == "ADMIN":
+    active_mine_id = get_active_mine_id()
+    active_sub_mine_id = get_active_sub_mine_id()
+
+    if active_sub_mine_id:
+        allowed_truck_ids = set(get_operator_truck_ids(active_mine_id, active_sub_mine_id))
+        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
+    elif active_mine_id:
+        allowed_truck_ids = set(get_operator_truck_ids(active_mine_id))
+        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
+    elif role == "ADMIN":
         filtered_updates = updates
-    elif role == "OFFICER":
-        officer_mine_id = get_officer_mine_id()
-        allowed_truck_ids = {t["id"] for t in db.query("SELECT id FROM trucks WHERE assigned_mine_id = ?", (officer_mine_id,))}
-        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
-    elif role == "OPERATOR":
-        allowed_truck_ids = set(get_operator_truck_ids())
-        filtered_updates = [u for u in updates if u.get("id") in allowed_truck_ids]
     else:
         filtered_updates = []
     emit("gps_batch_update", {"trucks": filtered_updates})

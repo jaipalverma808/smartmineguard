@@ -203,7 +203,14 @@ function setupSocketListeners() {
 
   socket.on("gps_batch_update", (data) => {
     if (data.trucks && Array.isArray(data.trucks)) {
+      const allowedRegs = (typeof ACTIVE_SUB_MINE_ID !== "undefined" && ACTIVE_SUB_MINE_ID && typeof INITIAL_TRUCKS !== "undefined")
+        ? new Set(INITIAL_TRUCKS.map(t => t.registration_number))
+        : null;
+
       data.trucks.forEach(t => {
+        if (allowedRegs && !allowedRegs.has(t.registration_number)) {
+          return;
+        }
         createOrUpdateTruckMarker(t);
 
         // If currently focused truck, update telemetry

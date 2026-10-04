@@ -74,14 +74,14 @@
         </a>
 
         {% if current_user.role == 'ADMIN' %}
-        <!-- Global Persistent Mine-Scope Filter Selector (ADMIN ONLY: Statewide Grid) -->
-        <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center">
+        <!-- Global Persistent Mine & Sub-Mine Scope Filter Selector (ADMIN ONLY) -->
+        <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center gap-1.5 flex-wrap">
           <input type="hidden" name="next" value="{{ request.full_path }}">
           <div class="flex items-center gap-1.5 bg-slate-900/90 border {% if active_mine_id %}border-amber-400 ring-1 ring-amber-400/40{% else %}border-slate-700{% endif %} rounded px-2.5 py-1 text-xs text-white shadow-xs transition">
             <span class="text-[10px] font-bold {% if active_mine_id %}text-amber-300{% else %}text-emerald-300{% endif %} uppercase flex items-center gap-1">
               <span>⛏ Mine:</span>
             </span>
-            <select name="mine_id" onchange="this.form.submit()" class="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer">
+            <select name="mine_id" onchange="this.form.submit()" class="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer max-w-[150px] truncate">
               <option value="" class="bg-slate-900 text-slate-300" {% if not active_mine_id %}selected{% endif %}>All Mines (Statewide Grid)</option>
               {% for m in all_mines %}
               <option value="{{ m.id }}" class="bg-slate-900 text-white font-medium" {% if active_mine_id == m.id %}selected{% endif %}>
@@ -90,19 +90,60 @@
               {% endfor %}
             </select>
             {% if active_mine_id %}
-            <a href="{{ url_for('set_mine_filter', mine_id='', next=request.full_path) }}" class="text-amber-300 hover:text-white font-black text-xs ml-1 px-1 hover:bg-white/10 rounded transition" title="Clear Mine Filter">✕</a>
+            <a href="{{ url_for('set_mine_filter', mine_id='', sub_mine_id='', next=request.full_path) }}" class="text-amber-300 hover:text-white font-black text-xs ml-1 px-1 hover:bg-white/10 rounded transition" title="Clear Mine Filter">✕</a>
             {% endif %}
           </div>
+
+          <!-- Admin Sub-Mine Filter -->
+          {% if all_sub_mines %}
+          <div class="flex items-center gap-1.5 bg-slate-900/90 border {% if active_sub_mine_id %}border-emerald-400 ring-1 ring-emerald-400/40{% else %}border-slate-700{% endif %} rounded px-2.5 py-1 text-xs text-white shadow-xs transition">
+            <span class="text-[10px] font-bold {% if active_sub_mine_id %}text-emerald-300{% else %}text-slate-400{% endif %} uppercase flex items-center gap-1">
+              <span>🪨 Sub-Mine / Pit:</span>
+            </span>
+            <select name="sub_mine_id" onchange="this.form.submit()" class="bg-transparent text-white font-medium text-xs focus:outline-none cursor-pointer max-w-[170px] truncate">
+              <option value="" class="bg-slate-900 text-slate-300" {% if not active_sub_mine_id %}selected{% endif %}>All Sub-Mines</option>
+              {% for sm in all_sub_mines %}
+              <option value="{{ sm.id }}" class="bg-slate-900 text-white" {% if active_sub_mine_id == sm.id %}selected{% endif %}>
+                {{ sm.block_name }} ({{ sm.block_code }})
+              </option>
+              {% endfor %}
+            </select>
+            {% if active_sub_mine_id %}
+            <a href="{{ url_for('set_mine_filter', mine_id=active_mine_id or '', sub_mine_id='', next=request.full_path) }}" class="text-emerald-300 hover:text-white font-black text-xs ml-1 px-1 hover:bg-white/10 rounded transition" title="Clear Sub-Mine Filter">✕</a>
+            {% endif %}
+          </div>
+          {% endif %}
         </form>
         {% elif current_user.role == 'OFFICER' and active_mine %}
-        <!-- Locked Assigned Mine Concession Badge (OFFICER: Strictly Scoped to Their Mine) -->
-        <div class="inline-flex items-center">
-          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-3 py-1 text-xs text-white shadow-xs" title="Field Officer is strictly locked to their single assigned mine leasehold">
+        <!-- Locked Assigned Mine Concession Badge & Sub-Mine Selector (OFFICER) -->
+        <div class="inline-flex items-center gap-1.5 flex-wrap">
+          <div class="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white shadow-xs" title="Field Officer is strictly locked to their single assigned mine leasehold">
             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">⛏ Assigned Mine:</span>
-            <span class="font-bold text-white text-xs">{{ active_mine.name }} ({{ active_mine.district }})</span>
-            <span class="text-[9px] bg-slate-800 text-emerald-300 border border-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">LOCKED SECTOR</span>
+            <span class="text-[10px] font-bold text-emerald-300 uppercase tracking-wider">⛏ Sector:</span>
+            <span class="font-bold text-white text-xs max-w-[140px] truncate">{{ active_mine.name }}</span>
+            <span class="text-[9px] bg-slate-800 text-emerald-300 border border-slate-600 px-1 py-0.5 rounded font-mono font-bold">LOCKED</span>
           </div>
+
+          <!-- OFFICER Sub-Mine Filter Form -->
+          <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center">
+            <input type="hidden" name="next" value="{{ request.full_path }}">
+            <div class="flex items-center gap-1.5 bg-slate-900/90 border {% if active_sub_mine_id %}border-emerald-400 ring-1 ring-emerald-400/40{% else %}border-slate-700{% endif %} rounded px-2.5 py-1 text-xs text-white shadow-xs transition">
+              <span class="text-[10px] font-bold {% if active_sub_mine_id %}text-emerald-300{% else %}text-slate-400{% endif %} uppercase flex items-center gap-1">
+                <span>🪨 Sub-Mine / Pit:</span>
+              </span>
+              <select name="sub_mine_id" onchange="this.form.submit()" class="bg-transparent text-white font-medium text-xs focus:outline-none cursor-pointer max-w-[180px] truncate">
+                <option value="" class="bg-slate-900 text-slate-300" {% if not active_sub_mine_id %}selected{% endif %}>All Sub-Mines (Whole Lease)</option>
+                {% for sm in all_sub_mines %}
+                <option value="{{ sm.id }}" class="bg-slate-900 text-white" {% if active_sub_mine_id == sm.id %}selected{% endif %}>
+                  {{ sm.block_name }} ({{ sm.block_code }})
+                </option>
+                {% endfor %}
+              </select>
+              {% if active_sub_mine_id %}
+              <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.full_path) }}" class="text-emerald-300 hover:text-white font-black text-xs ml-1 px-1 hover:bg-white/10 rounded transition" title="Clear Sub-Mine Filter">✕</a>
+              {% endif %}
+            </div>
+          </form>
         </div>
         {% elif current_user.role == 'OPERATOR' and active_mine %}
         <!-- Weighbridge Scale Station Badge (OPERATOR: Ground Scale Only) -->

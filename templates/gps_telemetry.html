@@ -13,32 +13,68 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
         </span>
         <h1 class="text-base font-bold text-slate-900 tracking-tight uppercase">
-          GPS Anti-Tamper &amp; Telemetry Intelligence Center
+          GPS &amp; Anti-Tamper Telemetry
         </h1>
         <span class="badge badge-low text-[11px] font-mono flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-          AIS-140 RADAR ONLINE
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          AIS-140 ONLINE
         </span>
       </div>
       <p class="text-xs text-slate-500 mt-1">
-        Continuous surveillance defending against RF GPS Jammers ("Gamers"), hardware wire-cuts, cellular shadow dead-zones, and illegal riverbed mining incursions.
+        Monitor vehicle telemetry, signal integrity and tamper incidents across active transport fleets.
       </p>
     </div>
 
     <!-- Right Controls -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 flex-wrap">
       {% if active_mine %}
       <div class="bg-amber-50 border border-amber-300 rounded px-2.5 py-1 text-xs text-amber-900 flex items-center gap-1.5 font-medium">
-        <span>⛏ Filtered to: <strong>{{ active_mine.name }}</strong></span>
-        <a href="{{ url_for('set_mine_filter', mine_id='', next=request.full_path) }}" class="text-amber-700 hover:text-black font-bold ml-1" title="Show Statewide Fleet">✕</a>
+        <span>⛏ Mine: <strong>{{ active_mine.name }}</strong></span>
+        {% if current_user.role == 'ADMIN' %}
+        <a href="{{ url_for('set_mine_filter', mine_id='', sub_mine_id='', next=request.full_path) }}" class="text-amber-700 hover:text-black font-bold ml-1" title="Show Statewide Fleet">✕</a>
+        {% endif %}
       </div>
       {% endif %}
+
+      <!-- Sub-Mine Filter Dropdown -->
+      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center gap-1">
+        <input type="hidden" name="next" value="{{ request.full_path }}">
+        <div class="bg-emerald-50 border {% if active_sub_mine_id %}border-emerald-500 ring-1 ring-emerald-500/30 text-emerald-950{% else %}border-emerald-300 text-emerald-900{% endif %} rounded px-2.5 py-1 text-xs flex items-center gap-1.5 font-medium shadow-xs">
+          <span class="text-[10px] font-bold text-emerald-800 uppercase">🪨 Sub-Mine:</span>
+          <select name="sub_mine_id" onchange="this.form.submit()" class="bg-transparent text-emerald-900 font-bold text-xs focus:outline-none cursor-pointer max-w-[190px] truncate">
+            <option value="">All Sub-Mines (Whole Fleet)</option>
+            {% for sm in sub_mines %}
+            <option value="{{ sm.id }}" {% if active_sub_mine_id == sm.id %}selected{% endif %}>
+              {{ sm.block_name }} ({{ sm.block_code }})
+            </option>
+            {% endfor %}
+          </select>
+          {% if active_sub_mine_id %}
+          <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.full_path) }}" class="text-emerald-700 hover:text-red-700 font-black text-xs ml-1" title="Clear Sub-Mine Filter">✕</a>
+          {% endif %}
+        </div>
+      </form>
+
       <button onclick="refreshGpsFleetData()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         <span>Refresh Radar</span>
       </button>
     </div>
   </div>
+
+  {% if active_sub_mine %}
+  <!-- Sub-Mine Isolation Banner -->
+  <div class="bg-gradient-to-r from-emerald-900 via-slate-900 to-indigo-950 border border-emerald-500/80 rounded-lg p-3 text-white shadow-md flex items-center justify-between text-xs flex-wrap gap-2">
+    <div class="flex items-center gap-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+      <span class="font-bold text-emerald-300 uppercase tracking-wider">Sub-Mine Isolated Anti-Tamper Radar:</span>
+      <span>Surveilling strictly <strong>{{ trucks|length }}</strong> carrier{{ 's' if trucks|length != 1 else '' }} belonging to <strong>{{ active_sub_mine.block_name }}</strong> ({{ active_sub_mine.block_code }}) &bull; Concessionaire: <strong>{{ active_sub_mine.leaseholder_name }}</strong></span>
+    </div>
+    <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.full_path) }}" class="text-xs bg-emerald-950 hover:bg-black text-emerald-200 border border-emerald-600 font-bold px-2.5 py-1 rounded transition">
+      ✕ Clear Sub-Mine Isolation (Show All)
+    </a>
+  </div>
+  {% endif %}
 
   <!-- HARDWARE TELEMETRY & ANTI-TAMPER DIAGNOSTIC BAR -->
   <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-indigo-700/60 rounded-lg p-3 text-white shadow-md">
@@ -48,7 +84,7 @@
           Telemetry Diagnostic Control
         </span>
         <span class="text-xs text-slate-300">
-          Target Vehicle: <strong class="text-amber-400 font-mono">HR26AB1234</strong> (Shri Ram Logistics)
+          Target Vehicle: <strong class="text-amber-400 font-mono">{{ trucks[0].registration_number if trucks else 'No Active Carrier' }}</strong> ({{ (trucks[0].driver_name ~ ' &bull; ' ~ (trucks[0].sub_mine_name or 'Sub-Mine Pit')) if trucks else 'N/A' }})
         </span>
       </div>
 
@@ -165,64 +201,61 @@
       </div>
     </div>
 
-    <!-- JAMMER VS NETWORK EXPLANATION (1 Column) -->
+    <!-- GPS / RF DETECTION LOGIC (1 Column) -->
     <div class="bg-white border border-slate-300 rounded shadow-sm p-4 flex flex-col justify-between space-y-3">
       <div>
-        <div class="flex items-center gap-1.5 border-b border-slate-200 pb-2">
-          <span class="p-1 bg-amber-100 text-amber-900 border border-amber-300 rounded font-bold text-xs">STATUTORY RULE</span>
-          <h2 class="text-xs font-bold text-slate-900 uppercase">RF Jammer vs. Cellular Shadow Detection Rule</h2>
+        <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+          <h2 class="text-xs font-bold text-slate-900 uppercase">GPS / RF Detection</h2>
+          <span class="text-[10px] font-mono text-slate-500">AIS-140 / IRNSS</span>
         </div>
-        <p class="text-[11px] text-slate-500 mt-1.5">
-          How SmartMineGuard algorithmically distinguishes between legitimate rural cellular dead-zones and deliberate illegal mining jammer devices:
-        </p>
 
         <!-- Heuristic Comparison Box -->
         <div class="mt-3 space-y-2 text-xs">
-          <!-- Legitimate Blindspot Box -->
+          <!-- Normal Network Shadow Box -->
           <div class="p-2.5 rounded border border-sky-200 bg-sky-50/60 space-y-1">
             <div class="flex items-center justify-between font-bold text-sky-900 text-[11px]">
-              <span>1. Legitimate Network Shadow</span>
-              <span class="text-[10px] bg-sky-200 text-sky-800 px-1 rounded">NON-FRAUD</span>
+              <span>Normal Network Shadow</span>
+              <span class="text-[10px] bg-sky-200 text-sky-800 px-1 rounded font-medium">TERRAIN</span>
             </div>
-            <ul class="text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-              <li><strong>C/N0 Ratio:</strong> 42 - 48 dB-Hz (Normal RF floor)</li>
-              <li><strong>GNSS Lock:</strong> 8 - 14 satellites visible</li>
-              <li><strong>Cellular:</strong> Gradual ping latency &amp; tower handover delay</li>
-              <li><strong>Verdict:</strong> Terrain shadow (No violation alert)</li>
-            </ul>
+            <div class="text-[11px] text-slate-700 space-y-0.5">
+              <div><strong>C/N0:</strong> 42–48 dB-Hz</div>
+              <div><strong>GNSS:</strong> 8–14 satellites visible</div>
+              <div><strong>Cellular:</strong> Tower handover delay</div>
+              <div class="text-sky-900 font-semibold pt-0.5">Verdict: Normal network shadow</div>
+            </div>
           </div>
 
-          <!-- Illegal Jammer Attack Box -->
+          <!-- Jammer Detected Box -->
           <div class="p-2.5 rounded border border-red-300 bg-red-50/70 space-y-1">
             <div class="flex items-center justify-between font-bold text-red-900 text-[11px]">
-              <span>2. Deliberate GPS Jammer Device</span>
-              <span class="text-[10px] bg-red-600 text-white px-1 rounded animate-pulse font-mono">ILLEGAL</span>
+              <span>Jammer Detected</span>
+              <span class="text-[10px] bg-red-600 text-white px-1 rounded font-mono font-bold">ILLEGAL</span>
             </div>
-            <ul class="text-[11px] text-slate-700 list-disc list-inside space-y-0.5">
-              <li><strong>C/N0 Ratio:</strong> Spikes to &lt; 18 dB-Hz (RF saturation)</li>
-              <li><strong>GNSS Lock:</strong> Instant collapse to 0 satellites (&lt;3s)</li>
-              <li><strong>Cellular:</strong> GSM modem transmits packets with 0 GNSS fix</li>
-              <li><strong>Verdict:</strong> <strong>Illegal RF Jamming device active</strong></li>
-            </ul>
+            <div class="text-[11px] text-slate-800 space-y-0.5">
+              <div><strong>C/N0:</strong> &lt; 18 dB-Hz (RF saturation)</div>
+              <div><strong>GNSS:</strong> 0 satellites (instant drop)</div>
+              <div><strong>Cellular:</strong> Heartbeat active</div>
+              <div class="text-red-700 font-bold pt-0.5">Verdict: Jammer detected</div>
+            </div>
           </div>
 
           <!-- Hardware Tamper Box -->
           <div class="p-2.5 rounded border border-orange-200 bg-orange-50/60 space-y-1">
             <div class="flex items-center justify-between font-bold text-orange-900 text-[11px]">
-              <span>3. Physical Wire-Cut / Tamper</span>
-              <span class="text-[10px] bg-orange-200 text-orange-900 px-1 rounded font-mono">HARDWARE</span>
+              <span>Hardware Tamper</span>
+              <span class="text-[10px] bg-orange-200 text-orange-900 px-1 rounded font-mono">24V CUT</span>
             </div>
-            <ul class="text-[11px] text-slate-600 list-disc list-inside space-y-0.5">
-              <li><strong>Main Power:</strong> 24.2V drops instantly to 0.0V</li>
-              <li><strong>Battery:</strong> Unit auto-switches to 3.7V internal LiPo</li>
-              <li><strong>Sensor:</strong> Enclosure optical switch breached</li>
-            </ul>
+            <div class="text-[11px] text-slate-700 space-y-0.5">
+              <div><strong>Main Power:</strong> 24.2V &rarr; 0.0V (severed)</div>
+              <div><strong>Backup:</strong> 3.7V internal LiPo engaged</div>
+              <div class="text-orange-900 font-semibold pt-0.5">Verdict: Hardware tamper / enclosure breach</div>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-500 font-mono">
-        AIS-140 Compliance: IS 16833 / IRNSS Certified Protocol
+        Standard: AIS-140 / IS 16833 Specification
       </div>
     </div>
 
@@ -279,7 +312,7 @@
         </thead>
         <tbody class="divide-y divide-slate-100 font-sans" id="gps-table-body">
           {% for t in trucks %}
-          <tr class="hover:bg-slate-50 transition truck-row" data-status="{{ t.gps_status or 'HEALTHY' }}" data-search="{{ t.registration_number }} {{ t.driver_name }} {{ t.gps_imei }} {{ t.assigned_mine_name }}">
+          <tr class="hover:bg-slate-50 transition truck-row" data-status="{{ t.gps_status or 'HEALTHY' }}" data-search="{{ t.registration_number }} {{ t.driver_name }} {{ t.gps_imei }} {{ t.assigned_mine_name }} {{ t.sub_mine_name or '' }}">
             
             <!-- Vehicle Reg & Driver -->
             <td class="px-3 py-2.5">
@@ -291,10 +324,13 @@
               <div class="text-[11px] text-slate-500">{{ t.driver_name }} &bull; {{ t.driver_phone }}</div>
             </td>
 
-            <!-- Assigned Leasehold -->
+            <!-- Assigned Leasehold & Sub-Mine -->
             <td class="px-3 py-2.5">
               <div class="font-medium text-slate-800">{{ t.assigned_mine_name or 'Aravalli Quarry Block A' }}</div>
               <div class="text-[10px] text-slate-400">{{ t.mine_district or 'Alwar' }}</div>
+              {% if t.sub_mine_name %}
+              <div class="text-[10px] text-emerald-700 font-semibold truncate mt-0.5">🪨 {{ t.sub_mine_name }}</div>
+              {% endif %}
             </td>
 
             <!-- Transponder Hardware -->
@@ -748,23 +784,24 @@ function setStatusFilter(status) {
 // AIS-140 Telemetry Scenario Trigger
 async function triggerGpsScenario(action) {
   try {
+    const targetReg = (typeof TRUCKS_DATA !== "undefined" && TRUCKS_DATA.length > 0) ? TRUCKS_DATA[0].registration_number : "HR26AB1234";
     const res = await fetch("/api/gps/simulator/trigger", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: action, truck_reg: "HR26AB1234" })
+      body: JSON.stringify({ action: action, truck_reg: targetReg })
     });
     const data = await res.json();
     if (res.ok && data.success) {
       if (action === 'restore') {
-        showToast("Fleet GPS telemetry restored to pristine online conditions.", "success");
+        showToast(`Fleet GPS telemetry restored to pristine online conditions (${targetReg}).`, "success");
       } else if (action === 'jammer') {
-        showToast("🚨 RF GPS Jammer ('Gamer') device activated on HR26AB1234! Satellites dropped to 0.", "critical");
+        showToast(`🚨 RF GPS Jammer ('Gamer') device activated on ${targetReg}! Satellites dropped to 0.`, "critical");
       } else if (action === 'tamper') {
-        showToast("⚠️ Main 24V power line severed on HR26AB1234! Backup battery engaged.", "warning");
+        showToast(`⚠️ Main 24V power line severed on ${targetReg}! Backup battery engaged.`, "warning");
       } else if (action === 'riverbed') {
-        showToast("⛔ HR26AB1234 breached Sabi Riverbed restricted mining zone!", "critical");
+        showToast(`⛔ ${targetReg} breached Sabi Riverbed restricted mining zone!`, "critical");
       } else if (action === 'blindspot') {
-        showToast("📡 Legitimate GSM mountain shadow simulated on HR26AB1234.", "info");
+        showToast(`📡 Legitimate GSM mountain shadow simulated on ${targetReg}.`, "info");
       }
       setTimeout(() => window.location.reload(), 900);
     } else {

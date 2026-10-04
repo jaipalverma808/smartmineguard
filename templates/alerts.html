@@ -10,18 +10,15 @@
     <div class="flex flex-wrap justify-between items-center gap-3">
       <div>
         <div class="flex items-center gap-2">
-          <span class="font-extrabold tracking-wider text-xs {% if user_role == 'ADMIN' %}text-amber-800 bg-amber-100 border border-amber-300{% else %}text-emerald-800 bg-emerald-100 border border-emerald-300{% endif %} px-2 py-0.5 rounded uppercase font-mono">
-            {% if user_role == 'ADMIN' %}Supervisory Vigilance Oversight{% else %}Field Squad Operations{% endif %}
-          </span>
           <h2 class="text-base font-bold text-slate-900 uppercase tracking-tight m-0">
-            {% if user_role == 'ADMIN' %}Statewide Anti-Corruption &amp; Alert Vigilance Center{% else %}Field Enforcement Alert Desk{% endif %}
+            {% if user_role == 'ADMIN' %}Alert Center — Supervisory Review{% else %}Enforcement Alerts{% endif %}
           </h2>
         </div>
         <p class="text-xs text-slate-500 mt-0.5">
           {% if user_role == 'ADMIN' %}
-            Statutory Vigilance Audit: Monitoring field officer clearances, critical overloads, and suspicious overrides for administrative accountability.
+            Review and act on detected violations, officer clearances and audit flags.
           {% else %}
-            Ground-level operational triage: Physical checkpost inspections, weighbridge audits, and driver transit verifications.
+            Review and triage active field alerts, checkpost verifications, and vehicle violations.
           {% endif %}
         </p>
       </div>
@@ -30,24 +27,24 @@
       <div class="flex items-center gap-2 bg-slate-100 p-1 rounded border border-slate-200 text-xs">
         {% if user_role == 'ADMIN' %}
         <a href="{{ url_for('alerts', view='vigilance') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'vigilance' %}bg-amber-700 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
-          <span>🛡️ Vigilance Queue (Officer Actions &amp; Fraud)</span>
+          <span>Review Queue</span>
           {% if vigilance_pending_count > 0 %}
           <span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">{{ vigilance_pending_count }}</span>
           {% endif %}
         </a>
         <a href="{{ url_for('alerts', view='all') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'all' %}bg-slate-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
-          <span>📋 All Statewide Alerts</span>
+          <span>All Alerts</span>
           <span class="text-[10px] opacity-75">({{ total_alerts_count }})</span>
         </a>
         {% else %}
         <a href="{{ url_for('alerts', view='operational') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'operational' %}bg-emerald-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
-          <span>🎯 Active Field Queue</span>
+          <span>Active Queue</span>
           {% if operational_pending_count > 0 %}
           <span class="bg-amber-500 text-slate-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full">{{ operational_pending_count }}</span>
           {% endif %}
         </a>
         <a href="{{ url_for('alerts', view='all') }}" class="px-3 py-1.5 rounded font-semibold transition flex items-center gap-1.5 {% if view_mode == 'all' %}bg-slate-800 text-white shadow-xs{% else %}text-slate-700 hover:bg-slate-200{% endif %}">
-          <span>📋 All Sector Alerts</span>
+          <span>All Alerts</span>
           <span class="text-[10px] opacity-75">({{ total_alerts_count }})</span>
         </a>
         {% endif %}
