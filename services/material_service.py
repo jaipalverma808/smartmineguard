@@ -49,16 +49,73 @@ MINE_BASELINES = {
 }
 
 
+# Sub-mine specific baselines for prominent demonstration pits
+SUB_MINE_BASELINES = {
+    5: {  # QB-ALW-05 — Sariska Buffer Escarpment
+        "opening_stock_mt": 1250.0,
+        "production_today_mt": 120.0,
+        "planned_dispatch_mt": 140.0
+    },
+    15: {  # QB-ALW-15 — Goyal Mineral Lot
+        "opening_stock_mt": 2100.0,
+        "production_today_mt": 210.0,
+        "planned_dispatch_mt": 220.0
+    },
+    33: {  # QB-ALW-33 — Everest Rock Aggregates
+        "opening_stock_mt": 3200.0,
+        "production_today_mt": 320.0,
+        "planned_dispatch_mt": 550.0
+    },
+    37: {  # QB-KOT-01 — High-Grade Limestone Sector A
+        "opening_stock_mt": 2600.0,
+        "production_today_mt": 380.0,
+        "planned_dispatch_mt": 400.0
+    },
+    38: {  # QB-KOT-02 — Commercial Limestone Pit B
+        "opening_stock_mt": 2400.0,
+        "production_today_mt": 350.0,
+        "planned_dispatch_mt": 380.0
+    },
+    41: {  # QB-REW-01 — Khol Riverbank Sand Concession #1
+        "opening_stock_mt": 1100.0,
+        "production_today_mt": 180.0,
+        "planned_dispatch_mt": 200.0
+    }
+}
+
+
 class MaterialMonitoringService:
 
     @staticmethod
-    def get_daily_dispatch_summary(mine_id=None, mineral=None):
+    def get_daily_dispatch_summary(mine_id=None, mineral=None, sub_mine_id=None):
         """
         Returns the Daily Dispatch and Stock Balance KPI summary.
-        If mine_id is specified, strictly calculates for that mine.
-        Otherwise, aggregates statewide across all authorized mines.
+        - If sub_mine_id is specified: strictly calculates for that single Sub-Mine / Quarry Pit.
+        - If mine_id is specified: strictly calculates for that mine.
+        - Otherwise, aggregates statewide across all authorized mines.
         """
-        if mine_id:
+        if sub_mine_id:
+            qb = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (sub_mine_id,), one=True)
+            base = SUB_MINE_BASELINES.get(sub_mine_id)
+            if not base:
+                quota = float(qb["allocated_quota_mt"]) if qb and qb.get("allocated_quota_mt") else 30000.0
+                base = {
+                    "opening_stock_mt": round(quota * 0.05, 1),
+                    "production_today_mt": round(quota / 280.0, 1),
+                    "planned_dispatch_mt": round(quota / 260.0, 1)
+                }
+            opening_stock = base["opening_stock_mt"]
+            production_today = base["production_today_mt"]
+            planned_dispatch = base["planned_dispatch_mt"]
+
+            # Filter trips & weighments strictly to this sub-mine
+            where_sql = """
+                WHERE (DATE(w.timestamp) = DATE('now') OR DATE(tr.start_time) = DATE('now'))
+                  AND (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?)
+                       OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?))
+            """
+            mine_params = (sub_mine_id, sub_mine_id)
+        elif mine_id:
             sp = db.query("SELECT * FROM stock_production WHERE mine_id = ? ORDER BY record_date DESC, id DESC LIMIT 1", (mine_id,), one=True)
             mine_row = db.query("SELECT * FROM mines WHERE id = ?", (mine_id,), one=True)
             base = MINE_BASELINES.get(mine_id, {"opening_stock_mt": 4200.0, "production_today_mt": 650.0, "planned_dispatch_mt": 700.0})
@@ -70,7 +127,7 @@ class MaterialMonitoringService:
                 opening_stock = base["opening_stock_mt"]
                 production_today = base["production_today_mt"]
                 planned_dispatch = base["planned_dispatch_mt"]
-            mine_filter = "WHERE tr.mine_id = ?"
+            where_sql = "WHERE (DATE(w.timestamp) = DATE('now') OR DATE(tr.start_time) = DATE('now')) AND tr.mine_id = ?"
             mine_params = (mine_id,)
         else:
             mines_list = db.query("SELECT id FROM mines")
@@ -93,16 +150,8 @@ class MaterialMonitoringService:
             opening_stock = round(op_total, 1)
             production_today = round(pr_total, 1)
             planned_dispatch = round(pl_total, 1)
-            mine_filter = ""
+            where_sql = "WHERE (DATE(w.timestamp) = DATE('now') OR DATE(tr.start_time) = DATE('now'))"
             mine_params = ()
-
-        where_conds = ["(DATE(w.timestamp) = DATE('now') OR DATE(tr.start_time) = DATE('now'))"]
-        if mine_id:
-            where_conds.append("tr.mine_id = ?")
-            mine_params = (mine_id,)
-        else:
-            mine_params = ()
-        where_sql = "WHERE " + " AND ".join(where_conds)
 
         sql_actual = f"""
             SELECT 
@@ -116,7 +165,16 @@ class MaterialMonitoringService:
         """
         row = db.query(sql_actual, mine_params, one=True)
         if not row or float(row["actual_dispatch"] or 0) == 0:
-            fallback_where = f"WHERE tr.mine_id = ? AND " if mine_id else "WHERE "
+            if sub_mine_id:
+                fallback_where = "WHERE (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?) OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?)) AND "
+                fallback_params = (sub_mine_id, sub_mine_id)
+            elif mine_id:
+                fallback_where = "WHERE tr.mine_id = ? AND "
+                fallback_params = (mine_id,)
+            else:
+                fallback_where = "WHERE "
+                fallback_params = ()
+
             fallback_sql = f"""
                 SELECT 
                     COALESCE(SUM(w.net_weight_mt), 0.0) as actual_dispatch,
@@ -127,35 +185,48 @@ class MaterialMonitoringService:
                 LEFT JOIN weighments w ON w.trip_id = tr.id
                 {fallback_where} substr(w.timestamp, 1, 10) = (SELECT MAX(substr(timestamp, 1, 10)) FROM weighments)
             """
-            row = db.query(fallback_sql, mine_params, one=True)
+            row = db.query(fallback_sql, fallback_params, one=True)
 
         actual_dispatch = round(float(row["actual_dispatch"] if row else 0.0), 1)
         total_excess = round(float(row["excess_material"] if row else 0.0), 1)
         active_trucks = int(row["active_trucks"] if row else 0)
         total_trips = int(row["total_trips"] if row else 0)
 
-        sql_pending = f"""
-            SELECT COUNT(*) as c
-            FROM trips tr
-            LEFT JOIN weighments w ON w.trip_id = tr.id
-            WHERE w.id IS NULL {'AND tr.mine_id = ?' if mine_id else ''}
-        """
-        pending_weighment = db.query(sql_pending, (mine_id,) if mine_id else (), one=True)["c"]
+        if sub_mine_id:
+            sql_pending = """
+                SELECT COUNT(*) as c FROM trips tr
+                LEFT JOIN weighments w ON w.trip_id = tr.id
+                WHERE w.id IS NULL AND (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?) OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?))
+            """
+            pending_weighment = db.query(sql_pending, (sub_mine_id, sub_mine_id), one=True)["c"]
 
-        sql_permits = f"""
-            SELECT COUNT(*) as c
-            FROM permits
-            WHERE status = 'ACTIVE' {'AND mine_id = ?' if mine_id else ''}
-        """
-        active_permits = db.query(sql_permits, (mine_id,) if mine_id else (), one=True)["c"]
+            sql_permits = """
+                SELECT COUNT(*) as c FROM permits
+                WHERE status = 'ACTIVE' AND (quarry_block_id = ? OR truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?))
+            """
+            active_permits = db.query(sql_permits, (sub_mine_id, sub_mine_id), one=True)["c"]
 
-        sql_anom = f"""
-            SELECT COUNT(DISTINCT tr.truck_id) as c
-            FROM trips tr
-            JOIN weighments w ON w.trip_id = tr.id
-            WHERE w.net_weight_mt > w.permitted_weight_mt {'AND tr.mine_id = ?' if mine_id else ''}
-        """
-        anomaly_trucks_count = db.query(sql_anom, (mine_id,) if mine_id else (), one=True)["c"]
+            sql_anom = """
+                SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr
+                JOIN weighments w ON w.trip_id = tr.id
+                WHERE w.net_weight_mt > w.permitted_weight_mt
+                  AND (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?) OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?))
+            """
+            anomaly_trucks_count = db.query(sql_anom, (sub_mine_id, sub_mine_id), one=True)["c"]
+        elif mine_id:
+            sql_pending = "SELECT COUNT(*) as c FROM trips tr LEFT JOIN weighments w ON w.trip_id = tr.id WHERE w.id IS NULL AND tr.mine_id = ?"
+            pending_weighment = db.query(sql_pending, (mine_id,), one=True)["c"]
+
+            sql_permits = "SELECT COUNT(*) as c FROM permits WHERE status = 'ACTIVE' AND mine_id = ?"
+            active_permits = db.query(sql_permits, (mine_id,), one=True)["c"]
+
+            sql_anom = "SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr JOIN weighments w ON w.trip_id = tr.id WHERE w.net_weight_mt > w.permitted_weight_mt AND tr.mine_id = ?"
+            anomaly_trucks_count = db.query(sql_anom, (mine_id,), one=True)["c"]
+        else:
+            pending_weighment = db.query("SELECT COUNT(*) as c FROM trips tr LEFT JOIN weighments w ON w.trip_id = tr.id WHERE w.id IS NULL", one=True)["c"]
+            active_permits = db.query("SELECT COUNT(*) as c FROM permits WHERE status = 'ACTIVE'", one=True)["c"]
+            sql_anom = "SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr JOIN weighments w ON w.trip_id = tr.id WHERE w.net_weight_mt > w.permitted_weight_mt"
+            anomaly_trucks_count = db.query(sql_anom, one=True)["c"]
 
         available_stock = round(opening_stock + production_today, 1)
         remaining_dispatch = round(max(0.0, planned_dispatch - actual_dispatch), 1)
@@ -180,8 +251,8 @@ class MaterialMonitoringService:
         }
 
     @staticmethod
-    def get_stock_reconciliation(mine_id=None):
-        summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=mine_id)
+    def get_stock_reconciliation(mine_id=None, sub_mine_id=None):
+        summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=mine_id, sub_mine_id=sub_mine_id)
         stock_change = round(summary["production_today_mt"] - summary["actual_dispatch_mt"], 1)
         return {
             "opening_stock_mt": summary["opening_stock_mt"],
@@ -415,9 +486,16 @@ class MaterialMonitoringService:
         return anomalies
 
     @staticmethod
-    def get_top_material_rankings(mine_id=None):
-        mine_filter = "WHERE tr.mine_id = ?" if mine_id else ""
-        params = (mine_id,) if mine_id else ()
+    def get_top_material_rankings(mine_id=None, sub_mine_id=None):
+        if sub_mine_id:
+            mine_filter = "WHERE (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?) OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?))"
+            params = (sub_mine_id, sub_mine_id)
+        elif mine_id:
+            mine_filter = "WHERE tr.mine_id = ?"
+            params = (mine_id,)
+        else:
+            mine_filter = ""
+            params = ()
 
         sql_trucks_qty = f"""
             SELECT t.registration_number, COALESCE(SUM(w.net_weight_mt), 0.0) as total_qty, COUNT(tr.id) as trips_count
@@ -490,15 +568,23 @@ class MaterialMonitoringService:
         }
 
     @staticmethod
-    def get_mineral_wise_summary(mine_id=None):
+    def get_mineral_wise_summary(mine_id=None, sub_mine_id=None):
         minerals_meta = {
             "Quartzite": {"produced_mt": 650.0, "planned_mt": 700.0},
             "Limestone": {"produced_mt": 1100.0, "planned_mt": 1200.0},
             "Silica Sand": {"produced_mt": 450.0, "planned_mt": 500.0},
             "Copper Tailings / Quartz": {"produced_mt": 800.0, "planned_mt": 900.0}
         }
-        mine_filter = "WHERE tr.mine_id = ?" if mine_id else ""
-        params = (mine_id,) if mine_id else ()
+        if sub_mine_id:
+            mine_filter = "WHERE (tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?) OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?))"
+            params = (sub_mine_id, sub_mine_id)
+        elif mine_id:
+            mine_filter = "WHERE tr.mine_id = ?"
+            params = (mine_id,)
+        else:
+            mine_filter = ""
+            params = ()
+
         sql = f"""
             SELECT p.mineral,
                 COALESCE(SUM(w.net_weight_mt), 0.0) as dispatched_mt,
@@ -518,6 +604,9 @@ class MaterialMonitoringService:
             disp = round(float(r["dispatched_mt"]), 1)
             matched_key = next((k for k in minerals_meta if k.lower() in m_name.lower()), "Quartzite")
             meta = minerals_meta.get(matched_key, {"produced_mt": 500.0, "planned_mt": 600.0})
+            if sub_mine_id:
+                summary = MaterialMonitoringService.get_daily_dispatch_summary(sub_mine_id=sub_mine_id)
+                meta = {"produced_mt": summary["production_today_mt"], "planned_mt": summary["planned_dispatch_mt"]}
             rem = round(max(0.0, meta["planned_mt"] - disp), 1)
             result.append({
                 "mineral": m_name,
@@ -530,39 +619,72 @@ class MaterialMonitoringService:
         return result
 
     @staticmethod
-    def get_dispatch_vs_production_timeseries(mine_id=None):
+    def get_dispatch_vs_production_timeseries(mine_id=None, sub_mine_id=None):
         days = ["Day -6", "Day -5", "Day -4", "Day -3", "Day -2", "Yesterday", "Today"]
-        if mine_id == 1:
+        if sub_mine_id == 5:  # QB-ALW-05
+            prod = [115, 120, 118, 125, 122, 119, 120]
+            disp = [110, 115, 120, 118, 122, 115, 75.5]
+        elif sub_mine_id == 15:  # QB-ALW-15
+            prod = [200, 210, 205, 215, 210, 208, 210]
+            disp = [195, 200, 205, 210, 205, 202, 182.3]
+        elif sub_mine_id == 33:  # QB-ALW-33
+            prod = [310, 320, 315, 330, 325, 318, 320]
+            disp = [305, 315, 320, 325, 320, 312, 520]
+        elif sub_mine_id == 37:  # QB-KOT-01
+            prod = [360, 370, 375, 380, 370, 375, 380]
+            disp = [350, 360, 365, 370, 365, 368, 140]
+        elif sub_mine_id:
+            summary = MaterialMonitoringService.get_daily_dispatch_summary(sub_mine_id=sub_mine_id)
+            p_base = summary["production_today_mt"]
+            d_base = summary["actual_dispatch_mt"]
+            prod = [round(p_base * (0.95 + 0.02 * i), 1) for i in range(7)]
+            disp = [round(p_base * (0.92 + 0.02 * i), 1) for i in range(6)] + [d_base]
+        elif mine_id == 1:
             prod = [600, 620, 680, 640, 670, 630, 650]
-            disp = [580, 610, 650, 620, 690, 620, 79]
+            disp = [580, 610, 650, 620, 690, 620, 777.8]
         elif mine_id == 2:
             prod = [1050, 1100, 1150, 1080, 1120, 1100, 1100]
-            disp = [1020, 1080, 1140, 1090, 1150, 1080, 52]
+            disp = [1020, 1080, 1140, 1090, 1150, 1080, 320]
         elif mine_id == 3:
             prod = [420, 440, 460, 430, 450, 440, 450]
-            disp = [410, 430, 450, 420, 460, 430, 30]
+            disp = [410, 430, 450, 420, 460, 430, 95]
         else:
             prod = [2870, 2960, 3090, 2950, 3040, 2970, 3000]
-            disp = [2810, 2920, 3040, 2930, 3100, 2930, 186]
-        stock_change = [p - d for p, d in zip(prod, disp)]
+            disp = [2810, 2920, 3040, 2930, 3100, 2930, 1192.8]
+        stock_change = [round(p - d, 1) for p, d in zip(prod, disp)]
         return {"labels": days, "production": prod, "dispatch": disp, "stock_change": stock_change}
 
     @staticmethod
-    def get_dispatch_control_planning(mine_id=None):
-        summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=mine_id)
+    def get_dispatch_control_planning(mine_id=None, sub_mine_id=None):
+        summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=mine_id, sub_mine_id=sub_mine_id)
         planned_dispatch = summary["planned_dispatch_mt"]
         actual_dispatch = summary["actual_dispatch_mt"]
         remaining_dispatch = summary["remaining_dispatch_mt"]
-        mine_filter = "WHERE assigned_mine_id = ?" if mine_id else ""
-        params = (mine_id,) if mine_id else ()
-        truck_counts = db.query(f"""
-            SELECT COUNT(*) as planned_trucks, COALESCE(SUM(completed_rounds_today), 0) as completed_rounds
-            FROM trucks {mine_filter}
-        """, params, one=True)
-        planned_trucks = int(truck_counts["planned_trucks"] if truck_counts and truck_counts.get("planned_trucks") else 6)
-        completed_rounds = int(truck_counts["completed_rounds"] if truck_counts and truck_counts.get("completed_rounds") else 14)
-        dispatched_filter = "WHERE tr.mine_id = ?" if mine_id else ""
-        d_row = db.query(f"SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr {dispatched_filter}", params, one=True)
+        if sub_mine_id:
+            truck_counts = db.query("""
+                SELECT COUNT(*) as planned_trucks, COALESCE(SUM(completed_rounds_today), 0) as completed_rounds
+                FROM trucks WHERE sub_mine_id = ?
+            """, (sub_mine_id,), one=True)
+            d_row = db.query("""
+                SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr
+                WHERE tr.truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?)
+                   OR tr.permit_id IN (SELECT id FROM permits WHERE quarry_block_id = ?)
+            """, (sub_mine_id, sub_mine_id), one=True)
+        elif mine_id:
+            truck_counts = db.query("""
+                SELECT COUNT(*) as planned_trucks, COALESCE(SUM(completed_rounds_today), 0) as completed_rounds
+                FROM trucks WHERE assigned_mine_id = ?
+            """, (mine_id,), one=True)
+            d_row = db.query("SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr WHERE tr.mine_id = ?", (mine_id,), one=True)
+        else:
+            truck_counts = db.query("""
+                SELECT COUNT(*) as planned_trucks, COALESCE(SUM(completed_rounds_today), 0) as completed_rounds
+                FROM trucks
+            """, one=True)
+            d_row = db.query("SELECT COUNT(DISTINCT tr.truck_id) as c FROM trips tr", one=True)
+
+        planned_trucks = int(truck_counts["planned_trucks"] if truck_counts and truck_counts.get("planned_trucks") else summary["active_trucks"])
+        completed_rounds = int(truck_counts["completed_rounds"] if truck_counts and truck_counts.get("completed_rounds") else summary["total_trips"])
         trucks_dispatched = int(d_row["c"] if d_row and d_row.get("c") else summary["active_trucks"])
         return {
             "planned_dispatch_mt": planned_dispatch,

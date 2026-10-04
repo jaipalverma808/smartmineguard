@@ -300,11 +300,16 @@ def get_active_sub_mine_id():
     - If user is OFFICER or ADMIN:
         1. Checks request.args.get("sub_mine_id") if within a request context
         2. Falls back to session.get("selected_sub_mine_id")
-        3. Validates that the sub_mine belongs to the active_mine_id (if active_mine_id is set).
+        3. Validates that the sub_mine belongs to active_mine_id (sub-mine requires a parent mine).
     """
     role = session.get("user_role")
     if role == "OPERATOR":
         return get_operator_sub_mine_id()
+
+    active_mine_id = get_active_mine_id()
+    if not active_mine_id:
+        session.pop("selected_sub_mine_id", None)
+        return None
 
     val = None
     try:
@@ -324,24 +329,67 @@ def get_active_sub_mine_id():
 
     if val is not None and str(val).isdigit() and int(val) > 0:
         sm_id = int(val)
-        active_mine_id = get_active_mine_id()
-        if active_mine_id:
-            qb = db.query("SELECT id FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, active_mine_id), one=True)
-            if qb:
-                session["selected_sub_mine_id"] = sm_id
-                return sm_id
-            else:
-                session.pop("selected_sub_mine_id", None)
-                return None
+        qb = db.query("SELECT id FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, active_mine_id), one=True)
+        if qb:
+            session["selected_sub_mine_id"] = sm_id
+            return sm_id
         else:
-            qb = db.query("SELECT id FROM quarry_blocks WHERE id = ?", (sm_id,), one=True)
-            if qb:
-                session["selected_sub_mine_id"] = sm_id
-                return sm_id
-            else:
-                session.pop("selected_sub_mine_id", None)
-                return None
+            session.pop("selected_sub_mine_id", None)
+            return None
     return None
+
+
+def get_current_scope():
+    """
+    CENTRALIZED FILTER HELPER:
+    Returns the active operational scope across the entire platform:
+    {
+        "scope": "statewide" | "mine" | "submine",
+        "mine_id": int or None,
+        "sub_mine_id": int or None,
+        "mine": dict or None (resolved from DB),
+        "sub_mine": dict or None (resolved from DB),
+        "role": str
+    }
+    Strictly preserves authorization boundaries:
+    - ADMIN: Statewide, Mine, or Sub-Mine scope.
+    - OFFICER: Strictly locked to their assigned concession mine; can toggle between Mine or Sub-Mine scope.
+    - OPERATOR: Strictly locked to their assigned scale station / quarry.
+    """
+    role = session.get("user_role")
+    mine_id = get_active_mine_id()
+    sub_mine_id = get_active_sub_mine_id()
+
+    mine_row = None
+    sub_mine_row = None
+    if mine_id:
+        mine_row = db.query("SELECT * FROM mines WHERE id = ?", (mine_id,), one=True)
+        if mine_row:
+            mine_row = dict(mine_row)
+            mine_row["current_dispatch_mt"] = float(mine_row.get("current_dispatch_mt") or 0.0)
+            mine_row["authorized_annual_quota_mt"] = float(mine_row.get("authorized_annual_quota_mt") or 100000.0)
+    if sub_mine_id:
+        sub_mine_row = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (sub_mine_id,), one=True)
+        if sub_mine_row:
+            sub_mine_row = dict(sub_mine_row)
+            sub_mine_row["dispatched_mt"] = float(sub_mine_row.get("dispatched_mt") or 0.0)
+            sub_mine_row["allocated_quota_mt"] = float(sub_mine_row.get("allocated_quota_mt") or 10000.0)
+
+    if sub_mine_id and sub_mine_row:
+        scope = "submine"
+    elif mine_id and mine_row:
+        scope = "mine"
+    else:
+        scope = "statewide"
+
+    return {
+        "scope": scope,
+        "mine_id": mine_id,
+        "sub_mine_id": sub_mine_id,
+        "mine": mine_row,
+        "sub_mine": sub_mine_row,
+        "role": role
+    }
 
 
 def get_operator_sub_mine_id():
@@ -360,7 +408,7 @@ def get_operator_sub_mine_id():
 
 
 def get_operator_truck_ids(mine_id=None, sub_mine_id=None):
-    """Returns list of truck IDs strictly associated with the operator's sub-mine/contractor (or mine)."""
+    """Returns list of truck IDs strictly associated with the specified sub-mine or mine."""
     if sub_mine_id is None and session.get("user_role") == "OPERATOR":
         sub_mine_id = get_operator_sub_mine_id()
     if mine_id is None and session.get("user_role") == "OPERATOR":
@@ -383,12 +431,7 @@ def get_operator_truck_ids(mine_id=None, sub_mine_id=None):
         UNION
         SELECT DISTINCT truck_id FROM trips WHERE mine_id = ?
     """, (mine_id, mine_id, mine_id))
-    truck_ids = [r["truck_id"] for r in rows if r["truck_id"] is not None]
-    if mine_id == 1:
-        for tid in [1, 3, 5]:
-            if tid not in truck_ids:
-                truck_ids.append(tid)
-    return truck_ids
+    return [r["truck_id"] for r in rows if r["truck_id"] is not None]
 
 
 def validate_operator_truck_access(truck_id):
@@ -559,39 +602,37 @@ def get_current_user():
 
 @app.context_processor
 def inject_global_context():
-    """Injects user session, active mine and sub-mine filter, and real-time alert badge count into all templates."""
+    """Injects user session, active mine and sub-mine filter, current_scope, and real-time alert badge count into all templates."""
     pending_alerts_count = 0
     role = session.get("user_role")
-    active_mine_id = get_active_mine_id()
-    active_sub_mine_id = get_active_sub_mine_id()
-    active_mine = None
-    active_sub_mine = None
+    current_scope = get_current_scope()
+    active_mine_id = current_scope["mine_id"]
+    active_sub_mine_id = current_scope["sub_mine_id"]
+    active_mine = current_scope["mine"]
+    active_sub_mine = current_scope["sub_mine"]
     all_mines = []
     all_sub_mines = []
     try:
         if role == "OFFICER":
             active_mine_id = get_officer_mine_id()
-            active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
+            active_mine = db.query("SELECT id, mine_code, name, district, state, mineral, authorized_annual_quota_mt FROM mines WHERE id = ?", (active_mine_id,), one=True)
             all_mines = [active_mine] if active_mine else []
             if active_mine_id:
-                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
+                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name, allocated_quota_mt, dispatched_mt FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
         elif role == "OPERATOR":
             active_mine_id = get_operator_mine_id()
-            active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
+            active_mine = db.query("SELECT id, mine_code, name, district, state, mineral, authorized_annual_quota_mt FROM mines WHERE id = ?", (active_mine_id,), one=True)
             all_mines = [active_mine] if active_mine else []
             sub_id = get_operator_sub_mine_id()
             if sub_id:
                 active_sub_mine = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE id = ?", (sub_id,), one=True)
                 all_sub_mines = [active_sub_mine] if active_sub_mine else []
         else:
-            all_mines = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines ORDER BY id ASC")
+            all_mines = db.query("SELECT id, mine_code, name, district, state, mineral, authorized_annual_quota_mt FROM mines ORDER BY id ASC")
             if active_mine_id:
-                active_mine = next((m for m in all_mines if m["id"] == active_mine_id), None)
-                if not active_mine:
-                    active_mine = db.query("SELECT id, mine_code, name, district, state, mineral FROM mines WHERE id = ?", (active_mine_id,), one=True)
-                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
+                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name, allocated_quota_mt, dispatched_mt FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (active_mine_id,))
             else:
-                all_sub_mines = db.query("SELECT id, mine_id, block_code, block_name, leaseholder_name FROM quarry_blocks ORDER BY mine_id, id ASC")
+                all_sub_mines = []
 
         if active_sub_mine_id and not active_sub_mine:
             active_sub_mine = next((sm for sm in all_sub_mines if sm["id"] == active_sub_mine_id), None)
@@ -602,14 +643,23 @@ def inject_global_context():
 
     if role in ("ADMIN", "OFFICER"):
         try:
-            if active_mine_id:
+            if active_sub_mine_id:
+                row = db.query("""
+                    SELECT COUNT(*) as count FROM alerts a
+                    LEFT JOIN trucks t ON t.id = a.truck_id
+                    LEFT JOIN permits p ON p.id = a.permit_id
+                    WHERE a.status IN ('NEW', 'UNDER_REVIEW')
+                      AND (t.sub_mine_id = ? OR p.quarry_block_id = ?)
+                """, (active_sub_mine_id, active_sub_mine_id), one=True)
+            elif active_mine_id:
                 row = db.query("""
                     SELECT COUNT(*) as count FROM alerts a
                     LEFT JOIN trips tr ON tr.id = a.trip_id
                     LEFT JOIN permits p ON p.id = a.permit_id
+                    LEFT JOIN trucks t ON t.id = a.truck_id
                     WHERE a.status IN ('NEW', 'UNDER_REVIEW')
-                      AND (tr.mine_id = ? OR p.mine_id = ?)
-                """, (active_mine_id, active_mine_id), one=True)
+                      AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+                """, (active_mine_id, active_mine_id, active_mine_id), one=True)
             else:
                 row = db.query("SELECT COUNT(*) as count FROM alerts WHERE status IN ('NEW', 'UNDER_REVIEW')", one=True)
             pending_alerts_count = row["count"] if row else 0
@@ -628,6 +678,7 @@ def inject_global_context():
             "assigned_sub_mine_id": active_sub_mine_id
         } if "user_id" in session else None,
         "pending_alerts_count": pending_alerts_count,
+        "current_scope": current_scope,
         "active_mine_id": active_mine_id,
         "active_mine": active_mine,
         "all_mines": all_mines,
@@ -647,6 +698,10 @@ def set_mine_filter():
     - ADMIN can select any mine and/or sub-mine (or statewide/all).
     - OFFICER is locked to their assigned mine, but can select or clear any sub-mine within their concession.
     - OPERATOR is locked to their assigned station.
+    Cascading rules strictly enforced:
+    - If Mine changes to another Mine, previous Sub-Mine selection is cleared.
+    - If Mine is reset to All Mines, Sub-Mine is cleared.
+    - Never allow Mine A + Sub-Mine belonging to Mine B.
     """
     role = session.get("user_role")
     if role not in ("ADMIN", "OFFICER"):
@@ -678,20 +733,23 @@ def set_mine_filter():
 
     # ADMIN:
     prev_mine_id = session.get("selected_mine_id")
+    mine_changed = False
     if "mine_id" in request.values:
         if not mine_id or str(mine_id).lower() in ("all", "0", "", "none"):
             session.pop("selected_mine_id", None)
             session.pop("selected_sub_mine_id", None)
+            sub_mine_id = None
             flash("Displaying statewide grid for all mining leaseholds.", "info")
         else:
             try:
                 m_id = int(mine_id)
                 mine = db.query("SELECT * FROM mines WHERE id = ?", (m_id,), one=True)
                 if mine:
+                    if str(prev_mine_id or "") != str(m_id):
+                        mine_changed = True
+                        if "sub_mine_id" not in request.values:
+                            session.pop("selected_sub_mine_id", None)
                     session["selected_mine_id"] = m_id
-                    # If mine changed, clear previous sub_mine_id unless a new sub_mine is provided in same request
-                    if prev_mine_id != m_id and "sub_mine_id" not in request.values:
-                        session.pop("selected_sub_mine_id", None)
                     flash(f"Global site filter applied: {mine['name']} ({mine['district']}).", "success")
                 else:
                     session.pop("selected_mine_id", None)
@@ -700,7 +758,7 @@ def set_mine_filter():
                 session.pop("selected_mine_id", None)
                 session.pop("selected_sub_mine_id", None)
 
-    # Process sub_mine_id for Admin
+    # Process sub_mine_id for Admin (validated against current_m_id to prevent cross-mine mismatch)
     if "sub_mine_id" in request.values:
         if not sub_mine_id or str(sub_mine_id).lower() in ("all", "0", "", "none"):
             session.pop("selected_sub_mine_id", None)
@@ -711,14 +769,11 @@ def set_mine_filter():
                 current_m_id = session.get("selected_mine_id")
                 if current_m_id:
                     qb = db.query("SELECT * FROM quarry_blocks WHERE id = ? AND mine_id = ?", (sm_id, current_m_id), one=True)
-                else:
-                    qb = db.query("SELECT * FROM quarry_blocks WHERE id = ?", (sm_id,), one=True)
-                if qb:
-                    session["selected_sub_mine_id"] = sm_id
-                    # Align mine filter to sub-mine's parent mine if none was selected
-                    if not current_m_id:
-                        session["selected_mine_id"] = qb["mine_id"]
-                    flash(f"Isolated to Sub-Mine: {qb['block_name']} ({qb['block_code']}).", "success")
+                    if qb:
+                        session["selected_sub_mine_id"] = sm_id
+                        flash(f"Isolated to Sub-Mine: {qb['block_name']} ({qb['block_code']}).", "success")
+                    else:
+                        session.pop("selected_sub_mine_id", None)
                 else:
                     session.pop("selected_sub_mine_id", None)
             except Exception:
@@ -847,11 +902,16 @@ def logout():
 @login_required()
 def dashboard():
     role = session.get("user_role")
+
+    # Sync URL parameters into session if provided (preserving backwards-compatibility)
     if role == "ADMIN":
         if "mine_id" in request.args:
             m_param = request.args.get("mine_id")
             if m_param and m_param.isdigit() and int(m_param) > 0:
+                prev_m = session.get("selected_mine_id")
                 session["selected_mine_id"] = int(m_param)
+                if prev_m != int(m_param):
+                    session.pop("selected_sub_mine_id", None)
             else:
                 session.pop("selected_mine_id", None)
                 session.pop("selected_sub_mine_id", None)
@@ -874,39 +934,82 @@ def dashboard():
         session.pop("selected_mine_id", None)
         session.pop("selected_sub_mine_id", None)
 
-    selected_mine_id = get_active_mine_id()
+    current_scope = get_current_scope()
+    scope = current_scope["scope"]
+    selected_mine_id = current_scope["mine_id"]
+    selected_sub_mine_id = current_scope["sub_mine_id"]
+    selected_mine = current_scope["mine"]
+    selected_sub_mine = current_scope["sub_mine"]
 
     if role == "ADMIN":
-        selected_mine = None
-        if selected_mine_id:
-            selected_mine = db.query("SELECT * FROM mines WHERE id = ?", (selected_mine_id,), one=True)
-            if not selected_mine:
-                selected_mine_id = None
-                session.pop("selected_mine_id", None)
-                session.pop("selected_sub_mine_id", None)
-
-        selected_sub_mine_id = session.get("selected_sub_mine_id") if selected_mine_id else None
-        selected_sub_mine = None
-        if selected_mine_id and selected_sub_mine_id:
-            selected_sub_mine = db.query(
-                "SELECT qb.*, m.name as mine_name, m.district as mine_district FROM quarry_blocks qb LEFT JOIN mines m ON m.id = qb.mine_id WHERE qb.id = ? AND qb.mine_id = ?",
-                (selected_sub_mine_id, selected_mine_id),
-                one=True
-            )
-            if not selected_sub_mine:
-                selected_sub_mine_id = None
-                session.pop("selected_sub_mine_id", None)
-
-        if selected_mine_id:
+        if scope == "submine":
+            # STATE 3: ONE MINE + ONE SUB-MINE SELECTED
             total_mines = 1
+            total_sub_mines = 1
+            truck_ids = get_operator_truck_ids(selected_mine_id, selected_sub_mine_id)
+            total_trucks = len(truck_ids)
+            placeholders = ",".join("?" for _ in truck_ids) if truck_ids else "NULL"
+
+            active_trucks = db.query(f"SELECT COUNT(*) as c FROM trucks WHERE status = 'IN_TRANSIT' AND id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            active_permits = db.query("""
+                SELECT COUNT(*) as c FROM permits 
+                WHERE status = 'ACTIVE' AND (quarry_block_id = ? OR truck_id IN (SELECT id FROM trucks WHERE sub_mine_id = ?))
+            """, (selected_sub_mine_id, selected_sub_mine_id), one=True)["c"]
+            total_trips = db.query(f"SELECT COUNT(*) as c FROM trips WHERE truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            pending_alerts = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE status = 'NEW' AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            critical_cases = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE severity = 'CRITICAL' AND status NOT IN ('DISMISSED', 'RESOLVED') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            escalated_cases = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE (escalated_to_admin = 1 OR severity = 'CRITICAL') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            high_risk_trucks_count = db.query(f"SELECT COUNT(*) as c FROM trucks WHERE current_risk_score >= 50 AND id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            investigations_count = db.query(f"SELECT COUNT(*) as c FROM investigations WHERE status != 'CLOSED' AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            officer_actions_count = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE handled_by_user_id IS NOT NULL AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+
+            daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            mismatch_check = DetectionEngine.check_production_dispatch_reconciliation(mine_id=selected_mine_id)
+            stock_recon = MaterialMonitoringService.get_stock_reconciliation(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            top_rankings = MaterialMonitoringService.get_top_material_rankings(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            mineral_summary = MaterialMonitoringService.get_mineral_wise_summary(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            mine_quarry_blocks = [selected_sub_mine] if selected_sub_mine else []
+
+            truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id)
+            assigned_contractor_trucks = db.query("SELECT * FROM trucks WHERE sub_mine_id = ? ORDER BY registration_number ASC", (selected_sub_mine_id,))
+            contractor_today_dispatch = daily_summary["actual_dispatch_mt"]
+            contractor_today_production = daily_summary["production_today_mt"]
+            assigned_contractor_permits = db.query("""
+                SELECT p.*, t.registration_number 
+                FROM permits p 
+                LEFT JOIN trucks t ON t.id = p.truck_id 
+                WHERE p.quarry_block_id = ? OR t.sub_mine_id = ?
+                ORDER BY p.id DESC LIMIT 8
+            """, (selected_sub_mine_id, selected_sub_mine_id))
+            officer_audits = db.query(f"""
+                SELECT a.*, t.registration_number, p.permit_number,
+                       u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
+                FROM alerts a
+                LEFT JOIN trucks t ON t.id = a.truck_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
+                WHERE a.truck_id IN ({placeholders})
+                ORDER BY a.id DESC LIMIT 6
+            """, truck_ids) if truck_ids else []
+
+        elif scope == "mine":
+            # STATE 2: ONE MINE SELECTED
+            total_mines = 1
+            mine_quarry_blocks = db.query("""
+                SELECT qb.*, m.name as mine_name, m.district as mine_district
+                FROM quarry_blocks qb
+                LEFT JOIN mines m ON m.id = qb.mine_id
+                WHERE qb.mine_id = ?
+                ORDER BY qb.id ASC
+            """, (selected_mine_id,))
+            total_sub_mines = len(mine_quarry_blocks)
+
             truck_ids = get_operator_truck_ids(selected_mine_id)
-            if truck_ids:
-                placeholders = ",".join("?" for _ in truck_ids)
-                total_trucks = len(truck_ids)
-                active_trucks = db.query(f"SELECT COUNT(*) as c FROM trucks WHERE status = 'IN_TRANSIT' AND id IN ({placeholders})", truck_ids, one=True)["c"]
-            else:
-                total_trucks = 0
-                active_trucks = 0
+            total_trucks = len(truck_ids)
+            placeholders = ",".join("?" for _ in truck_ids) if truck_ids else "NULL"
+
+            active_trucks = db.query(f"SELECT COUNT(*) as c FROM trucks WHERE status = 'IN_TRANSIT' AND id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
             active_permits = db.query("SELECT COUNT(*) as c FROM permits WHERE status = 'ACTIVE' AND mine_id = ?", (selected_mine_id,), one=True)["c"]
             total_trips = db.query("SELECT COUNT(*) as c FROM trips WHERE mine_id = ?", (selected_mine_id,), one=True)["c"]
             pending_alerts = db.query("""
@@ -921,63 +1024,38 @@ def dashboard():
                 LEFT JOIN permits p ON p.id = a.permit_id
                 WHERE a.severity = 'CRITICAL' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
             """, (selected_mine_id, selected_mine_id), one=True)["c"]
-        else:
-            total_mines = db.query("SELECT COUNT(*) as c FROM mines", one=True)["c"]
-            total_trucks = db.query("SELECT COUNT(*) as c FROM trucks", one=True)["c"]
-            active_trucks = db.query("SELECT COUNT(*) as c FROM trucks WHERE status = 'IN_TRANSIT'", one=True)["c"]
-            active_permits = db.query("SELECT COUNT(*) as c FROM permits WHERE status = 'ACTIVE'", one=True)["c"]
-            total_trips = db.query("SELECT COUNT(*) as c FROM trips", one=True)["c"]
-            pending_alerts = db.query("SELECT COUNT(*) as c FROM alerts WHERE status = 'NEW'", one=True)["c"]
-            critical_cases = db.query("SELECT COUNT(*) as c FROM alerts WHERE severity = 'CRITICAL' AND status != 'DISMISSED'", one=True)["c"]
+            escalated_cases = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE (a.escalated_to_admin = 1 OR a.severity = 'CRITICAL') AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (selected_mine_id, selected_mine_id), one=True)["c"]
+            high_risk_trucks_count = db.query(f"SELECT COUNT(*) as c FROM trucks WHERE current_risk_score >= 50 AND id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            investigations_count = db.query("""
+                SELECT COUNT(*) as c FROM investigations inv
+                LEFT JOIN permits p ON p.id = inv.permit_id
+                LEFT JOIN trips tr ON tr.id = inv.trip_id
+                WHERE inv.status != 'CLOSED' AND (p.mine_id = ? OR tr.mine_id = ?)
+            """, (selected_mine_id, selected_mine_id), one=True)["c"]
+            officer_actions_count = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.handled_by_user_id IS NOT NULL AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (selected_mine_id, selected_mine_id), one=True)["c"]
 
-        mines = db.query("SELECT * FROM mines ORDER BY id ASC")
-        users = db.query("SELECT id, username, full_name, role, department, badge_number, is_active FROM users ORDER BY id ASC")
-        audit_logs = db.query("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 8")
+            daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=selected_mine_id)
+            dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=selected_mine_id)
+            mismatch_check = DetectionEngine.check_production_dispatch_reconciliation(mine_id=selected_mine_id)
+            stock_recon = MaterialMonitoringService.get_stock_reconciliation(mine_id=selected_mine_id)
+            top_rankings = MaterialMonitoringService.get_top_material_rankings(mine_id=selected_mine_id)
+            mineral_summary = MaterialMonitoringService.get_mineral_wise_summary(mine_id=selected_mine_id)
 
-        # Material & Operational Dispatch Monitoring Data
-        daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=selected_mine_id)
-        dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=selected_mine_id)
-        mismatch_check = DetectionEngine.check_production_dispatch_reconciliation(mine_id=selected_mine_id)
-        stock_recon = MaterialMonitoringService.get_stock_reconciliation(mine_id=selected_mine_id)
-        mine_wise_summary = MaterialMonitoringService.get_mine_wise_material_summary()
-        top_rankings = MaterialMonitoringService.get_top_material_rankings(mine_id=selected_mine_id)
-        mineral_summary = MaterialMonitoringService.get_mineral_wise_summary(mine_id=selected_mine_id)
-
-        # Level 2: Sub-Mines under selected mine
-        if selected_mine_id:
-            mine_quarry_blocks = db.query("""
-                SELECT qb.*, m.name as mine_name, m.district as mine_district
-                FROM quarry_blocks qb
-                LEFT JOIN mines m ON m.id = qb.mine_id
-                WHERE qb.mine_id = ?
-                ORDER BY qb.id ASC
-            """, (selected_mine_id,))
-        else:
-            mine_quarry_blocks = []
-
-        # Level 3: Truck-Wise Material Movement Ledger ONLY loaded when a specific contractor/sub-mine is selected
-        if selected_sub_mine_id:
-            truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(
-                mine_id=selected_mine_id,
-                sub_mine_id=selected_sub_mine_id
-            )
-            assigned_contractor_trucks = db.query(
-                "SELECT * FROM trucks WHERE sub_mine_id = ? ORDER BY registration_number ASC",
-                (selected_sub_mine_id,)
-            )
-            contractor_today_dispatch = sum(
-                float(r.get("actual_qty_mt") or r.get("permitted_qty_mt") or 0.0)
-                for r in truck_material_ledger
-            )
-            contractor_today_production = round(contractor_today_dispatch * 1.08 + (12.0 if contractor_today_dispatch > 0 else 0.0), 1)
-        else:
             truck_material_ledger = []
             assigned_contractor_trucks = []
+            assigned_contractor_permits = []
             contractor_today_dispatch = 0.0
             contractor_today_production = 0.0
-
-        # Supervisory Vigilance Audit: High-risk detections and officer actions
-        if selected_mine_id:
             officer_audits = db.query("""
                 SELECT a.*, t.registration_number, p.permit_number,
                        u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
@@ -988,10 +1066,43 @@ def dashboard():
                 LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
                 WHERE (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
                   AND (a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH'))
-                ORDER BY a.id DESC
-                LIMIT 6
+                ORDER BY a.id DESC LIMIT 6
             """, (selected_mine_id, selected_mine_id, selected_mine_id))
+
         else:
+            # STATE 1: ALL MINES (STATEWIDE GRID)
+            total_mines = db.query("SELECT COUNT(*) as c FROM mines", one=True)["c"]
+            all_quarry_blocks_db = db.query("""
+                SELECT qb.*, m.name as mine_name, m.district as mine_district
+                FROM quarry_blocks qb
+                LEFT JOIN mines m ON m.id = qb.mine_id
+                ORDER BY qb.mine_id ASC, qb.id ASC
+            """)
+            total_sub_mines = len(all_quarry_blocks_db)
+            total_trucks = db.query("SELECT COUNT(*) as c FROM trucks", one=True)["c"]
+            active_trucks = db.query("SELECT COUNT(*) as c FROM trucks WHERE status = 'IN_TRANSIT'", one=True)["c"]
+            active_permits = db.query("SELECT COUNT(*) as c FROM permits WHERE status = 'ACTIVE'", one=True)["c"]
+            total_trips = db.query("SELECT COUNT(*) as c FROM trips", one=True)["c"]
+            pending_alerts = db.query("SELECT COUNT(*) as c FROM alerts WHERE status = 'NEW'", one=True)["c"]
+            critical_cases = db.query("SELECT COUNT(*) as c FROM alerts WHERE severity = 'CRITICAL' AND status NOT IN ('DISMISSED', 'RESOLVED')", one=True)["c"]
+            escalated_cases = db.query("SELECT COUNT(*) as c FROM alerts WHERE escalated_to_admin = 1 OR severity = 'CRITICAL'", one=True)["c"]
+            high_risk_trucks_count = db.query("SELECT COUNT(*) as c FROM trucks WHERE current_risk_score >= 50", one=True)["c"]
+            investigations_count = db.query("SELECT COUNT(*) as c FROM investigations WHERE status != 'CLOSED'", one=True)["c"]
+            officer_actions_count = db.query("SELECT COUNT(*) as c FROM alerts WHERE handled_by_user_id IS NOT NULL", one=True)["c"]
+
+            daily_summary = MaterialMonitoringService.get_daily_dispatch_summary()
+            dispatch_control = MaterialMonitoringService.get_dispatch_control_planning()
+            mismatch_check = DetectionEngine.check_production_dispatch_reconciliation()
+            stock_recon = MaterialMonitoringService.get_stock_reconciliation()
+            top_rankings = MaterialMonitoringService.get_top_material_rankings()
+            mineral_summary = MaterialMonitoringService.get_mineral_wise_summary()
+
+            mine_quarry_blocks = []
+            truck_material_ledger = []
+            assigned_contractor_trucks = []
+            assigned_contractor_permits = []
+            contractor_today_dispatch = 0.0
+            contractor_today_production = 0.0
             officer_audits = db.query("""
                 SELECT a.*, t.registration_number, p.permit_number,
                        u_handled.full_name as officer_name, u_handled.badge_number as officer_badge
@@ -1000,21 +1111,13 @@ def dashboard():
                 LEFT JOIN permits p ON p.id = a.permit_id
                 LEFT JOIN users u_handled ON u_handled.id = a.handled_by_user_id
                 WHERE a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH')
-                ORDER BY a.id DESC
-                LIMIT 6
+                ORDER BY a.id DESC LIMIT 6
             """)
 
-        if selected_sub_mine_id:
-            assigned_contractor_permits = db.query("""
-                SELECT p.*, t.registration_number 
-                FROM permits p 
-                LEFT JOIN trucks t ON t.id = p.truck_id 
-                WHERE p.quarry_block_id = ? OR t.sub_mine_id = ?
-                ORDER BY p.id DESC LIMIT 8
-            """, (selected_sub_mine_id, selected_sub_mine_id))
-        else:
-            assigned_contractor_permits = []
-
+        mines = db.query("SELECT * FROM mines ORDER BY id ASC")
+        users = db.query("SELECT id, username, full_name, role, department, badge_number, is_active FROM users ORDER BY id ASC")
+        audit_logs = db.query("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 8")
+        mine_wise_summary = MaterialMonitoringService.get_mine_wise_material_summary()
         all_quarry_blocks = db.query("""
             SELECT qb.*, m.name as mine_name, m.district as mine_district
             FROM quarry_blocks qb
@@ -1022,12 +1125,6 @@ def dashboard():
             ORDER BY qb.mine_id ASC, qb.id ASC
         """)
         all_trucks = db.query("SELECT id, registration_number, vehicle_type, max_capacity_mt FROM trucks ORDER BY registration_number ASC")
-
-        total_sub_mines = len(mine_quarry_blocks) if selected_mine_id else len(all_quarry_blocks)
-        escalated_cases = db.query("SELECT COUNT(*) as c FROM alerts WHERE escalated_to_admin = 1 OR severity = 'CRITICAL'", one=True)["c"]
-        high_risk_trucks_count = db.query("SELECT COUNT(*) as c FROM trucks WHERE current_risk_score >= 50", one=True)["c"]
-        investigations_count = db.query("SELECT COUNT(*) as c FROM investigations WHERE status != 'CLOSED'", one=True)["c"]
-        officer_actions_count = db.query("SELECT COUNT(*) as c FROM alerts WHERE handled_by_user_id IS NOT NULL", one=True)["c"]
 
         return render_template("dashboard_admin.html",
             total_mines=total_mines,
@@ -1071,90 +1168,135 @@ def dashboard():
         officer_mine_id = get_officer_mine_id()
         selected_mine_id = officer_mine_id  # Enforce strict single-mine isolation
 
-        critical_cases = db.query("""
-            SELECT COUNT(*) as c FROM alerts a
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            WHERE a.severity = 'CRITICAL' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
-        """, (officer_mine_id, officer_mine_id), one=True)["c"]
-        pending_alerts = db.query("""
-            SELECT COUNT(*) as c FROM alerts a
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            WHERE a.status = 'NEW' AND (tr.mine_id = ? OR p.mine_id = ?)
-        """, (officer_mine_id, officer_mine_id), one=True)["c"]
-        weight_anomalies = db.query("""
-            SELECT COUNT(*) as c FROM alerts a
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            WHERE a.alert_type = 'WEIGHT_ANOMALY' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
-        """, (officer_mine_id, officer_mine_id), one=True)["c"]
-        route_deviations = db.query("""
-            SELECT COUNT(*) as c FROM alerts a
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            WHERE a.alert_type = 'ROUTE_DEVIATION' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
-        """, (officer_mine_id, officer_mine_id), one=True)["c"]
-        gps_blackouts = db.query("""
-            SELECT COUNT(*) as c FROM alerts a
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            WHERE a.alert_type = 'GPS_BLACKOUT' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
-        """, (officer_mine_id, officer_mine_id), one=True)["c"]
-        
-        truck_ids = get_operator_truck_ids(officer_mine_id)
-        active_trucks = len([tid for tid in truck_ids if tid])
+        if selected_sub_mine_id:
+            # OFFICER: ISOLATED TO A SPECIFIC SUB-MINE
+            truck_ids = get_operator_truck_ids(officer_mine_id, selected_sub_mine_id)
+            placeholders = ",".join("?" for _ in truck_ids) if truck_ids else "NULL"
+            active_trucks = len([tid for tid in truck_ids if tid])
 
-        # High-risk trucks strictly restricted to officer's mine
-        high_risk_trucks = db.query("""
-            SELECT t.*, p.permit_number, p.mineral, p.source_name, p.destination_name
-            FROM trucks t
-            LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
-            WHERE (t.assigned_mine_id = ? OR p.mine_id = ?)
-              AND (t.current_risk_score >= 50 OR t.status = 'IN_TRANSIT')
-            ORDER BY t.current_risk_score DESC LIMIT 6
-        """, (officer_mine_id, officer_mine_id))
+            critical_cases = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE severity = 'CRITICAL' AND status NOT IN ('DISMISSED', 'RESOLVED') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            pending_alerts = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE status IN ('NEW', 'UNDER_REVIEW') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            weight_anomalies = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE alert_type = 'WEIGHT_ANOMALY' AND status NOT IN ('DISMISSED', 'RESOLVED') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            route_deviations = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE alert_type = 'ROUTE_DEVIATION' AND status NOT IN ('DISMISSED', 'RESOLVED') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
+            gps_blackouts = db.query(f"SELECT COUNT(*) as c FROM alerts WHERE alert_type = 'GPS_BLACKOUT' AND status NOT IN ('DISMISSED', 'RESOLVED') AND truck_id IN ({placeholders})", truck_ids, one=True)["c"] if truck_ids else 0
 
-        # Recent alerts strictly restricted to officer's mine
-        recent_alerts = db.query("""
-            SELECT a.*, t.registration_number, p.permit_number
-            FROM alerts a
-            LEFT JOIN trucks t ON t.id = a.truck_id
-            LEFT JOIN permits p ON p.id = a.permit_id
-            LEFT JOIN trips tr ON tr.id = a.trip_id
-            WHERE a.status IN ('NEW', 'UNDER_REVIEW')
-              AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
-            ORDER BY a.id DESC LIMIT 5
-        """, (officer_mine_id, officer_mine_id, officer_mine_id))
+            high_risk_trucks = db.query(f"""
+                SELECT t.*, p.permit_number, p.mineral, p.source_name, p.destination_name
+                FROM trucks t
+                LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
+                WHERE t.id IN ({placeholders}) AND (t.current_risk_score >= 50 OR t.status = 'IN_TRANSIT')
+                ORDER BY t.current_risk_score DESC LIMIT 6
+            """, truck_ids) if truck_ids else []
 
-        # Investigations strictly restricted to officer's mine
-        investigations = db.query("""
-            SELECT inv.*, t.registration_number 
-            FROM investigations inv
-            LEFT JOIN trucks t ON t.id = inv.truck_id
-            LEFT JOIN permits p ON p.truck_id = t.id
-            LEFT JOIN trips tr ON tr.id = inv.trip_id
-            WHERE p.mine_id = ? OR tr.mine_id = ? OR t.assigned_mine_id = ?
-            ORDER BY inv.id DESC LIMIT 4
-        """, (officer_mine_id, officer_mine_id, officer_mine_id))
+            recent_alerts = db.query(f"""
+                SELECT a.*, t.registration_number, p.permit_number
+                FROM alerts a
+                LEFT JOIN trucks t ON t.id = a.truck_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.status IN ('NEW', 'UNDER_REVIEW') AND a.truck_id IN ({placeholders})
+                ORDER BY a.id DESC LIMIT 5
+            """, truck_ids) if truck_ids else []
+
+            investigations = db.query(f"""
+                SELECT inv.*, t.registration_number 
+                FROM investigations inv
+                LEFT JOIN trucks t ON t.id = inv.truck_id
+                WHERE inv.truck_id IN ({placeholders})
+                ORDER BY inv.id DESC LIMIT 4
+            """, truck_ids) if truck_ids else []
+
+            quarry_blocks = db.query("""
+                SELECT qb.*, m.name as mine_name, m.district as mine_district
+                FROM quarry_blocks qb
+                LEFT JOIN mines m ON m.id = qb.mine_id
+                WHERE qb.id = ?
+            """, (selected_sub_mine_id,))
+
+            daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=officer_mine_id, sub_mine_id=selected_sub_mine_id)
+            dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=officer_mine_id, sub_mine_id=selected_sub_mine_id)
+            truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(mine_id=officer_mine_id, sub_mine_id=selected_sub_mine_id)
+        else:
+            # OFFICER: WHOLE ASSIGNED MINE CONCESSION
+            critical_cases = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.severity = 'CRITICAL' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (officer_mine_id, officer_mine_id), one=True)["c"]
+            pending_alerts = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.status = 'NEW' AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (officer_mine_id, officer_mine_id), one=True)["c"]
+            weight_anomalies = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.alert_type = 'WEIGHT_ANOMALY' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (officer_mine_id, officer_mine_id), one=True)["c"]
+            route_deviations = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.alert_type = 'ROUTE_DEVIATION' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (officer_mine_id, officer_mine_id), one=True)["c"]
+            gps_blackouts = db.query("""
+                SELECT COUNT(*) as c FROM alerts a
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                WHERE a.alert_type = 'GPS_BLACKOUT' AND a.status NOT IN ('DISMISSED', 'RESOLVED') AND (tr.mine_id = ? OR p.mine_id = ?)
+            """, (officer_mine_id, officer_mine_id), one=True)["c"]
+            
+            truck_ids = get_operator_truck_ids(officer_mine_id)
+            active_trucks = len([tid for tid in truck_ids if tid])
+
+            high_risk_trucks = db.query("""
+                SELECT t.*, p.permit_number, p.mineral, p.source_name, p.destination_name
+                FROM trucks t
+                LEFT JOIN permits p ON p.truck_id = t.id AND p.status = 'ACTIVE'
+                WHERE (t.assigned_mine_id = ? OR p.mine_id = ?)
+                  AND (t.current_risk_score >= 50 OR t.status = 'IN_TRANSIT')
+                ORDER BY t.current_risk_score DESC LIMIT 6
+            """, (officer_mine_id, officer_mine_id))
+
+            recent_alerts = db.query("""
+                SELECT a.*, t.registration_number, p.permit_number
+                FROM alerts a
+                LEFT JOIN trucks t ON t.id = a.truck_id
+                LEFT JOIN permits p ON p.id = a.permit_id
+                LEFT JOIN trips tr ON tr.id = a.trip_id
+                WHERE a.status IN ('NEW', 'UNDER_REVIEW')
+                  AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+                ORDER BY a.id DESC LIMIT 5
+            """, (officer_mine_id, officer_mine_id, officer_mine_id))
+
+            investigations = db.query("""
+                SELECT inv.*, t.registration_number 
+                FROM investigations inv
+                LEFT JOIN trucks t ON t.id = inv.truck_id
+                LEFT JOIN permits p ON p.truck_id = t.id
+                LEFT JOIN trips tr ON tr.id = inv.trip_id
+                WHERE p.mine_id = ? OR tr.mine_id = ? OR t.assigned_mine_id = ?
+                ORDER BY inv.id DESC LIMIT 4
+            """, (officer_mine_id, officer_mine_id, officer_mine_id))
+
+            quarry_blocks = db.query("""
+                SELECT qb.*, m.name as mine_name, m.district as mine_district
+                FROM quarry_blocks qb
+                LEFT JOIN mines m ON m.id = qb.mine_id
+                WHERE qb.mine_id = ?
+                ORDER BY qb.id ASC
+            """, (officer_mine_id,))
+
+            daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=officer_mine_id)
+            dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=officer_mine_id)
+            truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(mine_id=officer_mine_id)
 
         mines = db.query("SELECT id, name, mineral, district, state FROM mines WHERE id = ?", (officer_mine_id,))
-        daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=officer_mine_id)
-        dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=officer_mine_id)
         mismatch_check = DetectionEngine.check_production_dispatch_reconciliation(mine_id=officer_mine_id)
         quantity_anomalies = MaterialMonitoringService.get_quantity_anomalies(mine_id=officer_mine_id)
-        truck_material_ledger = MaterialMonitoringService.get_truck_wise_material_ledger(mine_id=officer_mine_id)
 
-        # Mine Sub-Locations / Leaseholder Businessmen Concessions strictly for officer's mine
-        quarry_blocks = db.query("""
-            SELECT qb.*, m.name as mine_name, m.district as mine_district
-            FROM quarry_blocks qb
-            LEFT JOIN mines m ON m.id = qb.mine_id
-            WHERE qb.mine_id = ?
-            ORDER BY qb.id ASC
-        """, (officer_mine_id,))
-
-        # Batch aggregate sub_mine / quarry block counts efficiently
         truck_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT sub_mine_id, COUNT(*) as c FROM trucks WHERE sub_mine_id IS NOT NULL GROUP BY sub_mine_id")}
         trip_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT t.sub_mine_id, COUNT(tr.id) as c FROM trips tr JOIN trucks t ON t.id = tr.truck_id WHERE t.sub_mine_id IS NOT NULL GROUP BY t.sub_mine_id")}
         alert_counts = {r["sub_mine_id"]: r["c"] for r in db.query("SELECT t.sub_mine_id, COUNT(a.id) as c FROM alerts a JOIN trucks t ON t.id = a.truck_id WHERE t.sub_mine_id IS NOT NULL AND a.status IN ('NEW', 'UNDER_REVIEW') GROUP BY t.sub_mine_id")}
@@ -1994,7 +2136,11 @@ def alerts():
     view_mode = request.args.get("view", default_view)
     filter_status = request.args.get("status")
     filter_severity = request.args.get("severity")
-    active_mine_id = get_active_mine_id()
+
+    current_scope = get_current_scope()
+    scope = current_scope["scope"]
+    active_mine_id = current_scope["mine_id"]
+    active_sub_mine_id = current_scope["sub_mine_id"]
 
     sql = """
         SELECT a.*, t.registration_number, p.permit_number, tr.trip_number,
@@ -2011,18 +2157,33 @@ def alerts():
         WHERE 1=1
     """
     params = []
-    if active_mine_id:
-        sql += " AND (tr.mine_id = ? OR p.mine_id = ?)"
-        params.extend([active_mine_id, active_mine_id])
+    if scope == "submine":
+        sql += " AND (t.sub_mine_id = ? OR p.quarry_block_id = ?)"
+        params.extend([active_sub_mine_id, active_sub_mine_id])
+        scope_join = """
+            LEFT JOIN trucks t ON t.id = a.truck_id
+            LEFT JOIN permits p ON p.id = a.permit_id
+            WHERE (t.sub_mine_id = ? OR p.quarry_block_id = ?)
+        """
+        scope_params = (active_sub_mine_id, active_sub_mine_id)
+    elif scope == "mine":
+        sql += " AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)"
+        params.extend([active_mine_id, active_mine_id, active_mine_id])
+        scope_join = """
+            LEFT JOIN trips tr ON tr.id = a.trip_id
+            LEFT JOIN permits p ON p.id = a.permit_id
+            LEFT JOIN trucks t ON t.id = a.truck_id
+            WHERE (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+        """
+        scope_params = (active_mine_id, active_mine_id, active_mine_id)
+    else:
+        scope_join = "WHERE 1=1"
+        scope_params = ()
 
     # Role & View separation:
     if view_mode == "vigilance":
-        # Admin Vigilance & Supervisory Audit View:
-        # Prioritize alerts handled/overridden by officers, critical anomalies, and escalated fraud
         sql += " AND (a.escalated_to_admin = 1 OR a.handled_by_user_id IS NOT NULL OR a.severity IN ('CRITICAL', 'HIGH') OR a.admin_review_status != 'NONE')"
     elif view_mode == "operational":
-        # Field Officer Operational Triage View:
-        # Active detections awaiting field inspection/verification
         sql += " AND a.status IN ('NEW', 'ACKNOWLEDGED', 'UNDER_REVIEW')"
 
     if filter_status:
@@ -2037,19 +2198,24 @@ def alerts():
 
     officers = db.query("SELECT id, full_name, badge_number FROM users WHERE role = 'OFFICER'")
 
-    # Vigilance and operational count badges for tabs
-    vigilance_pending_count = db.query("""
-        SELECT COUNT(*) as c FROM alerts 
-        WHERE admin_review_status = 'PENDING_VIGILANCE_REVIEW' 
-           OR (escalated_to_admin = 1 AND admin_review_status = 'NONE')
-           OR (handled_by_user_id IS NOT NULL AND severity IN ('CRITICAL', 'HIGH') AND admin_review_status = 'NONE')
-    """, one=True)["c"]
+    vigilance_pending_count = db.query(f"""
+        SELECT COUNT(*) as c FROM alerts a
+        {scope_join}
+        AND (a.admin_review_status = 'PENDING_VIGILANCE_REVIEW' 
+             OR (a.escalated_to_admin = 1 AND a.admin_review_status = 'NONE')
+             OR (a.handled_by_user_id IS NOT NULL AND a.severity IN ('CRITICAL', 'HIGH') AND a.admin_review_status = 'NONE'))
+    """, scope_params, one=True)["c"]
 
-    operational_pending_count = db.query("""
-        SELECT COUNT(*) as c FROM alerts WHERE status = 'NEW'
-    """, one=True)["c"]
+    operational_pending_count = db.query(f"""
+        SELECT COUNT(*) as c FROM alerts a
+        {scope_join}
+        AND a.status IN ('NEW', 'UNDER_REVIEW')
+    """, scope_params, one=True)["c"]
 
-    total_alerts_count = db.query("SELECT COUNT(*) as c FROM alerts", one=True)["c"]
+    total_alerts_count = db.query(f"""
+        SELECT COUNT(*) as c FROM alerts a
+        {scope_join}
+    """, scope_params, one=True)["c"]
 
     return render_template("alerts.html",
         alerts=alert_list,
@@ -2067,8 +2233,12 @@ def alerts():
 @app.route("/investigations")
 @login_required(roles=["ADMIN", "OFFICER"])
 def investigations():
-    active_mine_id = get_active_mine_id()
-    if active_mine_id:
+    current_scope = get_current_scope()
+    scope = current_scope["scope"]
+    active_mine_id = current_scope["mine_id"]
+    active_sub_mine_id = current_scope["sub_mine_id"]
+
+    if scope == "submine":
         inv_list = db.query("""
             SELECT inv.*, a.alert_code, a.alert_type, t.registration_number, p.permit_number, u.full_name as lead_officer
             FROM investigations inv
@@ -2077,9 +2247,21 @@ def investigations():
             LEFT JOIN permits p ON p.id = inv.permit_id
             LEFT JOIN trips tr ON tr.id = inv.trip_id
             LEFT JOIN users u ON u.id = inv.lead_officer_id
-            WHERE tr.mine_id = ? OR p.mine_id = ?
+            WHERE t.sub_mine_id = ? OR p.quarry_block_id = ?
             ORDER BY inv.id DESC
-        """, (active_mine_id, active_mine_id))
+        """, (active_sub_mine_id, active_sub_mine_id))
+    elif scope == "mine":
+        inv_list = db.query("""
+            SELECT inv.*, a.alert_code, a.alert_type, t.registration_number, p.permit_number, u.full_name as lead_officer
+            FROM investigations inv
+            LEFT JOIN alerts a ON a.id = inv.alert_id
+            LEFT JOIN trucks t ON t.id = inv.truck_id
+            LEFT JOIN permits p ON p.id = inv.permit_id
+            LEFT JOIN trips tr ON tr.id = inv.trip_id
+            LEFT JOIN users u ON u.id = inv.lead_officer_id
+            WHERE tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?
+            ORDER BY inv.id DESC
+        """, (active_mine_id, active_mine_id, active_mine_id))
     else:
         inv_list = db.query("""
             SELECT inv.*, a.alert_code, a.alert_type, t.registration_number, p.permit_number, u.full_name as lead_officer
@@ -2137,8 +2319,41 @@ def investigation_detail(inv_id):
 @app.route("/analytics")
 @login_required()
 def analytics():
-    active_mine_id = get_active_mine_id()
-    if active_mine_id:
+    current_scope = get_current_scope()
+    scope = current_scope["scope"]
+    active_mine_id = current_scope["mine_id"]
+    active_sub_mine_id = current_scope["sub_mine_id"]
+
+    if scope == "submine":
+        mine_dispatch_vs_quota = db.query("""
+            SELECT block_name as name, allocated_quota_mt as quota, dispatched_mt as dispatch
+            FROM quarry_blocks WHERE id = ?
+        """, (active_sub_mine_id,))
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            risk_distribution = db.query(f"""
+                SELECT current_risk_level as level, COUNT(*) as count 
+                FROM trucks WHERE id IN ({placeholders}) GROUP BY current_risk_level
+            """, truck_ids)
+            alerts_by_type = db.query(f"""
+                SELECT alert_type, COUNT(*) as count 
+                FROM alerts WHERE truck_id IN ({placeholders}) GROUP BY alert_type ORDER BY count DESC
+            """, truck_ids)
+            alerts_by_severity = db.query(f"""
+                SELECT severity, COUNT(*) as count 
+                FROM alerts WHERE truck_id IN ({placeholders}) GROUP BY severity ORDER BY count DESC
+            """, truck_ids)
+        else:
+            risk_distribution = []
+            alerts_by_type = []
+            alerts_by_severity = []
+
+        daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=active_mine_id, sub_mine_id=active_sub_mine_id)
+        stock_recon = MaterialMonitoringService.get_stock_reconciliation(mine_id=active_mine_id, sub_mine_id=active_sub_mine_id)
+        mineral_summary = MaterialMonitoringService.get_mineral_wise_summary(mine_id=active_mine_id, sub_mine_id=active_sub_mine_id)
+        dispatch_vs_prod = MaterialMonitoringService.get_dispatch_vs_production_timeseries(mine_id=active_mine_id, sub_mine_id=active_sub_mine_id)
+    elif scope == "mine":
         mine_dispatch_vs_quota = db.query("""
             SELECT name, authorized_annual_quota_mt as quota, current_dispatch_mt as dispatch
             FROM mines WHERE id = ?
@@ -2205,8 +2420,27 @@ def analytics():
 @app.route("/reports")
 @login_required()
 def reports():
-    active_mine_id = get_active_mine_id()
-    if active_mine_id:
+    current_scope = get_current_scope()
+    scope = current_scope["scope"]
+    active_mine_id = current_scope["mine_id"]
+    active_sub_mine_id = current_scope["sub_mine_id"]
+
+    if scope == "submine":
+        truck_ids = get_operator_truck_ids(active_mine_id, active_sub_mine_id)
+        if truck_ids:
+            placeholders = ",".join("?" for _ in truck_ids)
+            inv_list = db.query(f"""
+                SELECT inv.*, t.registration_number, p.permit_number, u.full_name as officer_name
+                FROM investigations inv
+                LEFT JOIN trucks t ON t.id = inv.truck_id
+                LEFT JOIN permits p ON p.id = inv.permit_id
+                LEFT JOIN users u ON u.id = inv.lead_officer_id
+                WHERE inv.truck_id IN ({placeholders}) OR p.quarry_block_id = ?
+                ORDER BY inv.id DESC
+            """, truck_ids + [active_sub_mine_id])
+        else:
+            inv_list = []
+    elif scope == "mine":
         truck_ids = get_operator_truck_ids(active_mine_id)
         if truck_ids:
             placeholders = ",".join("?" for _ in truck_ids)
@@ -2216,9 +2450,9 @@ def reports():
                 LEFT JOIN trucks t ON t.id = inv.truck_id
                 LEFT JOIN permits p ON p.id = inv.permit_id
                 LEFT JOIN users u ON u.id = inv.lead_officer_id
-                WHERE inv.truck_id IN ({placeholders})
+                WHERE inv.truck_id IN ({placeholders}) OR p.mine_id = ?
                 ORDER BY inv.id DESC
-            """, truck_ids)
+            """, truck_ids + [active_mine_id])
         else:
             inv_list = []
     else:

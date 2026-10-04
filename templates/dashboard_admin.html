@@ -16,36 +16,7 @@
       </div>
     </div>
     
-    <div class="flex flex-wrap items-center gap-3">
-      <!-- Mine & Sub-Mine Selector Filter Form -->
-      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="flex items-center gap-2 flex-wrap">
-        <div class="flex items-center gap-1.5">
-          <label for="admin-mine-filter" class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Mine:</label>
-          <select id="admin-mine-filter" name="mine_id" onchange="this.form.submit()" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-700">
-            <option value="" {% if not selected_mine_id %}selected{% endif %}>All Mines (Statewide Grid)</option>
-            {% for m in all_mines or mines %}
-            <option value="{{ m.id }}" {% if selected_mine_id == m.id %}selected{% endif %}>
-              {{ m.name }} ({{ m.district }})
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        {% if selected_mine_id and mine_quarry_blocks %}
-        <div class="flex items-center gap-1.5">
-          <label for="admin-submine-filter" class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Sub-Mine:</label>
-          <select id="admin-submine-filter" name="sub_mine_id" onchange="this.form.submit()" class="bg-emerald-50/70 border border-emerald-300 rounded px-2 py-1 text-xs font-semibold text-emerald-950 focus:outline-none focus:border-emerald-700 max-w-[200px] truncate">
-            <option value="" {% if not selected_sub_mine_id %}selected{% endif %}>All Sub-Mines ({{ mine_quarry_blocks|length }})</option>
-            {% for qb in mine_quarry_blocks %}
-            <option value="{{ qb.id }}" {% if selected_sub_mine_id == qb.id %}selected{% endif %}>
-              {{ qb.block_code }} - {{ qb.block_name }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-        {% endif %}
-      </form>
-
+    <div class="flex flex-wrap items-center gap-2">
       <a href="{{ url_for('admin_users') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         <span>Manage Users</span>
@@ -60,47 +31,31 @@
       <button type="button" onclick="openAdminEmergencyModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-sm" title="Issue Emergency Statutory e-Rawaana under Section 26 MMDR">
         <span>🚨 Emergency e-Rawaana</span>
       </button>
-      <a href="{{ url_for('set_mine_filter', mine_id='') }}" class="btn-gov btn-gov-secondary btn-sm">
-        Reset Filter
-      </a>
     </div>
   </div>
 
-  <!-- Hierarchical Progressive Navigation Bar -->
-  <div class="flex flex-wrap items-center justify-between bg-slate-100 border border-slate-300 rounded px-4 py-2 text-xs shadow-xs gap-2">
-    <div class="flex items-center gap-2 flex-wrap font-medium">
-      <span class="text-slate-500 font-bold uppercase text-[10px] tracking-wider">Concession Level:</span>
-      <a href="{{ url_for('dashboard', mine_id='') }}" class="{% if not selected_mine_id %}text-slate-900 font-extrabold bg-white px-2.5 py-1 rounded border border-slate-300 shadow-2xs{% else %}text-emerald-700 hover:underline{% endif %} flex items-center gap-1">
-        <span>🏛️ All Mines (Statewide View)</span>
-      </a>
-
-      {% if selected_mine %}
-      <span class="text-slate-400 font-bold">&rsaquo;</span>
-      <a href="{{ url_for('dashboard', mine_id=selected_mine.id, sub_mine_id='') }}" class="{% if not selected_sub_mine_id %}text-slate-900 font-extrabold bg-white px-2.5 py-1 rounded border border-slate-300 shadow-2xs{% else %}text-emerald-700 hover:underline{% endif %} flex items-center gap-1">
-        <span>⛏️ {{ selected_mine.name }}</span>
-      </a>
-      {% endif %}
-
-      {% if selected_sub_mine %}
-      <span class="text-slate-400 font-bold">&rsaquo;</span>
-      <span class="text-emerald-950 font-extrabold bg-emerald-100/90 px-2.5 py-1 rounded border border-emerald-300 shadow-2xs flex items-center gap-1">
-        <span>🏗️ {{ selected_sub_mine.block_name }} &bull; {{ selected_sub_mine.leaseholder_name }}</span>
+  <!-- Operational Scope Indicator (Informational Only - Top Navigation is Single Source) -->
+  <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3.5 py-1.5 text-xs text-slate-600">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Scope:</span>
+      {% if current_scope.scope == 'submine' %}
+      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-300 text-emerald-900 font-semibold text-xs">
+        <span>⛏️ {{ current_scope.mine.name if current_scope.mine else 'Mine' }}</span>
+        <span class="text-slate-400 font-normal">&rarr;</span>
+        <span class="font-bold">🪨 {{ current_scope.sub_mine.block_name }} ({{ current_scope.sub_mine.block_code }})</span>
+      </span>
+      {% elif current_scope.scope == 'mine' %}
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-300 text-amber-900 font-bold text-xs">
+        <span>⛏️ {{ current_scope.mine.name }} ({{ current_scope.mine.district }})</span>
+        <span class="text-[11px] font-normal text-amber-700 ml-1">&bull; All Sub-Mines</span>
+      </span>
+      {% else %}
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-200/80 border border-slate-300 text-slate-800 font-bold text-xs">
+        <span>🏛️ Statewide Oversight (All Concessions)</span>
       </span>
       {% endif %}
     </div>
-
-    <div class="flex items-center gap-2">
-      {% if selected_sub_mine %}
-      <a href="{{ url_for('dashboard', mine_id=selected_mine.id) }}" class="btn-gov btn-gov-secondary btn-sm text-[11px] font-bold">
-        &larr; Back to All Sub-Mines in {{ selected_mine.name }}
-      </a>
-      {% endif %}
-      {% if selected_mine_id %}
-      <a href="{{ url_for('dashboard', mine_id='') }}" class="text-slate-600 hover:text-slate-900 text-[11px] font-semibold underline">
-        ✕ Reset to Statewide Grid
-      </a>
-      {% endif %}
-    </div>
+    <span class="text-[11px] text-slate-400 italic">Filter controlled via Top Navigation Bar</span>
   </div>
 
   {# ============================================================== #}
@@ -164,7 +119,7 @@
   {# LEVEL 2: Mine-Specific Jurisdiction KPI Tiles                  #}
   {# ============================================================== #}
   {% elif selected_mine_id and not selected_sub_mine_id %}
-  {% set mine_pct = (selected_mine.current_dispatch_mt / selected_mine.authorized_annual_quota_mt * 100)|round(1) if selected_mine.authorized_annual_quota_mt > 0 else 0 %}
+  {% set mine_pct = (selected_mine.current_dispatch_mt / selected_mine.authorized_annual_quota_mt * 100)|round(1) if (selected_mine and selected_mine.authorized_annual_quota_mt and selected_mine.authorized_annual_quota_mt > 0 and selected_mine.current_dispatch_mt is defined) else 0 %}
   <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center">
     <div class="p-3 bg-white border border-slate-200 rounded shadow-xs">
       <div class="stat-label text-[10px]">Annual Quota</div>

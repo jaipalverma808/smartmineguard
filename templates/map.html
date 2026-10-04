@@ -22,38 +22,19 @@
       </div>
     </div>
 
-    <!-- Filter & Demo Controls -->
+    <!-- Controls -->
     <div class="flex items-center gap-2 flex-wrap">
-      <!-- Sub-Mine Isolation Filter for Live GIS Map -->
-      <form method="GET" action="{{ url_for('set_mine_filter') }}" class="inline-flex items-center gap-1.5 flex-wrap">
-        <input type="hidden" name="next" value="{{ request.full_path }}">
-        {% if current_user.role == 'ADMIN' %}
-        <div class="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs">
-          <span class="text-[10px] font-bold text-slate-600 uppercase">⛏ Mine:</span>
-          <select name="mine_id" onchange="this.form.submit()" class="bg-transparent text-slate-800 font-semibold text-xs focus:outline-none cursor-pointer max-w-[130px] truncate">
-            <option value="">All Mines</option>
-            {% for m in all_mines %}
-            <option value="{{ m.id }}" {% if active_mine_id == m.id %}selected{% endif %}>{{ m.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
+      <!-- Informational Scope Indicator (Controlled via Top Navigation) -->
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-300 text-xs">
+        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Current Scope:</span>
+        {% if current_scope.scope == 'submine' %}
+        <span class="font-bold text-emerald-800">⛏️ {{ current_scope.mine.name if current_scope.mine else 'Mine' }} &rarr; 🪨 {{ current_scope.sub_mine.block_name }} ({{ current_scope.sub_mine.block_code }})</span>
+        {% elif current_scope.scope == 'mine' %}
+        <span class="font-bold text-amber-900">⛏️ {{ current_scope.mine.name }} (All Sub-Mines)</span>
+        {% else %}
+        <span class="font-bold text-slate-800">🏛️ Statewide (All Concessions)</span>
         {% endif %}
-
-        <div class="flex items-center gap-1 {% if active_sub_mine_id %}bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500/30 text-emerald-950{% else %}bg-slate-50 border-slate-300 text-slate-700{% endif %} border rounded px-2 py-1 text-xs font-medium">
-          <span class="text-[10px] font-bold {% if active_sub_mine_id %}text-emerald-800{% else %}text-slate-600{% endif %} uppercase">🪨 Sub-Mine / Pit:</span>
-          <select name="sub_mine_id" onchange="this.form.submit()" class="bg-transparent font-bold text-xs focus:outline-none cursor-pointer max-w-[170px] truncate {% if active_sub_mine_id %}text-emerald-900{% else %}text-slate-800{% endif %}">
-            <option value="">All Sub-Mines (All Trucks)</option>
-            {% for sm in sub_mines %}
-            <option value="{{ sm.id }}" {% if active_sub_mine_id == sm.id %}selected{% endif %}>
-              {{ sm.block_name }} ({{ sm.block_code }})
-            </option>
-            {% endfor %}
-          </select>
-          {% if active_sub_mine_id %}
-          <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.path) }}" class="text-emerald-700 hover:text-red-700 font-black text-xs ml-1" title="Clear Sub-Mine Isolation">✕</a>
-          {% endif %}
-        </div>
-      </form>
+      </div>
 
       <button onclick="focusTruck('{{ trucks[0].registration_number if trucks else 'HR26AB1234' }}')" class="btn-gov btn-gov-danger btn-sm">
         Locate Target ({{ trucks[0].registration_number if trucks else 'Fleet' }})
@@ -64,17 +45,14 @@
     </div>
   </div>
 
-  {% if active_sub_mine %}
-  <!-- Sub-Mine Isolation Alert Banner -->
-  <div class="bg-gradient-to-r from-emerald-900 to-slate-900 text-white border border-emerald-500/80 px-4 py-2 rounded shadow-md flex items-center justify-between text-xs flex-wrap gap-2">
+  {% if current_scope.scope == 'submine' and active_sub_mine %}
+  <!-- Sub-Mine Operational Scope Information Banner -->
+  <div class="bg-slate-900 text-white border border-emerald-500/80 px-4 py-1.5 rounded shadow-xs flex items-center justify-between text-xs flex-wrap gap-2">
     <div class="flex items-center gap-2">
-      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-      <span class="font-bold text-emerald-300 uppercase tracking-wider">Isolated Sub-Mine Surveillance:</span>
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="font-bold text-emerald-300 uppercase tracking-wider">Sub-Mine Operational Scope:</span>
       <span>Tracking strictly <strong>{{ trucks|length }}</strong> carrier{{ 's' if trucks|length != 1 else '' }} belonging to <strong>{{ active_sub_mine.block_name }}</strong> ({{ active_sub_mine.block_code }}) &bull; Concessionaire: <strong>{{ active_sub_mine.leaseholder_name }}</strong></span>
     </div>
-    <a href="{{ url_for('set_mine_filter', sub_mine_id='', next=request.path) }}" class="text-xs bg-emerald-950 hover:bg-black text-emerald-200 border border-emerald-600 font-bold px-2.5 py-1 rounded transition">
-      ✕ Clear Sub-Mine Isolation (Show All)
-    </a>
   </div>
   {% endif %}
 

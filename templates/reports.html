@@ -10,6 +10,18 @@
       <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wide">Reports &amp; Dossiers</h2>
       <p class="text-[11px] text-slate-500">Official evidence dossiers and administrative compliance reports.</p>
     </div>
+
+    <!-- Informational Scope Indicator (Controlled via Top Navigation) -->
+    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-300 text-xs">
+      <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Current Scope:</span>
+      {% if current_scope.scope == 'submine' %}
+      <span class="font-bold text-emerald-800">⛏️ {{ current_scope.mine.name if current_scope.mine else 'Mine' }} &rarr; 🪨 {{ current_scope.sub_mine.block_name }} ({{ current_scope.sub_mine.block_code }})</span>
+      {% elif current_scope.scope == 'mine' %}
+      <span class="font-bold text-amber-900">⛏️ {{ current_scope.mine.name }} (All Sub-Mines)</span>
+      {% else %}
+      <span class="font-bold text-slate-800">🏛️ Statewide (All Concessions)</span>
+      {% endif %}
+    </div>
   </div>
 
   <div class="gov-card">
