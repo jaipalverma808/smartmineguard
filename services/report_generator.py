@@ -1373,3 +1373,220 @@ def generate_seizure_notice_pdf(mine_id):
     return f"static/reports/{filename}"
 
 
+def generate_royalty_noc_pdf(project_id):
+    """
+    Builds an official Statutory Mineral Royalty Clearance Certificate (NOC)
+    for public infrastructure projects to attach with e-MB government bills.
+    """
+    if not REPORTLAB_AVAILABLE:
+        logger.warning("PDF NOC requested but ReportLab is not available.")
+        return None
+
+    project = db.query("SELECT * FROM infrastructure_projects WHERE id = ?", (project_id,), one=True)
+    if not project:
+        return None
+
+    reports_dir = Config.REPORTS_DIR
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"royalty_noc_{project['project_code']}.pdf"
+    file_path = reports_dir / filename
+
+    doc = SimpleDocTemplate(
+        str(file_path),
+        pagesize=A4,
+        leftMargin=15 * mm,
+        rightMargin=15 * mm,
+        topMargin=15 * mm,
+        bottomMargin=15 * mm
+    )
+
+    styles = getSampleStyleSheet()
+    c_primary = colors.HexColor("#0F3826")   # Deep Gov Green
+    c_slate = colors.HexColor("#1E293B")     # Dark Slate
+    c_sub = colors.HexColor("#475569")       # Muted Neutral
+    c_border = colors.HexColor("#CBD5E1")    # Subtle Border
+    c_gold = colors.HexColor("#D97706")      # Gold Stamp
+
+    title_style = ParagraphStyle(
+        "GovTitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=13,
+        leading=16,
+        textColor=c_primary,
+        alignment=1
+    )
+    sub_style = ParagraphStyle(
+        "GovSub",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=c_sub,
+        alignment=1
+    )
+    h2_style = ParagraphStyle(
+        "GovH2",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=13,
+        textColor=c_primary
+    )
+    body_style = ParagraphStyle(
+        "GovBody",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=12,
+        textColor=c_slate
+    )
+    bold_style = ParagraphStyle(
+        "GovBold",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5,
+        leading=12,
+        textColor=c_slate
+    )
+
+    elements = []
+
+    # National / State Header
+    elements.append(Paragraph("<b>GOVERNMENT OF HARYANA &bull; DIRECTORATE OF MINES &amp; GEOLOGY</b>", title_style))
+    elements.append(Paragraph("STATUTORY MINERAL RECONCILIATION &amp; ROYALTY CLEARANCE DIVISION", sub_style))
+    elements.append(Paragraph("Issued under Section 21 of the MMDR Act, 1957 and State Minor Mineral Concession Rules", sub_style))
+    elements.append(Spacer(1, 4 * mm))
+
+    # Certificate Title Box
+    cert_no = f"NOC-ROYALTY-2026-{project['id']:04d}"
+    now_str = datetime.now().strftime("%d %B %Y")
+    cert_box = [
+        [
+            Paragraph(f"<b>CERTIFICATE REF:</b> <font color='#0F3826'><b>{cert_no}</b></font>", bold_style),
+            Paragraph(f"<b>DATE OF ISSUE:</b> {now_str}", bold_style)
+        ],
+        [
+            Paragraph("<b>CERTIFICATE TYPE:</b> OFFICIAL ROYALTY NOC FOR e-MB BILLING", bold_style),
+            Paragraph(f"<b>STATUS:</b> <font color='{'#0F3826' if project['sand_received_mt'] >= project['sand_required_mt'] else '#B91C1C'}'><b>{'COMPLIANT &amp; CLEARED' if project['sand_received_mt'] >= project['sand_required_mt'] else 'PARTIAL DEFICIT FLAGGED'}</b></font>", bold_style)
+        ]
+    ]
+    t_cert = Table(cert_box, colWidths=[90 * mm, 84 * mm])
+    t_cert.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1, c_primary),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(t_cert)
+    elements.append(Spacer(1, 5 * mm))
+
+    # Project Profile Table
+    elements.append(Paragraph("1. PUBLIC WORKS PROJECT &amp; CONTRACTOR PROFILE", h2_style))
+    elements.append(Spacer(1, 2 * mm))
+
+    proj_rows = [
+        [Paragraph("<b>Infrastructure Project:</b>", bold_style), Paragraph(str(project["project_name"]), body_style)],
+        [Paragraph("<b>Project Code &amp; Section:</b>", bold_style), Paragraph(f"{project['project_code']} ({project.get('chainage_section') or 'Highway Corridor'})", body_style)],
+        [Paragraph("<b>EPC Contractor:</b>", bold_style), Paragraph(str(project["contractor_name"]), bold_style)],
+        [Paragraph("<b>Executing Agency:</b>", bold_style), Paragraph(str(project["executing_agency"]), body_style)],
+        [Paragraph("<b>Work Order No.:</b>", bold_style), Paragraph(str(project.get("work_order_no") or "WO-HAR-2026-EPC"), body_style)]
+    ]
+    t_proj = Table(proj_rows, colWidths=[55 * mm, 119 * mm])
+    t_proj.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, c_border),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, c_border),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(t_proj)
+    elements.append(Spacer(1, 5 * mm))
+
+    # Civil Engineering Mineral Consumption Audit Table
+    elements.append(Paragraph("2. e-MB ROAD VOLUME &amp; STATUTORY CONSUMPTION RECONCILIATION", h2_style))
+    elements.append(Spacer(1, 2 * mm))
+
+    deficit = max(0.0, float(project["sand_required_mt"]) - float(project["sand_received_mt"]))
+    penalty = deficit * float(project.get("penalty_rate_per_mt") or 600.0)
+
+    econ_data = [
+        ["Parameter / Dimension", "Engineering Standard Metric", "Reconciliation Status"],
+        ["Finished Concrete Laid (e-MB)", f"{float(project['concrete_volume_m3']):,.1f} m³", "Verified via e-MB Book"],
+        ["Standard Sand Mix Ratio (IRC:15)", "0.45 MT per m³ concrete", "Indian Road Congress Benchmark"],
+        ["Theoretical Sand Required", f"{float(project['sand_required_mt']):,.1f} MT", "Calculated Legal Minimum"],
+        ["Verified Legal e-Rawaana Sand Received", f"{float(project['sand_received_mt']):,.1f} MT", "Scanned & Verified at Gate"],
+        ["Unaccounted Deficit (Illegal Sand)", f"{deficit:,.1f} MT", "Statutory Shortfall" if deficit > 0 else "Zero Deficit (Matched)"],
+        ["Treasury Royalty Withholding", f"Rs. {penalty:,.0f}" if penalty > 0 else "Rs. 0 (FULL RELEASE)", "Automatic Treasury Action"]
+    ]
+    t_econ = Table(econ_data, colWidths=[65 * mm, 55 * mm, 54 * mm])
+    t_econ.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 1, c_primary),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F3826")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8.5),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, c_border),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+    ]))
+    elements.append(t_econ)
+    elements.append(Spacer(1, 5 * mm))
+
+    # Statutory Certificate Body
+    if deficit <= 0:
+        decision_text = (
+            "<b>STATUTORY DETERMINATION: 100% ROYALTY COMPLIANT &amp; CLEARED</b><br/>"
+            "This is to certify that all minor minerals (sand, gravel, aggregates) consumed for the road works recorded under "
+            f"e-MB entry for <b>{project['project_name']}</b> have been mathematically cross-referenced against authentic digital "
+            "e-Rawaana transit passes. Full mining royalty and statutory levies stand liquidated at source.<br/><br/>"
+            "<b>DIRECTIVE TO DISBURSING OFFICER (DDO / TREASURY):</b><br/>"
+            "The contractor's Running Account (RA) Bill payment is hereby <b>CLEARED FOR FULL DISBURSEMENT</b> without any "
+            "statutory deduction under Rule 63 of the Minor Mineral Rules."
+        )
+    else:
+        decision_text = (
+            "<b>STATUTORY DETERMINATION: PARTIAL DEFICIT WITHHOLDING ENFORCED</b><br/>"
+            f"The contractor has failed to produce verified e-Rawaana transit passes for <b>{deficit:,.1f} Metric Tonnes</b> "
+            f"of sand consumed in the road section measured. In accordance with Section 21 of the MMDR Act and Public Works "
+            f"General Conditions of Contract, an amount of <b>Rs. {penalty:,.0f}</b> (Royalty + 5x Statutory Penalty) "
+            "shall be summarily deducted from the contractor's Running Account bill before release."
+        )
+
+    elements.append(Paragraph(decision_text, body_style))
+    elements.append(Spacer(1, 7 * mm))
+
+    # QR Stamp & Dual Signatures
+    qr_data = f"SMG-NOC|{cert_no}|{project['project_code']}|{project['contractor_name']}|STATUS:{project['status']}|DATE:{now_str}"
+    qr = qrcode.QRCode(version=1, box_size=3, border=1)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_buf = io.BytesIO()
+    qr_img.save(qr_buf, format="PNG")
+    qr_buf.seek(0)
+    img_flowable = Image(qr_buf, width=22 * mm, height=22 * mm)
+
+    sig_data = [
+        [
+            img_flowable,
+            Paragraph("<b>COMPUTED &amp; SEALED BY:</b><br/>SmartMineGuard e-MB Engine<br/>Directorate Mining Registry<br/>Govt of Haryana", body_style),
+            Paragraph("<b>AUTHORIZING SIGNATURE:</b><br/><b>Executive Engineer / DMO</b><br/>Department of Mines &amp; Geology<br/>Enforcement &amp; Works Division", bold_style)
+        ]
+    ]
+    t_sig = Table(sig_data, colWidths=[28 * mm, 75 * mm, 71 * mm])
+    t_sig.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, c_border),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elements.append(t_sig)
+
+    doc.build(elements)
+    logger.info(f"Royalty NOC PDF generated at {file_path}")
+    return f"static/reports/{filename}"
+
+

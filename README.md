@@ -39,6 +39,7 @@ $$\text{e-Rawaana Permit} \longrightarrow \text{Truck RFID} \longrightarrow \tex
 8. **Statutory Case Management:** Direct elevation of surveillance alerts into formal inquiry files with timeline evidence logs and officer notes.
 9. **Official Evidence Dossier PDF (ReportLab):** Court-ready administrative dossier containing vehicle profile, weighment comparison, statutory violation breakdown, and officer signature blocks.
 10. **Dual-Mode Database Engine:** Native PostgreSQL + PostGIS support with automated zero-setup SQLite spatial fallback for seamless out-of-the-box demonstration.
+11. **Contractor Infrastructure e-MB Reconciliation & Royalty NOC:** Highway builder portal linking physical road concrete volume (e-MB) to verified e-Rawaana transit passes, with automated statutory treasury penalty deductions and official Royalty NOC PDF generation.
 
 ---
 
@@ -157,6 +158,7 @@ SmartMineGuard includes an embedded spatial engine in `services/db.py`. If Postg
 | **Administrator** | `admin` | `admin123` | Directorate of Mines & Geology HQ |
 | **Enforcement Officer** | `officer1` | `officer123` | Mining Enforcement Squad Zone 4 |
 | **Mine Operator** | `operator1` | `operator123` | Aravalli Quartzite Quarry Consortium |
+| **Highway Contractor** | `contractor1` | `contractor123` | Sharma Infrastructure Ltd (NHAI EPC Contractor) |
 
 ---
 

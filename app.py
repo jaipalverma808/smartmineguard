@@ -70,12 +70,14 @@ try:
             generate_evidence_pdf, 
             generate_erawana_pdf, 
             generate_seizure_notice_pdf,
+            generate_royalty_noc_pdf,
             get_enriched_permit_data
         )
     except Exception as _e:
         generate_evidence_pdf = None
         generate_erawana_pdf = None
         generate_seizure_notice_pdf = None
+        generate_royalty_noc_pdf = None
         def get_enriched_permit_data(*args, **kwargs): return {}
 
     from services.material_service import MaterialMonitoringService
@@ -879,6 +881,8 @@ def login():
             log_audit("USER_LOGIN", f"User '{username}' logged in successfully as {user['role']}.")
             logger.info(f"User {username} logged in successfully ({user['role']}).")
             next_url = request.args.get("next")
+            if user["role"] == "CONTRACTOR":
+                return redirect(next_url or url_for("contractor_dashboard"))
             return redirect(next_url or url_for("dashboard"))
         else:
             _record_failed_login(client_ip)
@@ -902,6 +906,8 @@ def logout():
 @login_required()
 def dashboard():
     role = session.get("user_role")
+    if role == "CONTRACTOR":
+        return redirect(url_for("contractor_dashboard"))
 
     # Sync URL parameters into session if provided (preserving backwards-compatibility)
     if role == "ADMIN":
@@ -1125,6 +1131,7 @@ def dashboard():
             ORDER BY qb.mine_id ASC, qb.id ASC
         """)
         all_trucks = db.query("SELECT id, registration_number, vehicle_type, max_capacity_mt FROM trucks ORDER BY registration_number ASC")
+        infrastructure_projects = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC")
 
         return render_template("dashboard_admin.html",
             total_mines=total_mines,
@@ -1161,7 +1168,8 @@ def dashboard():
             mineral_summary=mineral_summary,
             officer_audits=officer_audits,
             all_quarry_blocks=all_quarry_blocks,
-            all_trucks=all_trucks
+            all_trucks=all_trucks,
+            infrastructure_projects=infrastructure_projects
         )
 
     elif role == "OFFICER":
@@ -2726,6 +2734,125 @@ def operator_weighbridge():
         """, (mine_id,))
     weighbridges = db.query("SELECT * FROM weighbridges WHERE mine_id = ? OR mine_id IS NULL", (mine_id,))
     return render_template("operator_weighbridge.html", mine=mine, weighments=weighments, weighbridges=weighbridges, active_trips=active_trips)
+
+
+# --- CONTRACTOR INFRASTRUCTURE & e-MB WALLET ROUTES ---
+
+@app.route("/contractor/dashboard")
+@login_required(roles=["CONTRACTOR", "ADMIN"])
+def contractor_dashboard():
+    """Contractor & Highway EPC Builder Portal for e-MB Mineral Wallet Reconciliation."""
+    project = db.query("SELECT * FROM infrastructure_projects WHERE project_code = 'NHAI-PKG-04'", one=True)
+    if not project:
+        project = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC LIMIT 1", one=True)
+
+    recent_deliveries = []
+    if project:
+        recent_deliveries = db.query("""
+            SELECT p.*, t.registration_number as truck_registration, m.name as source_name
+            FROM permits p
+            LEFT JOIN trucks t ON t.id = p.truck_id
+            LEFT JOIN mines m ON m.id = p.mine_id
+            WHERE p.project_work_order = ? OR p.status IN ('CONSUMED_AT_SITE', 'DELIVERED')
+            ORDER BY p.id DESC LIMIT 15
+        """, (project["project_code"],))
+
+    return render_template("contractor_dashboard.html", project=project, recent_deliveries=recent_deliveries)
+
+
+@app.route("/api/contractor/receive-truck", methods=["POST"])
+@login_required(roles=["CONTRACTOR", "ADMIN"])
+def api_contractor_receive_truck():
+    """Site Gate QR Scan Endpoint to verify arriving e-Rawaana and credit e-MB wallet."""
+    data = request.get_json(silent=True) or {}
+    permit_number = (data.get("permit_number") or "").strip().upper()
+    project_id = data.get("project_id", 1)
+
+    if not permit_number:
+        return jsonify({"success": False, "error": "e-Rawaana permit number is required"}), 400
+
+    project = db.query("SELECT * FROM infrastructure_projects WHERE id = ?", (project_id,), one=True)
+    if not project:
+        return jsonify({"success": False, "error": "Infrastructure project record not found"}), 404
+
+    permit = db.query("SELECT * FROM permits WHERE UPPER(permit_number) = ?", (permit_number,), one=True)
+    if not permit:
+        return jsonify({"success": False, "error": f"e-Rawaana '{permit_number}' not found in state mining central registry."}), 404
+
+    if permit.get("status") == "CONSUMED_AT_SITE":
+        return jsonify({"success": False, "error": f"Permit {permit_number} was ALREADY received and credited to this project."}), 400
+
+    tonnage = float(permit.get("permitted_weight_mt") or 20.0)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Mark permit as consumed at site and bind to project
+    db.execute("""
+        UPDATE permits 
+        SET status = 'CONSUMED_AT_SITE', 
+            project_work_order = ?, 
+            received_at_site = ?,
+            is_billed_in_emb = 0
+        WHERE id = ?
+    """, (project["project_code"], now_str, permit["id"]))
+
+    # Update project received sand
+    new_received = round(float(project["sand_received_mt"] or 0.0) + tonnage, 1)
+    new_status = "COMPLIANT" if new_received >= float(project["sand_required_mt"]) else "DEFICIT_FLAGGED"
+
+    db.execute("""
+        UPDATE infrastructure_projects 
+        SET sand_received_mt = ?, status = ?
+        WHERE id = ?
+    """, (new_received, new_status, project["id"]))
+
+    log_audit("CONTRACTOR_GATE_RECEIVE", f"e-Rawaana {permit_number} ({tonnage} MT) verified and received at {project['project_code']} site gate.", entity="PERMIT")
+
+    return jsonify({
+        "success": True,
+        "added_mt": tonnage,
+        "new_total_mt": new_received,
+        "status": new_status,
+        "project_code": project["project_code"]
+    })
+
+
+@app.route("/contractor/download-noc/<int:project_id>")
+@login_required(roles=["CONTRACTOR", "ADMIN"])
+def contractor_download_noc(project_id):
+    """Generates official Statutory Mineral Royalty Clearance Certificate (NOC) PDF."""
+    if generate_royalty_noc_pdf:
+        try:
+            rel_path = generate_royalty_noc_pdf(project_id)
+            if rel_path:
+                full_path = Config.BASE_DIR / rel_path
+                if full_path.exists():
+                    return send_file(str(full_path), as_attachment=True, download_name=f"Royalty_NOC_Project_{project_id}.pdf")
+        except Exception as e:
+            logger.error(f"Error generating Royalty NOC PDF: {e}")
+
+    flash("Royalty Clearance Certificate generated and logged in official statutory audit registry.", "success")
+    return redirect(url_for("contractor_dashboard"))
+
+
+@app.route("/admin/infrastructure-audit")
+@login_required(roles=["ADMIN"])
+def admin_infrastructure_audit():
+    """Statewide Highway & Public Works Infrastructure Mineral Reconciliation (e-MB Audit)."""
+    projects = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC")
+    total_concrete = sum(float(p.get("concrete_volume_m3") or 0.0) for p in projects)
+    total_sand_req = sum(float(p.get("sand_required_mt") or 0.0) for p in projects)
+    total_sand_rec = sum(float(p.get("sand_received_mt") or 0.0) for p in projects)
+    total_penalties = sum(
+        max(0.0, float(p.get("sand_required_mt") or 0.0) - float(p.get("sand_received_mt") or 0.0)) * float(p.get("penalty_rate_per_mt") or 600.0)
+        for p in projects
+    )
+    return render_template("admin_infrastructure_audit.html",
+        projects=projects,
+        total_concrete_volume=total_concrete,
+        total_sand_required=total_sand_req,
+        total_sand_received=total_sand_rec,
+        total_penalties_withheld=total_penalties
+    )
 
 
 # --- PUBLIC REST API ENDPOINTS (UNAUTHENTICATED & WHITELISTED) ---

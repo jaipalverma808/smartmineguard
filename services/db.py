@@ -69,6 +69,12 @@ class DatabaseManager:
         self._pg_pool = None  # Connection pool for PostgreSQL
         self._query_cache = {}
         self._test_postgres()
+        if not self.use_postgres:
+            self.init_sqlite(force=False)
+            try:
+                self.run_auto_migrations()
+            except Exception as e:
+                logger.warning(f"Auto-migrations error: {e}")
 
     def _test_postgres(self):
         import os
@@ -648,6 +654,18 @@ class DatabaseManager:
                 getattr(Config, "OPERATOR_PHONE", "+91 99280 33445"),
                 1,
                 1
+            ),
+            (
+                getattr(Config, "CONTRACTOR_USERNAME", "contractor1"),
+                getattr(Config, "CONTRACTOR_PASSWORD", "contractor123"),
+                getattr(Config, "CONTRACTOR_NAME", "Sharma Infrastructure Ltd (NHAI EPC Contractor)"),
+                "CONTRACTOR",
+                "National Highway EPC Infrastructure",
+                "NHAI-EPC-702",
+                getattr(Config, "CONTRACTOR_EMAIL", "projects@sharmainfra.com"),
+                getattr(Config, "CONTRACTOR_PHONE", "+91 98110 55667"),
+                1,
+                None
             )
         ]
 
@@ -997,6 +1015,97 @@ class DatabaseManager:
                     (3, "QB-REW-01", "Khol Riverbank Sand Concession #1", "Haryana Glass Sand Producers (Anil Mittal)", "Jagdish Chand (Scale Operator 1)", "+91 98120 11223", 10000.0, 9400.0, 4, "OPERATIONAL"),
                     (3, "QB-REW-02", "Rewari Silica Extraction Basin #2", "Mittal Silica Minerals (Pardeep Mittal)", "Satbir Singh (Scale Operator 2)", "+91 98120 22334", 10000.0, 9800.0, 3, "OPERATIONAL"),
                     (3, "QB-REW-03", "South Khol Co-operative Plot", "Khol Miners Welfare Union (Sukhbir Yadav)", "Baljit Yadav (Scale Operator 3)", "+91 98120 33445", 10000.0, 9700.0, 3, "OPERATIONAL")
+                ])
+
+            # Permit e-MB columns
+            p_cols = [r[1] for r in cur.execute("PRAGMA table_info(permits)").fetchall()]
+            if "project_work_order" not in p_cols:
+                cur.execute("ALTER TABLE permits ADD COLUMN project_work_order TEXT DEFAULT 'NHAI-PKG-04'")
+            if "is_billed_in_emb" not in p_cols:
+                cur.execute("ALTER TABLE permits ADD COLUMN is_billed_in_emb INTEGER DEFAULT 0")
+            if "billed_under_emb_id" not in p_cols:
+                cur.execute("ALTER TABLE permits ADD COLUMN billed_under_emb_id TEXT")
+            if "received_at_site" not in p_cols:
+                cur.execute("ALTER TABLE permits ADD COLUMN received_at_site DATETIME")
+
+            # Infrastructure Projects Table (e-MB Highway & Construction Reconciliation)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS infrastructure_projects (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_code TEXT UNIQUE,
+                    project_name TEXT NOT NULL,
+                    contractor_name TEXT NOT NULL,
+                    executing_agency TEXT NOT NULL,
+                    chainage_section TEXT,
+                    road_length_km REAL DEFAULT 15.0,
+                    concrete_volume_m3 REAL DEFAULT 4500.0,
+                    sand_required_mt REAL DEFAULT 2025.0,
+                    sand_received_mt REAL DEFAULT 1600.0,
+                    aggregate_required_mt REAL DEFAULT 3800.0,
+                    aggregate_received_mt REAL DEFAULT 3800.0,
+                    penalty_rate_per_mt REAL DEFAULT 600.0,
+                    status TEXT DEFAULT 'DEFICIT_FLAGGED',
+                    work_order_no TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Seed infrastructure projects if empty
+            has_projects = cur.execute("SELECT COUNT(*) FROM infrastructure_projects").fetchone()[0]
+            if has_projects == 0:
+                cur.executemany("""
+                    INSERT INTO infrastructure_projects 
+                    (project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    (
+                        "NHAI-PKG-04",
+                        "NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)",
+                        "Sharma Infrastructure Ltd",
+                        "National Highways Authority of India (NHAI)",
+                        "Km 82+400 to Km 97+400",
+                        15.0,
+                        4500.0,
+                        2025.0,
+                        1600.0,
+                        3800.0,
+                        3800.0,
+                        600.0,
+                        "DEFICIT_FLAGGED",
+                        "WO/NHAI/RO-HAR/2026/089"
+                    ),
+                    (
+                        "PWD-HW-2026",
+                        "Gurugram-Sohna Express Feeder Highway Bypass",
+                        "Apex Roadways & Infrastructure Ltd",
+                        "Haryana State PWD (B&R) Division",
+                        "Ch 0+000 to Ch 12+800",
+                        12.8,
+                        3200.0,
+                        1440.0,
+                        1440.0,
+                        2700.0,
+                        2700.0,
+                        600.0,
+                        "COMPLIANT",
+                        "WO/PWD-HAR/B&R/2026/142"
+                    ),
+                    (
+                        "DMRC-EXT-02",
+                        "Faridabad-Palwal High-Speed Transit Viaduct Corridor",
+                        "L&T Construction Heavy Civil Division",
+                        "Ministry of Road Transport & Highways (MoRTH)",
+                        "Pier P-102 to Pier P-320",
+                        8.5,
+                        8000.0,
+                        3600.0,
+                        3450.0,
+                        6800.0,
+                        6800.0,
+                        600.0,
+                        "DEFICIT_FLAGGED",
+                        "WO/MORTH/NH-19/EXP/2025/310"
+                    )
                 ])
 
             conn.commit()

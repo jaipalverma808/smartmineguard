@@ -61,6 +61,8 @@
                 ADMIN &bull; {{ current_user.department or 'Headquarters' }}
               {% elif current_user.role == 'OFFICER' %}
                 OFFICER &bull; {{ current_user.badge_number or current_user.department }}
+              {% elif current_user.role == 'CONTRACTOR' %}
+                CONTRACTOR &bull; {{ current_user.department or 'Highway EPC' }}
               {% else %}
                 OPERATOR &bull; {{ current_user.department or 'Weighbridge' }}
               {% endif %}
@@ -207,6 +209,9 @@
       <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
         Reports &amp; Dossiers
       </a>
+      <a href="{{ url_for('admin_infrastructure_audit') }}" class="nav-link bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 hover:bg-indigo-900 {% if request.endpoint == 'admin_infrastructure_audit' %}active{% endif %} flex items-center gap-1 font-bold">
+        <span>🛣️ e-MB Highway Audit</span>
+      </a>
 
       <!-- Executive State Registries & Audit Dropdown (Trucks, e-Rawaanas, Trips, Master Data) -->
       <div class="relative group inline-block">
@@ -323,6 +328,21 @@
       </a>
       <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
         Operational Reports
+      </a>
+
+      {% elif current_user.role == 'CONTRACTOR' %}
+      <!-- CONTRACTOR / HIGHWAY BUILDER Navigation -->
+      <a href="{{ url_for('contractor_dashboard') }}" class="nav-link {% if request.endpoint == 'contractor_dashboard' %}active{% endif %} flex items-center gap-1 font-bold text-white">
+        <span>🏗️ Highway Project &amp; e-MB Wallet</span>
+      </a>
+      <a href="{{ url_for('contractor_dashboard') }}#gate-scanner" class="nav-link bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 hover:bg-emerald-900 flex items-center gap-1 font-bold">
+        <span>📲 Site Gate QR Verify</span>
+      </a>
+      <a href="{{ url_for('contractor_dashboard') }}#consignments" class="nav-link">
+        📦 Inward Deliveries
+      </a>
+      <a href="{{ url_for('contractor_download_noc', project_id=1) }}" class="nav-link bg-amber-950/70 text-amber-200 border border-amber-600/60 hover:bg-amber-900 font-bold flex items-center gap-1">
+        <span>📜 Royalty NOC (PDF)</span>
       </a>
       {% endif %}
 

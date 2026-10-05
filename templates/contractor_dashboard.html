@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Contractor Infrastructure Portal & e-MB Mineral Wallet - SmartMineGuard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Executive Contractor Header Banner -->
+  <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-700/60 rounded-lg p-5 text-white shadow-xl flex flex-wrap justify-between items-center gap-4">
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+        <span class="text-xs font-mono uppercase tracking-widest text-indigo-300 font-bold">NHAI / State PWD Infrastructure EPC Portal</span>
+        <span class="text-[10px] bg-indigo-900/80 border border-indigo-500 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">e-MB LINKED</span>
+      </div>
+      <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+        <span>🏗️ {{ project.contractor_name }}</span>
+      </h1>
+      <p class="text-xs text-slate-300 max-w-2xl leading-relaxed">
+        Active Project: <strong class="text-white">{{ project.project_name }}</strong> &bull; Work Order: <span class="font-mono text-amber-300">{{ project.work_order_no }}</span> &bull; Agency: <strong class="text-white">{{ project.executing_agency }}</strong>
+      </p>
+    </div>
+
+    <!-- Quick Action Hub -->
+    <div class="flex items-center gap-2.5">
+      <a href="#gate-scanner" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+        <span>Gate QR Scanner</span>
+      </a>
+      <a href="{{ url_for('contractor_download_noc', project_id=project.id) }}" class="btn-gov bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>Download Royalty NOC (PDF)</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- KPI Cards: e-MB Road Volume vs Mineral Wallet -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+    
+    <!-- 1. Road Concrete Volume -->
+    <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+        <span>🛣️ Road Volume (e-MB)</span>
+      </div>
+      <div class="text-xl font-extrabold text-slate-900 mt-1">{{ "{:,.1f}".format(project.concrete_volume_m3) }} m³</div>
+      <div class="text-[10px] text-slate-500 font-mono mt-0.5">Length: {{ project.road_length_km }} km &bull; M40 PQC</div>
+    </div>
+
+    <!-- 2. Theoretical Sand Required -->
+    <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+        <span>📐 Sand Required (IRC)</span>
+      </div>
+      <div class="text-xl font-extrabold text-indigo-950 mt-1">{{ "{:,.1f}".format(project.sand_required_mt) }} MT</div>
+      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Formula: 0.45 MT/m³ Standard</div>
+    </div>
+
+    <!-- 3. Legal Sand Received -->
+    <div class="p-4 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+        <span>✅ Verified Sand Received</span>
+      </div>
+      <div class="text-xl font-extrabold text-emerald-950 mt-1">{{ "{:,.1f}".format(project.sand_received_mt) }} MT</div>
+      <div class="text-[10px] text-emerald-700 font-semibold mt-0.5">
+        {{ "%.1f"|format((project.sand_received_mt / project.sand_required_mt * 100) if project.sand_required_mt > 0 else 100) }}% e-Rawaana Matched
+      </div>
+    </div>
+
+    <!-- 4. Deficit / Shortfall -->
+    {% set deficit_mt = (project.sand_required_mt - project.sand_received_mt) %}
+    <div class="p-4 {% if deficit_mt > 0 %}bg-red-50 border border-red-300{% else %}bg-slate-50 border border-slate-200{% endif %} rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold {% if deficit_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %} uppercase tracking-wider flex items-center gap-1">
+        <span>⚠️ Sand Deficit</span>
+      </div>
+      <div class="text-xl font-extrabold {% if deficit_mt > 0 %}text-red-900{% else %}text-slate-700{% endif %} mt-1">
+        {% if deficit_mt > 0 %}+{{ "{:,.1f}".format(deficit_mt) }} MT{% else %}0.0 MT{% endif %}
+      </div>
+      <div class="text-[10px] {% if deficit_mt > 0 %}text-red-600 font-bold{% else %}text-slate-500{% endif %} mt-0.5">
+        {% if deficit_mt > 0 %}UNACCOUNTED MINERAL{% else %}Fully Reconciled{% endif %}
+      </div>
+    </div>
+
+    <!-- 5. Treasury Withholding Penalty -->
+    {% set penalty_amount = (deficit_mt * project.penalty_rate_per_mt) if deficit_mt > 0 else 0 %}
+    <div class="p-4 {% if penalty_amount > 0 %}bg-amber-50 border border-amber-300{% else %}bg-emerald-50 border border-emerald-200{% endif %} rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold {% if penalty_amount > 0 %}text-amber-800{% else %}text-emerald-800{% endif %} uppercase tracking-wider flex items-center gap-1">
+        <span>💰 Treasury Penalty Cut</span>
+      </div>
+      <div class="text-xl font-black {% if penalty_amount > 0 %}text-amber-900{% else %}text-emerald-900{% endif %} mt-1">
+        {% if penalty_amount > 0 %}₹{{ "{:,.0f}".format(penalty_amount) }}{% else %}₹0 (CLEAR){% endif %}
+      </div>
+      <div class="text-[10px] {% if penalty_amount > 0 %}text-amber-700 font-bold{% else %}text-emerald-600{% endif %} mt-0.5">
+        {% if penalty_amount > 0 %}Withheld from next RA Bill{% else %}Zero Statutory Penalty{% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Compliance Progress Bar Card -->
+  <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-3">
+    <div class="flex justify-between items-center">
+      <div>
+        <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+          <span>📊 e-MB Mineral Reconciliation &amp; Royalty Clearance Progress</span>
+          {% if deficit_mt <= 0 %}
+          <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">100% ROYALTY COMPLIANT</span>
+          {% else %}
+          <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">DEFICIT DETECTED (ACTION REQUIRED)</span>
+          {% endif %}
+        </h3>
+        <p class="text-xs text-slate-500 mt-0.5">
+          Government payment will automatically deduct ₹{{ "{:,.0f}".format(penalty_amount) }} (Royalty + 5x statutory penalty) unless remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified e-Rawaana transit passes are scanned at site gate.
+        </p>
+      </div>
+      <span class="text-xs font-mono font-bold text-slate-700">
+        {{ "{:,.1f}".format(project.sand_received_mt) }} / {{ "{:,.1f}".format(project.sand_required_mt) }} MT
+      </span>
+    </div>
+
+    {% set pct = [100.0, (project.sand_received_mt / project.sand_required_mt * 100.0)]|min if project.sand_required_mt > 0 else 100.0 %}
+    <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden p-0.5 border border-slate-300">
+      <div class="h-full rounded-full transition-all duration-500 {% if pct >= 100 %}bg-emerald-600{% elif pct >= 80 %}bg-amber-500{% else %}bg-red-600{% endif %}" style="width: {{ pct }}%;"></div>
+    </div>
+
+    <div class="flex justify-between items-center text-[11px] text-slate-500">
+      <span>0 MT (Start of Paving)</span>
+      <span class="font-bold text-slate-700">{{ "%.1f"|format(pct) }}% Mineral Verified</span>
+      <span>Target: {{ "{:,.1f}".format(project.sand_required_mt) }} MT (PQC Milestone)</span>
+    </div>
+  </div>
+
+  <!-- 2-Column Section: Site Gate QR Scanner & Manual Quick Receipt -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="gate-scanner">
+    
+    <!-- Site Gate Scanning Console -->
+    <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-4">
+      <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold">
+            📲
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-sm">Site Gate Inward Truck Receipt</h3>
+            <p class="text-[11px] text-slate-500">Scan incoming e-Rawaana QR code to credit sand into your e-MB wallet</p>
+          </div>
+        </div>
+        <span class="text-[10px] bg-slate-100 text-slate-700 font-mono px-2 py-0.5 rounded border border-slate-300">Gate Terminal</span>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">e-Rawaana Transit Pass Number / QR Barcode *</label>
+          <div class="flex gap-2">
+            <input type="text" id="contractor-permit-input" placeholder="e.g. SMG-2026-00125 or scan barcode" class="flex-1 bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600">
+            <button onclick="receiveTruckPermit()" id="btn-receive-truck" class="btn-gov btn-gov-primary bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded">
+              Confirm Receipt
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Status changes to <code class="text-emerald-700 font-bold">CONSUMED_AT_SITE</code> and tonnage credits immediately.</p>
+        </div>
+
+        <!-- Quick Demo Inward Samples -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-2">
+          <span class="font-bold text-slate-700 block text-[11px]">Quick Demo Test Passes:</span>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="document.getElementById('contractor-permit-input').value='SMG-2026-00125'; receiveTruckPermit();" class="text-[11px] bg-white border border-emerald-400 hover:bg-emerald-50 text-emerald-900 px-2 py-1 rounded font-mono font-bold">
+              + SMG-2026-00125 (20.0 MT Quartzite)
+            </button>
+            <button onclick="document.getElementById('contractor-permit-input').value='SMG-2026-00126'; receiveTruckPermit();" class="text-[11px] bg-white border border-emerald-400 hover:bg-emerald-50 text-emerald-900 px-2 py-1 rounded font-mono font-bold">
+              + SMG-2026-00126 (22.5 MT River Sand)
+            </button>
+          </div>
+        </div>
+
+        <!-- Receipt Feedback Alert -->
+        <div id="receipt-feedback" class="hidden p-3 rounded text-xs"></div>
+      </div>
+    </div>
+
+    <!-- The Anti-Fraud Legal Sandbox Info Card -->
+    <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-lg p-5 shadow-sm space-y-4 border border-indigo-800">
+      <div class="border-b border-indigo-800/80 pb-3 flex items-center gap-2">
+        <span class="text-xl">🛡️</span>
+        <div>
+          <h3 class="font-bold text-sm text-indigo-200 uppercase tracking-wider">Statutory Mineral Royalty Defense</h3>
+          <p class="text-[11px] text-slate-400">CPWD / State PWD Standard Tender Clause &amp; MMDR Sec 21</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p>
+          <strong class="text-white">Why Unbilled Mafia Sand Causes Contractor Loss:</strong> Under Section 21 of the MMDR Act and Public Works Accounting Manuals, the government releases payment based strictly on <strong>Road Volume measured in e-MB</strong>.
+        </p>
+        <div class="p-3 bg-indigo-900/50 border border-indigo-700/60 rounded text-[11px] space-y-1">
+          <div class="font-bold text-amber-300">The Mathematical Lock:</div>
+          <div>If you pave 4,500 m³ of concrete, civil engineering standards require 2,025 MT of sand. If you purchased 425 MT from illegal cartels in cash, your e-MB wallet will show a 425 MT deficit.</div>
+          <div class="text-emerald-300 font-bold pt-1">The Treasury will automatically deduct ₹2,55,000 from your bill cheque.</div>
+        </div>
+        <p class="text-[11px] text-slate-400">
+          Ensure all tippers arriving at your batching plant carry authentic e-Rawaana passes issued by state-approved quarries.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Recent Inward Deliveries Table -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm" id="consignments">
+    <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-base">📋</span>
+        <h3 class="font-bold text-slate-900 text-sm">Verified Inward Consignments for {{ project.project_code }}</h3>
+      </div>
+      <span class="text-xs text-slate-500 font-mono">{{ recent_deliveries|length }} Trucks Recorded</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+          <tr>
+            <th class="py-2.5 px-3">Pass No.</th>
+            <th class="py-2.5 px-3">Vehicle Registration</th>
+            <th class="py-2.5 px-3">Mineral</th>
+            <th class="py-2.5 px-3 text-right">Net Weight</th>
+            <th class="py-2.5 px-3">Source Quarry</th>
+            <th class="py-2.5 px-3">Delivered Timestamp</th>
+            <th class="py-2.5 px-3 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-mono">
+          {% for p in recent_deliveries %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-2.5 px-3 font-bold text-indigo-900">{{ p.permit_number }}</td>
+            <td class="py-2.5 px-3 font-bold text-slate-800">{{ p.truck_registration or 'HR26AB1234' }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ p.mineral or 'Quartzite Sand' }}</td>
+            <td class="py-2.5 px-3 text-right font-extrabold text-emerald-800">{{ "{:,.1f}".format(p.permitted_weight_mt or 20.0) }} MT</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ p.source_name or 'Aravalli Quarry Block 1A' }}</td>
+            <td class="py-2.5 px-3 text-slate-500 text-[11px]">{{ p.created_at[:16] }}</td>
+            <td class="py-2.5 px-3 text-center">
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">CREDITED TO e-MB</span>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-6 text-slate-400">No inward passes recorded yet for this project. Use the Gate Scanner above to scan arriving tipper trucks.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- JavaScript Controller for Gate Verification -->
+<script>
+async function receiveTruckPermit() {
+  const input = document.getElementById('contractor-permit-input');
+  const permitNum = input.value.trim();
+  const fb = document.getElementById('receipt-feedback');
+  const btn = document.getElementById('btn-receive-truck');
+
+  if (!permitNum) {
+    fb.className = 'p-3 rounded text-xs bg-amber-100 text-amber-900 border border-amber-300 block font-semibold';
+    fb.textContent = 'Please enter or scan a valid e-Rawaana permit number.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = 'Verifying...';
+
+  try {
+    const res = await fetch('/api/contractor/receive-truck', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        permit_number: permitNum,
+        project_id: {{ project.id }}
+      })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
+      fb.innerHTML = `✓ <strong>Success:</strong> Verified e-Rawaana <code>${permitNum}</code>. Credited <strong>${data.added_mt} MT</strong> to project e-MB wallet. New Total: <strong>${data.new_total_mt} MT</strong>!`;
+      input.value = '';
+      setTimeout(() => { window.location.reload(); }, 1800);
+    } else {
+      fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
+      fb.innerHTML = `✕ <strong>Verification Failed:</strong> ${data.error || 'Invalid or consumed permit.'}`;
+      btn.disabled = false;
+      btn.innerHTML = 'Confirm Receipt';
+    }
+  } catch (err) {
+    fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
+    fb.textContent = 'Network or server error: ' + err.message;
+    btn.disabled = false;
+    btn.innerHTML = 'Confirm Receipt';
+  }
+}
+</script>
+{% endblock %}

@@ -31,6 +31,12 @@ class Config:
     OPERATOR_EMAIL = os.getenv("OPERATOR_EMAIL", "virendra@aravalliminerals.com")
     OPERATOR_PHONE = os.getenv("OPERATOR_PHONE", "+91 99280 33445")
 
+    CONTRACTOR_USERNAME = os.getenv("CONTRACTOR_USERNAME", "contractor1")
+    CONTRACTOR_PASSWORD = os.getenv("CONTRACTOR_PASSWORD", "contractor123")
+    CONTRACTOR_NAME = os.getenv("CONTRACTOR_NAME", "Sharma Infrastructure Ltd (NHAI EPC Contractor)")
+    CONTRACTOR_EMAIL = os.getenv("CONTRACTOR_EMAIL", "projects@sharmainfra.com")
+    CONTRACTOR_PHONE = os.getenv("CONTRACTOR_PHONE", "+91 98110 55667")
+
     # Database settings
     DATABASE_URL = os.getenv("DATABASE_URL", "")
     DB_HOST = os.getenv("DB_HOST", "localhost")
