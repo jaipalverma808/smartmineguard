@@ -2923,7 +2923,8 @@ def api_contractor_receive_truck():
     current_rec = float(project.get("mineral_received_mt") or project.get("sand_received_mt") or 0.0)
     target_req = float(project.get("mineral_required_mt") or project.get("sand_required_mt") or 0.0)
     new_received = round(current_rec + tonnage, 1)
-    new_status = "COMPLIANT" if new_received >= target_req else "DEFICIT_FLAGGED"
+    tolerance_mt = target_req * 0.05
+    new_status = "COMPLIANT" if (target_req - new_received) <= tolerance_mt else "DEFICIT_FLAGGED"
 
     db.execute("""
         UPDATE infrastructure_projects 
@@ -3012,10 +3013,17 @@ def admin_infrastructure_audit():
     total_concrete = sum(float(p.get("concrete_volume_m3") or 0.0) for p in projects)
     total_mineral_req = sum(float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0) for p in projects)
     total_mineral_rec = sum(float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0) for p in projects)
-    total_penalties = sum(
-        max(0.0, float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0) - float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0)) * float(p.get("penalty_rate_per_mt") or 600.0)
-        for p in projects
-    )
+    
+    # 5% Statutory Tolerance Allowance (CPWD & IRC standard shrinkage / moisture buffer)
+    total_penalties = 0.0
+    for p in projects:
+        req = float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0)
+        rec = float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0)
+        tolerance_mt = req * 0.05
+        raw_deficit = req - rec
+        actionable_deficit = max(0.0, raw_deficit - tolerance_mt) if raw_deficit > tolerance_mt else 0.0
+        rate = float(p.get("penalty_rate_per_mt") or 600.0)
+        total_penalties += actionable_deficit * rate
     return render_template("admin_infrastructure_audit.html",
         projects=projects,
         mines=mines,

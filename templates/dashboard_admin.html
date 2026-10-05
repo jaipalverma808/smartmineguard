@@ -1029,8 +1029,10 @@
           {% for p in infrastructure_projects %}
           {% set req_mt = (p.mineral_required_mt or p.sand_required_mt or 0) %}
           {% set rec_mt = (p.mineral_received_mt or p.sand_received_mt or 0) %}
-          {% set def_mt = (req_mt - rec_mt) %}
-          {% set pen_amt = (def_mt * (p.penalty_rate_per_mt or 600)) if def_mt > 0 else 0 %}
+          {% set tol_mt = (req_mt * 0.05) %}
+          {% set raw_deficit = (req_mt - rec_mt) %}
+          {% set actionable_deficit = (raw_deficit - tol_mt) if raw_deficit > tol_mt else 0.0 %}
+          {% set pen_amt = (actionable_deficit * (p.penalty_rate_per_mt or 600)) if actionable_deficit > 0 else 0 %}
           <tr class="hover:bg-slate-50 transition">
             <td class="py-2.5 px-3">
               <div class="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
@@ -1075,15 +1077,21 @@
             </td>
             <td class="py-2.5 px-3 text-right text-slate-600 font-bold">{{ "{:,.1f}".format(req_mt) }} MT</td>
             <td class="py-2.5 px-3 text-right font-bold text-emerald-800">{{ "{:,.1f}".format(rec_mt) }} MT</td>
-            <td class="py-2.5 px-3 text-right font-extrabold {% if def_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %}">
-              {% if def_mt > 0 %}+{{ "{:,.1f}".format(def_mt) }} MT{% else %}0.0 MT{% endif %}
+            <td class="py-2.5 px-3 text-right font-extrabold {% if raw_deficit > tol_mt %}text-red-700{% elif raw_deficit > 0 %}text-emerald-700{% else %}text-slate-500{% endif %}">
+              {% if raw_deficit > tol_mt %}
+              +{{ "{:,.1f}".format(actionable_deficit) }} MT
+              {% elif raw_deficit > 0 %}
+              {{ "{:,.1f}".format(raw_deficit) }} MT <span class="text-[9px] text-emerald-600 block font-normal">(≤5% Tol)</span>
+              {% else %}
+              0.0 MT
+              {% endif %}
             </td>
             <td class="py-2.5 px-3 text-right font-black {% if pen_amt > 0 %}text-amber-800{% else %}text-emerald-700{% endif %}">
-              {% if pen_amt > 0 %}₹{{ "{:,.0f}".format(pen_amt) }}{% else %}₹0 (PAID){% endif %}
+              {% if pen_amt > 0 %}₹{{ "{:,.0f}".format(pen_amt) }}{% else %}₹0 (CLEAR){% endif %}
             </td>
             <td class="py-2.5 px-3 text-center">
-              {% if def_mt <= 0 %}
-              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">COMPLIANT</span>
+              {% if raw_deficit <= tol_mt %}
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]" title="Within 5% statutory shrinkage allowance">COMPLIANT (≤5% TOL)</span>
               {% else %}
               <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">DEFICIT LOCKED</span>
               {% endif %}

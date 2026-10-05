@@ -72,8 +72,11 @@
   <!-- KPI Cards: Structural Volume vs Mineral Wallet -->
   {% set req_mt = (project.mineral_required_mt or project.sand_required_mt or 0) %}
   {% set rec_mt = (project.mineral_received_mt or project.sand_received_mt or 0) %}
-  {% set deficit_mt = (req_mt - rec_mt) %}
-  {% set penalty_amount = (deficit_mt * (project.penalty_rate_per_mt or 600)) if deficit_mt > 0 else 0 %}
+  {% set tol_mt = (req_mt * 0.05) %}
+  {% set raw_deficit_mt = (req_mt - rec_mt) %}
+  {% set actionable_deficit_mt = (raw_deficit_mt - tol_mt) if raw_deficit_mt > tol_mt else 0.0 %}
+  {% set deficit_mt = actionable_deficit_mt %}
+  {% set penalty_amount = (actionable_deficit_mt * (project.penalty_rate_per_mt or 600)) if actionable_deficit_mt > 0 else 0 %}
 
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5">
     
@@ -111,15 +114,21 @@
     </div>
 
     <!-- 4. Deficit / Shortfall -->
-    <div class="p-4 {% if deficit_mt > 0 %}bg-red-50 border border-red-300{% else %}bg-slate-50 border border-slate-200{% endif %} rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold {% if deficit_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %} uppercase tracking-wider flex items-center gap-1">
+    <div class="p-4 {% if raw_deficit_mt > tol_mt %}bg-red-50 border border-red-300{% elif raw_deficit_mt > 0 %}bg-emerald-50 border border-emerald-300{% else %}bg-slate-50 border border-slate-200{% endif %} rounded-lg shadow-xs">
+      <div class="text-[11px] font-bold {% if raw_deficit_mt > tol_mt %}text-red-700{% elif raw_deficit_mt > 0 %}text-emerald-700{% else %}text-slate-500{% endif %} uppercase tracking-wider flex items-center gap-1">
         <span>⚠️ Unaccounted Gap</span>
       </div>
-      <div class="text-xl font-extrabold {% if deficit_mt > 0 %}text-red-900{% else %}text-slate-700{% endif %} mt-1">
-        {% if deficit_mt > 0 %}+{{ "{:,.1f}".format(deficit_mt) }} MT{% else %}0.0 MT{% endif %}
+      <div class="text-xl font-extrabold {% if raw_deficit_mt > tol_mt %}text-red-900{% elif raw_deficit_mt > 0 %}text-emerald-900{% else %}text-slate-700{% endif %} mt-1">
+        {% if raw_deficit_mt > tol_mt %}
+        +{{ "{:,.1f}".format(actionable_deficit_mt) }} MT
+        {% elif raw_deficit_mt > 0 %}
+        {{ "{:,.1f}".format(raw_deficit_mt) }} MT
+        {% else %}
+        0.0 MT
+        {% endif %}
       </div>
-      <div class="text-[10px] {% if deficit_mt > 0 %}text-red-600 font-bold{% else %}text-slate-500{% endif %} mt-0.5">
-        {% if deficit_mt > 0 %}UNACCOUNTED MINERAL{% else %}Fully Reconciled{% endif %}
+      <div class="text-[10px] {% if raw_deficit_mt > tol_mt %}text-red-600 font-bold{% elif raw_deficit_mt > 0 %}text-emerald-700 font-semibold{% else %}text-slate-500{% endif %} mt-0.5">
+        {% if raw_deficit_mt > tol_mt %}BEYOND 5% TOLERANCE{% elif raw_deficit_mt > 0 %}WITHIN 5% ALLOWANCE{% else %}Fully Reconciled{% endif %}
       </div>
     </div>
 
@@ -144,18 +153,14 @@
       <div>
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
           <span>📊 Statutory Mineral Royalty Clearance &amp; Compliance Progress</span>
-          {% if deficit_mt <= 0 %}
-          <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">100% ROYALTY COMPLIANT</span>
+          {% if raw_deficit_mt <= tol_mt %}
+          <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">COMPLIANT (WITHIN 5% TOLERANCE)</span>
           {% else %}
           <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">DEFICIT DETECTED (ACTION REQUIRED)</span>
           {% endif %}
         </h3>
         <p class="text-xs text-slate-500 mt-0.5">
-          {% if project.project_category == 'REAL_ESTATE_BUILDER' %}
-          Municipal Town &amp; Country Planning will withhold the <strong>Occupancy Certificate (OC Lock)</strong> until remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified e-Rawaana passes are submitted.
-          {% else %}
-          Government will automatically withhold ₹{{ "{:,.0f}".format(penalty_amount) }} from the contractor RA bill cheque unless remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified passes are scanned at gate.
-          {% endif %}
+          Standard <strong>5% natural variance buffer</strong> (moisture &amp; handling allowance) is applied. Penalties apply only to unverified shortfalls beyond 5%.
         </p>
       </div>
       <span class="text-xs font-mono font-bold text-slate-700">
