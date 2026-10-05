@@ -613,60 +613,72 @@ class DatabaseManager:
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INTEGER DEFAULT 0;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
-
-                            -- Extension columns for Multi-Sector Development & Mineral Specific Tracking
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS project_category VARCHAR(50) DEFAULT 'HIGHWAY_INFRA';
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mine_id INTEGER DEFAULT 1;
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS sub_mine_id INTEGER;
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS primary_mineral VARCHAR(100) DEFAULT 'Quartzite Aggregate';
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mineral_required_mt DOUBLE PRECISION DEFAULT 2025.0;
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mineral_received_mt DOUBLE PRECISION DEFAULT 1600.0;
-                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS regulatory_framework VARCHAR(150) DEFAULT 'Public Works e-MB & IRC:15';
-
-                            -- Allow CONTRACTOR role in users table constraint
-                            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-                            ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'OFFICER', 'OPERATOR', 'CONTRACTOR'));
                         """)
                         conn.commit()
-                        logger.info("PostgreSQL schema migrations applied successfully.")
                     except Exception as _m_err:
+                        try: conn.rollback()
+                        except Exception: pass
+                        logger.warning(f"PostgreSQL permit migrations non-fatal: {_m_err}")
+
+                    # Extension columns for Multi-Sector Development & Mineral Specific Tracking
+                    infra_cols = [
+                        ("project_category", "VARCHAR(50) DEFAULT 'HIGHWAY_INFRA'"),
+                        ("mine_id", "INTEGER DEFAULT 1"),
+                        ("sub_mine_id", "INTEGER"),
+                        ("primary_mineral", "VARCHAR(100) DEFAULT 'Quartzite Aggregate'"),
+                        ("mineral_required_mt", "DOUBLE PRECISION DEFAULT 2025.0"),
+                        ("mineral_received_mt", "DOUBLE PRECISION DEFAULT 1600.0"),
+                        ("regulatory_framework", "VARCHAR(150) DEFAULT 'Public Works e-MB & IRC:15'")
+                    ]
+                    for col_name, col_type in infra_cols:
                         try:
-                            conn.rollback()
+                            cur.execute(f"ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS {col_name} {col_type};")
+                            conn.commit()
                         except Exception:
-                            pass
-                        logger.warning(f"PostgreSQL schema migrations non-fatal: {_m_err}")
+                            try: conn.rollback()
+                            except Exception: pass
 
                     try:
-                        cur.execute("""
-                            INSERT INTO infrastructure_projects 
-                            (id, project_code, project_name, contractor_name, executing_agency, project_category, mine_id, sub_mine_id, primary_mineral, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, mineral_required_mt, mineral_received_mt, penalty_rate_per_mt, status, regulatory_framework, work_order_no)
-                            VALUES 
-                            (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'HIGHWAY_INFRA', 3, 41, 'River Sand & Sub-base Fill', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 2025.0, 1600.0, 600.0, 'DEFICIT_FLAGGED', 'NHAI Contract & IRC:15 Standard (e-MB)', 'WO/NHAI/RO-HAR/2026/089'),
-                            (2, 'DLF-CYBER-T2', 'CyberCity Commercial Towers Phase-2 (Tower D & E)', 'DLF Universal & Real Estate Developers Ltd', 'Town & Country Planning (DTCP / RERA HR-GGM-882)', 'REAL_ESTATE_BUILDER', 1, 1, '20mm/40mm Quartzite Aggregate & Grit', 'Sector 25A, CyberCity Gurugram', 0.0, 12500.0, 5625.0, 4100.0, 9800.0, 7200.0, 9800.0, 7200.0, 750.0, 'DEFICIT_FLAGGED', 'DTCP Sanction & RERA Occupancy Certificate (OC Lock)', 'BP/DTCP-GGM/2025/COMM-412'),
-                            (3, 'RMC-NCR-08', 'ACC ReadyMix Concrete & Batching Hub #8', 'ACC Concrete Solutions (Supplying 42 Private Builders)', 'State Pollution Control Board & Industries Dept', 'RMC_BATCHING_PLANT', 1, 21, '10mm/20mm Graded Stone Chips', 'Plot 44, Manesar Industrial Model Township', 0.0, 24000.0, 10800.0, 10800.0, 18500.0, 18500.0, 18500.0, 18500.0, 650.0, 'COMPLIANT', 'RMC Inward e-Rawaana vs Outward Dispatch Tax Invoicing', 'RMC/HSPCB/CONS/2026/018'),
-                            (4, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'HIGHWAY_INFRA', 1, 12, 'WMM & GSB Sub-Base Ballast', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'Public Works e-MB & Clause 10CC Verification', 'WO/PWD-HAR/B&R/2026/142'),
-                            (5, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Infrastructure Division', 'Delhi Metro Rail Corporation (DMRC) / MoRTH', 'METRO_INDUSTRIAL', 4, NULL, 'High-Strength Structural Quartz Ballast', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'DMRC Technical Specification & MMDR Sec 21 Audit', 'WO/MORTH/NH-19/EXP/2025/310'),
-                            (6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL', 2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0, 4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED', 'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055')
-                            ON CONFLICT (id) DO UPDATE SET
-                                project_name = EXCLUDED.project_name,
-                                contractor_name = EXCLUDED.contractor_name,
-                                executing_agency = EXCLUDED.executing_agency,
-                                project_category = EXCLUDED.project_category,
-                                mine_id = EXCLUDED.mine_id,
-                                sub_mine_id = EXCLUDED.sub_mine_id,
-                                primary_mineral = EXCLUDED.primary_mineral,
-                                mineral_required_mt = EXCLUDED.mineral_required_mt,
-                                mineral_received_mt = EXCLUDED.mineral_received_mt,
-                                regulatory_framework = EXCLUDED.regulatory_framework;
-                        """)
+                        # Allow CONTRACTOR role in users table constraint
+                        cur.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;")
+                        cur.execute("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'OFFICER', 'OPERATOR', 'CONTRACTOR'));")
                         conn.commit()
-                        logger.info("PostgreSQL multi-sector infrastructure_projects synchronized successfully.")
-                    except Exception as _seed_infra_err:
+                    except Exception:
+                        try: conn.rollback()
+                        except Exception: pass
+
+                    demo_projects = [
+                        (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'HIGHWAY_INFRA', 3, 41, 'River Sand & Sub-base Fill', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 2025.0, 1600.0, 600.0, 'DEFICIT_FLAGGED', 'NHAI Contract & IRC:15 Standard (e-MB)', 'WO/NHAI/RO-HAR/2026/089'),
+                        (2, 'DLF-CYBER-T2', 'CyberCity Commercial Towers Phase-2 (Tower D & E)', 'DLF Universal & Real Estate Developers Ltd', 'Town & Country Planning (DTCP / RERA HR-GGM-882)', 'REAL_ESTATE_BUILDER', 1, 1, '20mm/40mm Quartzite Aggregate & Grit', 'Sector 25A, CyberCity Gurugram', 0.0, 12500.0, 5625.0, 4100.0, 9800.0, 7200.0, 9800.0, 7200.0, 750.0, 'DEFICIT_FLAGGED', 'DTCP Sanction & RERA Occupancy Certificate (OC Lock)', 'BP/DTCP-GGM/2025/COMM-412'),
+                        (3, 'RMC-NCR-08', 'ACC ReadyMix Concrete & Batching Hub #8', 'ACC Concrete Solutions (Supplying 42 Private Builders)', 'State Pollution Control Board & Industries Dept', 'RMC_BATCHING_PLANT', 1, 21, '10mm/20mm Graded Stone Chips', 'Plot 44, Manesar Industrial Model Township', 0.0, 24000.0, 10800.0, 10800.0, 18500.0, 18500.0, 18500.0, 18500.0, 650.0, 'COMPLIANT', 'RMC Inward e-Rawaana vs Outward Dispatch Tax Invoicing', 'RMC/HSPCB/CONS/2026/018'),
+                        (4, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'HIGHWAY_INFRA', 1, 12, 'WMM & GSB Sub-Base Ballast', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'Public Works e-MB & Clause 10CC Verification', 'WO/PWD-HAR/B&R/2026/142'),
+                        (5, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Infrastructure Division', 'Delhi Metro Rail Corporation (DMRC) / MoRTH', 'METRO_INDUSTRIAL', 4, None, 'High-Strength Structural Quartz Ballast', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'DMRC Technical Specification & MMDR Sec 21 Audit', 'WO/MORTH/NH-19/EXP/2025/310'),
+                        (6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL', 2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0, 4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED', 'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055')
+                    ]
+                    for p in demo_projects:
                         try:
-                            conn.rollback()
-                        except Exception:
-                            pass
-                        logger.warning(f"PostgreSQL infrastructure_projects seeding non-fatal: {_seed_infra_err}")
+                            cur.execute("""
+                                INSERT INTO infrastructure_projects 
+                                (id, project_code, project_name, contractor_name, executing_agency, project_category, mine_id, sub_mine_id, primary_mineral, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, mineral_required_mt, mineral_received_mt, penalty_rate_per_mt, status, regulatory_framework, work_order_no)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (id) DO UPDATE SET
+                                    project_code = EXCLUDED.project_code,
+                                    project_name = EXCLUDED.project_name,
+                                    contractor_name = EXCLUDED.contractor_name,
+                                    executing_agency = EXCLUDED.executing_agency,
+                                    project_category = EXCLUDED.project_category,
+                                    mine_id = EXCLUDED.mine_id,
+                                    sub_mine_id = EXCLUDED.sub_mine_id,
+                                    primary_mineral = EXCLUDED.primary_mineral,
+                                    mineral_required_mt = EXCLUDED.mineral_required_mt,
+                                    mineral_received_mt = EXCLUDED.mineral_received_mt,
+                                    regulatory_framework = EXCLUDED.regulatory_framework;
+                            """, p)
+                            conn.commit()
+                        except Exception as _p_err:
+                            try: conn.rollback()
+                            except Exception: pass
+                            logger.warning(f"Project seed non-fatal for {p[1]}: {_p_err}")
 
                     try:
                         seq_tables = ['alerts', 'trips', 'trucks', 'permits', 'mines', 'weighments', 'checkpoints', 'users', 'audit_logs', 'stock_production', 'quarry_blocks', 'gps_tamper_events', 'infrastructure_projects']
