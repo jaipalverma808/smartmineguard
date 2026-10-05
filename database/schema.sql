@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS mines (
     geom geometry(Point, 4326),
     authorized_annual_quota_mt DOUBLE PRECISION NOT NULL DEFAULT 50000.0,
     current_dispatch_mt DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31',
+    ec_clearance_number VARCHAR(100) DEFAULT 'EC-MOEF-2024-8841',
     status VARCHAR(30) DEFAULT 'OPERATIONAL',
     operator_name VARCHAR(150) NOT NULL,
     contact_phone VARCHAR(20),
@@ -347,6 +349,44 @@ ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INT DEFAULT 0;
 ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
 ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
 
+-- 19. SUB-MINE QUARRY BLOCKS / BUSINESSMEN CONCESSIONS
+CREATE TABLE IF NOT EXISTS quarry_blocks (
+    id SERIAL PRIMARY KEY,
+    mine_id INTEGER REFERENCES mines(id) ON DELETE CASCADE,
+    block_code VARCHAR(50) NOT NULL,
+    block_name VARCHAR(200) NOT NULL,
+    leaseholder_name VARCHAR(200) NOT NULL,
+    operator_name VARCHAR(150) NOT NULL,
+    contact_phone VARCHAR(50),
+    allocated_quota_mt DOUBLE PRECISION DEFAULT 15000.0,
+    dispatched_mt DOUBLE PRECISION DEFAULT 0.0,
+    active_trucks_count INTEGER DEFAULT 4,
+    lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31',
+    ec_clearance_number VARCHAR(100) DEFAULT 'DEIAA-RJ-ALW-2023-551',
+    status VARCHAR(50) DEFAULT 'OPERATIONAL',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20. CITIZEN PUBLIC WHISTLEBLOWER REPORTS (JANTA VIGILANCE)
+CREATE TABLE IF NOT EXISTS citizen_reports (
+    id SERIAL PRIMARY KEY,
+    report_token VARCHAR(50) UNIQUE NOT NULL,
+    incident_type VARCHAR(100) NOT NULL,
+    incident_date VARCHAR(50),
+    location_name VARCHAR(255) NOT NULL,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    description TEXT NOT NULL,
+    evidence_photo_url VARCHAR(255),
+    is_anonymous BOOLEAN DEFAULT TRUE,
+    reporter_name VARCHAR(150),
+    reporter_phone VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
+    action_taken TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- SPATIAL & PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_mines_geom ON mines USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_trucks_geom ON trucks USING GIST (geom);
@@ -357,4 +397,5 @@ CREATE INDEX IF NOT EXISTS idx_trucks_reg ON trucks(registration_number);
 CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
 CREATE INDEX IF NOT EXISTS idx_investigations_case ON investigations(case_id);
 CREATE INDEX IF NOT EXISTS idx_infra_proj_code ON infrastructure_projects(project_code);
+CREATE INDEX IF NOT EXISTS idx_citizen_token ON citizen_reports(report_token);
 

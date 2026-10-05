@@ -452,6 +452,24 @@ class DatabaseManager:
                                 status VARCHAR(50) DEFAULT 'ACTIVE',
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             );
+                            CREATE TABLE IF NOT EXISTS citizen_reports (
+                                id SERIAL PRIMARY KEY,
+                                report_token VARCHAR(50) UNIQUE NOT NULL,
+                                incident_type VARCHAR(100) NOT NULL,
+                                incident_date VARCHAR(50),
+                                location_name VARCHAR(255) NOT NULL,
+                                latitude DOUBLE PRECISION,
+                                longitude DOUBLE PRECISION,
+                                description TEXT NOT NULL,
+                                evidence_photo_url VARCHAR(255),
+                                is_anonymous BOOLEAN DEFAULT TRUE,
+                                reporter_name VARCHAR(150),
+                                reporter_phone VARCHAR(50),
+                                status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
+                                action_taken TEXT,
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
                             CREATE TABLE IF NOT EXISTS audit_logs (
                                 id SERIAL PRIMARY KEY,
                                 user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -556,6 +574,12 @@ class DatabaseManager:
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS current_stock_mt DOUBLE PRECISION DEFAULT 5000.0;
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS daily_production_mt DOUBLE PRECISION DEFAULT 500.0;
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS daily_planned_dispatch_mt DOUBLE PRECISION DEFAULT 600.0;
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31';
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS ec_clearance_number VARCHAR(100) DEFAULT 'EC-MOEF-2024-8841';
+
+                            -- QUARRY BLOCKS
+                            ALTER TABLE quarry_blocks ADD COLUMN IF NOT EXISTS lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31';
+                            ALTER TABLE quarry_blocks ADD COLUMN IF NOT EXISTS ec_clearance_number VARCHAR(100) DEFAULT 'DEIAA-RJ-ALW-2023-551';
 
                             -- DRIVERS
                             ALTER TABLE drivers ADD COLUMN IF NOT EXISTS allowed_rounds_per_day INTEGER DEFAULT 4;
@@ -834,6 +858,10 @@ class DatabaseManager:
                 cur.execute("ALTER TABLE mines ADD COLUMN daily_production_mt REAL DEFAULT 500.0")
             if "daily_planned_dispatch_mt" not in mine_cols:
                 cur.execute("ALTER TABLE mines ADD COLUMN daily_planned_dispatch_mt REAL DEFAULT 600.0")
+            if "lease_expiry_date" not in mine_cols:
+                cur.execute("ALTER TABLE mines ADD COLUMN lease_expiry_date TEXT DEFAULT '2027-12-31'")
+            if "ec_clearance_number" not in mine_cols:
+                cur.execute("ALTER TABLE mines ADD COLUMN ec_clearance_number TEXT DEFAULT 'EC-MOEF-2024-8841'")
 
             # truck columns
             truck_cols = [r[1] for r in cur.execute("PRAGMA table_info(trucks)").fetchall()]
@@ -1216,6 +1244,70 @@ class DatabaseManager:
                 (6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL', 2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0, 4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED', 'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055')
             ])
 
+            # quarry_blocks quota & lease columns
+            qb_cols = [r[1] for r in cur.execute("PRAGMA table_info(quarry_blocks)").fetchall()]
+            if "lease_expiry_date" not in qb_cols:
+                cur.execute("ALTER TABLE quarry_blocks ADD COLUMN lease_expiry_date TEXT DEFAULT '2027-12-31'")
+            if "ec_clearance_number" not in qb_cols:
+                cur.execute("ALTER TABLE quarry_blocks ADD COLUMN ec_clearance_number TEXT DEFAULT 'DEIAA-RJ-ALW-2023-551'")
+
+            # Citizen Whistleblower Vigilance Reports Table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS citizen_reports (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_token TEXT UNIQUE NOT NULL,
+                    incident_type TEXT NOT NULL,
+                    incident_date TEXT,
+                    location_name TEXT NOT NULL,
+                    latitude REAL,
+                    longitude REAL,
+                    description TEXT NOT NULL,
+                    evidence_photo_url TEXT,
+                    is_anonymous INTEGER DEFAULT 1,
+                    reporter_name TEXT,
+                    reporter_phone TEXT,
+                    status TEXT DEFAULT 'PENDING_VERIFICATION',
+                    action_taken TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Seed demo whistleblower tip if table is empty
+            tip_count = cur.execute("SELECT COUNT(*) FROM citizen_reports").fetchone()[0]
+            if tip_count == 0:
+                past_time = (datetime.now() - timedelta(hours=3, minutes=45)).strftime("%Y-%m-%d %H:%M:%S")
+                cur.execute("""
+                    INSERT INTO citizen_reports (report_token, incident_type, incident_date, location_name, latitude, longitude, description, evidence_photo_url, is_anonymous, reporter_name, reporter_phone, status, action_taken, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    'SMG-TIP-849201',
+                    'MIDNIGHT_RIVERBED_EXTRACTION',
+                    past_time,
+                    'Sabi Riverbed Outskirts (Behror-Kotputli Link)',
+                    27.8480,
+                    76.4320,
+                    'Hydraulic excavator digging riverbed at 01:30 AM with unnumbered tippers. High-intensity floodlights spotted from village border.',
+                    'static/images/weighbridge/scale_front_cam.jpg',
+                    1,
+                    None,
+                    None,
+                    'SQUAD_DISPATCHED',
+                    'Enforcement Flying Squad MES-Z4 dispatched from Behror Checkpost. Surveillance team deployed to intercept Sabi link road.',
+                    past_time,
+                    past_time
+                ))
+
+            # Statutory Auto-Lock Watchdog Demonstrations:
+            # Pit #4 (QB-ALW-04): 100% quota exhausted & expired lease -> Auto-locked
+            cur.execute("""
+                UPDATE quarry_blocks 
+                SET allocated_quota_mt = 12000.0, dispatched_mt = 12000.0, status = 'QUOTA_EXHAUSTED', lease_expiry_date = '2025-12-31'
+                WHERE block_code = 'QB-ALW-04'
+            """)
+            # Mine 4 (Khetri Zone): Dispatched 64,200 MT > 60,000 MT Quota -> Auto-locked
+            cur.execute("UPDATE mines SET status = 'QUOTA_EXCEEDED' WHERE id = 4")
+
             conn.commit()
         finally:
             if close_needed:
@@ -1268,6 +1360,8 @@ class DatabaseManager:
             longitude REAL NOT NULL,
             authorized_annual_quota_mt REAL NOT NULL DEFAULT 50000.0,
             current_dispatch_mt REAL NOT NULL DEFAULT 0.0,
+            lease_expiry_date TEXT DEFAULT '2027-12-31',
+            ec_clearance_number TEXT DEFAULT 'EC-MOEF-2024-8841',
             status TEXT DEFAULT 'OPERATIONAL',
             operator_name TEXT NOT NULL,
             contact_phone TEXT,
@@ -1543,6 +1637,10 @@ class DatabaseManager:
             cur.execute("ALTER TABLE mines ADD COLUMN daily_production_mt REAL DEFAULT 500.0")
         if "daily_planned_dispatch_mt" not in mine_cols:
             cur.execute("ALTER TABLE mines ADD COLUMN daily_planned_dispatch_mt REAL DEFAULT 600.0")
+        if "lease_expiry_date" not in mine_cols:
+            cur.execute("ALTER TABLE mines ADD COLUMN lease_expiry_date TEXT DEFAULT '2027-12-31'")
+        if "ec_clearance_number" not in mine_cols:
+            cur.execute("ALTER TABLE mines ADD COLUMN ec_clearance_number TEXT DEFAULT 'EC-MOEF-2024-8841'")
 
         truck_cols = [r[1] for r in cur.execute("PRAGMA table_info(trucks)").fetchall()]
         if "assigned_mine_id" not in truck_cols:
