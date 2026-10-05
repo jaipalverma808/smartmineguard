@@ -602,10 +602,14 @@ class DatabaseManager:
                                 work_order_no VARCHAR(100),
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             );
-                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
+                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INTEGER DEFAULT 0;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
+
+                            -- Allow CONTRACTOR role in users table constraint
+                            ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+                            ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('ADMIN', 'OFFICER', 'OPERATOR', 'CONTRACTOR'));
                         """)
                         conn.commit()
                         logger.info("PostgreSQL schema migrations applied successfully.")
@@ -710,6 +714,42 @@ class DatabaseManager:
                 getattr(Config, "CONTRACTOR_USERNAME", "contractor1"),
                 getattr(Config, "CONTRACTOR_PASSWORD", "contractor123"),
                 getattr(Config, "CONTRACTOR_NAME", "Sharma Infrastructure Ltd (NHAI EPC Contractor)"),
+                "CONTRACTOR",
+                "National Highway EPC Infrastructure",
+                "NHAI-EPC-702",
+                getattr(Config, "CONTRACTOR_EMAIL", "projects@sharmainfra.com"),
+                getattr(Config, "CONTRACTOR_PHONE", "+91 98110 55667"),
+                1,
+                None
+            ),
+            (
+                "constructor1",
+                getattr(Config, "CONTRACTOR_PASSWORD", "contractor123"),
+                "Sharma Infrastructure Ltd (NHAI EPC Contractor)",
+                "CONTRACTOR",
+                "National Highway EPC Infrastructure",
+                "NHAI-EPC-702",
+                getattr(Config, "CONTRACTOR_EMAIL", "projects@sharmainfra.com"),
+                getattr(Config, "CONTRACTOR_PHONE", "+91 98110 55667"),
+                1,
+                None
+            ),
+            (
+                "constructor",
+                getattr(Config, "CONTRACTOR_PASSWORD", "contractor123"),
+                "Sharma Infrastructure Ltd (NHAI EPC Contractor)",
+                "CONTRACTOR",
+                "National Highway EPC Infrastructure",
+                "NHAI-EPC-702",
+                getattr(Config, "CONTRACTOR_EMAIL", "projects@sharmainfra.com"),
+                getattr(Config, "CONTRACTOR_PHONE", "+91 98110 55667"),
+                1,
+                None
+            ),
+            (
+                "contractor",
+                getattr(Config, "CONTRACTOR_PASSWORD", "contractor123"),
+                "Sharma Infrastructure Ltd (NHAI EPC Contractor)",
                 "CONTRACTOR",
                 "National Highway EPC Infrastructure",
                 "NHAI-EPC-702",

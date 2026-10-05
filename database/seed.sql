@@ -7,7 +7,8 @@
 INSERT INTO users (id, username, password_hash, full_name, role, department, badge_number, email, phone) VALUES
 (1, 'admin', 'scrypt:32768:8:1$Zr30Mc23gHWgwT8A$270528ddd472694daf5a7f3cdd6592e8b731511c38b482f439ac766beb660bd2d61bd76b7a9c2e378b8a55f3ae75a2803934f7e66ffe05398acb4daf895cba54', 'Sanjay Verma, IAS', 'ADMIN', 'Directorate of Mines & Geology', 'DMG-HQ-01', 'sanjay.verma@mines.gov.in', '+91 98100 11223'),
 (2, 'officer1', 'scrypt:32768:8:1$FK4stxukDtMqpkeV$860bedbad7459012931eed20b028629d2dc3d57a57e9479251ade9c2687169258ff8521cf85aa74963383905c5e866474c72e45f11cc3d7bedd21b8fe8e747de', 'Inspector Rajesh K. Meena', 'OFFICER', 'Mining Enforcement Squad Zone 4', 'MES-Z4-409', 'rajesh.meena@enforcement.gov.in', '+91 94140 22334'),
-(3, 'operator1', 'scrypt:32768:8:1$LPCNLxkf3VowPuNr$81c09abbf1e26043183f4f42f34efe09be08859d32288a45c80a237df3ef3d2494b0dc646dcf5f1f743b86cc51153edb72a218cdf4a64e0d67b8e467850f3f90', 'Virendra Singh Rathore', 'OPERATOR', 'Aravalli Quartzite Consortium', 'OP-RJ-08', 'virendra@aravalliminerals.com', '+91 99280 33445')
+(3, 'operator1', 'scrypt:32768:8:1$LPCNLxkf3VowPuNr$81c09abbf1e26043183f4f42f34efe09be08859d32288a45c80a237df3ef3d2494b0dc646dcf5f1f743b86cc51153edb72a218cdf4a64e0d67b8e467850f3f90', 'Virendra Singh Rathore', 'OPERATOR', 'Aravalli Quartzite Consortium', 'OP-RJ-08', 'virendra@aravalliminerals.com', '+91 99280 33445'),
+(4, 'contractor1', 'scrypt:32768:8:1$miB76GwAipjo4d6Z$663fd3a4db93eaf52ae8df2efe530e391cade769648cceb0fff42e0fe0a3347a99b6f4fc431ba92ab46c7057ce3e808a01a39e58cb7c05705fcdb18231539d12', 'Sharma Infrastructure Ltd (NHAI EPC Contractor)', 'CONTRACTOR', 'National Highway EPC Infrastructure', 'NHAI-EPC-702', 'projects@sharmainfra.com', '+91 98110 55667')
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. MINES / LEASES

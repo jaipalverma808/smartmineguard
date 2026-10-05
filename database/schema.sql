@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('ADMIN', 'OFFICER', 'OPERATOR')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('ADMIN', 'OFFICER', 'OPERATOR', 'CONTRACTOR')),
     department VARCHAR(100) DEFAULT 'Department of Mines & Geology',
     badge_number VARCHAR(50),
     email VARCHAR(100),
