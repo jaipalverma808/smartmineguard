@@ -816,6 +816,13 @@ def index():
     )
 
 
+@app.route("/report-illegal-mining")
+@app.route("/whistleblower")
+def report_illegal_mining():
+    """Dedicated Public Whistleblower Incident Reporting Portal (Janta Vigilance)."""
+    return render_template("whistleblower.html")
+
+
 # Track failed logins (lock out for 2 minutes after 5 failed tries within 5 mins)
 _failed_logins = {}
 _login_lockouts = {}

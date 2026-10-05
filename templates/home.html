@@ -53,9 +53,9 @@
 
         <!-- Hero Actions -->
         <div class="pt-2 flex flex-wrap items-center gap-3">
-          <a href="#whistleblower" class="btn-gov bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-4 py-2.5 text-xs uppercase tracking-wider rounded shadow flex items-center gap-1.5 border border-amber-400">
+          <a href="{{ url_for('report_illegal_mining') }}" class="btn-gov bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-4 py-2.5 text-xs uppercase tracking-wider rounded shadow flex items-center gap-1.5 border border-amber-400">
             <span class="animate-pulse">📢</span>
-            <span>Report Illegal Mining &darr;</span>
+            <span>Report Illegal Mining &rarr;</span>
           </a>
           <a href="#verification" class="btn-gov bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 text-xs uppercase tracking-wider rounded shadow">
             Verify Transit Permit &darr;
@@ -241,253 +241,31 @@
   </section>
 
   <!-- ============================================================ -->
-  <!-- 3. JANTA VIGILANCE: CITIZEN PUBLIC WHISTLEBLOWER PORTAL       -->
+  <!-- 3. JANTA VIGILANCE: CITIZEN PUBLIC WHISTLEBLOWER BANNER       -->
   <!-- ============================================================ -->
-  <section id="whistleblower" class="bg-white border-2 border-amber-500/80 rounded p-5 sm:p-7 shadow-sm space-y-5">
-    <div class="border-b border-amber-200 pb-3 flex flex-wrap justify-between items-center gap-3">
-      <div class="space-y-1">
-        <div class="inline-flex items-center gap-2 px-2.5 py-0.5 bg-amber-100 border border-amber-400 text-amber-950 rounded text-[11px] font-bold uppercase tracking-wider">
-          <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-          <span>Janta Vigilance Directorate &bull; Public Whistleblower Cell</span>
-        </div>
-        <h2 class="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-          <span>📢</span>
-          <span>Report Illegal Mining &bull; जनता सतर्कता पोर्टल</span>
-        </h2>
-        <p class="text-xs text-slate-600 max-w-3xl">
-          Empowering citizens, farmers, and local communities to report unauthorized riverbed sand excavation, unnumbered tipper convoys, illegal crushers, and mineral theft in real time. 
-          All submissions are protected under Section 21 of the MMDR Act.
-        </p>
+  <section class="bg-gradient-to-r from-amber-50 via-white to-amber-50 border-2 border-amber-400/90 rounded-lg p-5 sm:p-6 shadow-xs flex flex-wrap items-center justify-between gap-4">
+    <div class="space-y-1.5 max-w-2xl">
+      <div class="inline-flex items-center gap-2 px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-950 rounded text-[11px] font-bold uppercase tracking-wider">
+        <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+        <span>Janta Vigilance Directorate &bull; Public Whistleblower Cell</span>
       </div>
-
-      <!-- Tab Buttons: Report vs Track -->
-      <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded border border-slate-300">
-        <button type="button" id="tab-btn-report" onclick="switchWhistleblowerTab('report')" class="px-3 py-1.5 rounded text-xs font-bold transition bg-amber-600 text-slate-950 shadow-xs">
-          ✍️ Lodge Incident Report
-        </button>
-        <button type="button" id="tab-btn-track" onclick="switchWhistleblowerTab('track')" class="px-3 py-1.5 rounded text-xs font-bold transition bg-transparent text-slate-700 hover:text-slate-900">
-          🔍 Track Tip Status
-        </button>
-      </div>
+      <h3 class="text-base sm:text-lg font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+        <span>📢</span>
+        <span>Spotted Illegal Riverbed Sand Excavation or Overloaded Tippers?</span>
+      </h3>
+      <p class="text-xs text-slate-600 leading-relaxed">
+        Help State Flying Squads intercept mineral theft, unnumbered tippers, and illegal crushers. Citizens can report 100% anonymously with GPS auto-detection and photo/video evidence under Section 21 MMDR Act statutory protection.
+      </p>
     </div>
-
-    <!-- TAB 1: LODGE INCIDENT REPORT -->
-    <div id="whistleblower-report-tab" class="space-y-4">
-      <div class="bg-amber-50/70 border border-amber-200 rounded p-3 text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <span class="text-lg">🛡️</span>
-          <span><strong>100% Anonymous &amp; Confidential Protection:</strong> Your IP and personal details are encrypted. You may report completely anonymously without logging in.</span>
-        </div>
-        <span class="text-[10px] font-mono font-bold bg-amber-200/80 px-2 py-0.5 rounded text-amber-900">
-          MMDR ACT SEC 21 ENFORCEMENT
-        </span>
-      </div>
-
-      <form id="whistleblower-form" onsubmit="submitWhistleblowerReport(event)" class="space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
-          
-          <!-- Incident Category -->
-          <div class="sm:col-span-6">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Incident Category <span class="text-red-600">*</span>
-            </label>
-            <select id="tip_incident_type" required class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-600">
-              <option value="MIDNIGHT_RIVERBED_EXTRACTION">🌊 Midnight Riverbed Sand Excavation (रात में अवैध नदी रेत खनन)</option>
-              <option value="ILLEGAL_STONE_CRUSHER">🏭 Unregistered / Illegal Stone Crusher (अवैध स्टोन क्रशर)</option>
-              <option value="OVERLOADED_TIPPER_CONVOY">🚛 Overloaded / Unnumbered Tipper Convoy (बिना नंबर प्लेट डंपर / ओवरलोडिंग)</option>
-              <option value="PRIVATE_SITE_DUMPING">🏢 Mineral Supply Without e-Rawaana to Private Builder (अवैध खनिज सप्लाई)</option>
-              <option value="ILLEGAL_BLASTING">💥 Illegal Blasting Outside Permitted Daylight Hours (अवैध बारूद ब्लास्टिंग)</option>
-              <option value="ECOLOGICAL_BUFFER_BREACH">🌲 Forest / Aravalli Eco-Sensitive Zone Incursion (संरक्षित वन क्षेत्र में खनन)</option>
-            </select>
-          </div>
-
-          <!-- Incident Date/Time -->
-          <div class="sm:col-span-6">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Date &amp; Time Observed <span class="text-red-600">*</span>
-            </label>
-            <input type="text" id="tip_incident_date" required placeholder="e.g. Today around 01:30 AM" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-600">
-          </div>
-
-          <!-- Location Name -->
-          <div class="sm:col-span-12">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Location Description / Landmark / Village / District <span class="text-red-600">*</span>
-            </label>
-            <input type="text" id="tip_location_name" required placeholder="e.g. Sabi Riverbed bank near Behror bridge, Alwar / Kotputli boundary" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-600">
-          </div>
-
-          <!-- GPS Coordinates with Geolocation Pin -->
-          <div class="sm:col-span-6">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1 flex justify-between items-center">
-              <span>Latitude (Optional / Auto-Pin)</span>
-              <button type="button" onclick="acquireGpsLocation()" class="text-amber-800 hover:text-amber-900 font-bold lowercase text-[11px] underline">
-                📍 Auto-Detect My Current GPS
-              </button>
-            </label>
-            <input type="number" step="any" id="tip_latitude" placeholder="e.g. 27.8480" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-amber-600">
-          </div>
-
-          <div class="sm:col-span-6">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Longitude (Optional / Auto-Pin)
-            </label>
-            <input type="number" step="any" id="tip_longitude" placeholder="e.g. 76.4320" class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-amber-600">
-          </div>
-
-          <!-- Description -->
-          <div class="sm:col-span-12">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Incident Details &amp; Observations <span class="text-red-600">*</span>
-            </label>
-            <textarea id="tip_description" rows="3" required placeholder="Describe vehicle numbers (e.g. 3 yellow tippers), machinery (Poclain excavator), route taken, direction of transit, or any security threats..." class="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-600"></textarea>
-          </div>
-
-          <!-- Photo Proof Upload -->
-          <div class="sm:col-span-12">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Attach Photo / Video Proof (Optional but Highly Recommended)
-            </label>
-            <div class="flex items-center gap-3">
-              <input type="file" id="tip_evidence_file" accept="image/*,video/*" onchange="handlePhotoPreview(event)" class="text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-slate-800 file:text-white hover:file:bg-slate-700 cursor-pointer">
-              <div id="tip_photo_preview_container" class="hidden">
-                <img id="tip_photo_preview" src="" alt="Proof Preview" class="h-12 w-16 object-cover rounded border border-slate-300 shadow-xs">
-              </div>
-            </div>
-            <span class="text-[10px] text-slate-500 mt-0.5 block">Accepts JPG, PNG, WEBP, MP4 (Max 15MB). Metadata like EXIF time is automatically validated.</span>
-          </div>
-
-          <!-- Anonymous Checkbox -->
-          <div class="sm:col-span-12 bg-slate-50 border border-slate-200 rounded p-3 space-y-2">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" id="tip_is_anonymous" checked onchange="toggleAnonymousFields(this.checked)" class="rounded text-amber-600 focus:ring-amber-500 w-4 h-4">
-              <span class="font-bold text-slate-900">Keep my submission 100% anonymous (Recommended)</span>
-            </label>
-            <p class="text-[11px] text-slate-500 pl-6">
-              Your name and phone number will not be recorded or visible to anyone. If you uncheck this, you may provide your contact details to be eligible for statutory informant rewards upon successful seizure.
-            </p>
-
-            <!-- Optional Contact Fields -->
-            <div id="tip_contact_fields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pl-6">
-              <div>
-                <label class="block text-[11px] font-bold text-slate-700">Informant Full Name (Optional)</label>
-                <input type="text" id="tip_reporter_name" placeholder="Your Name" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-slate-700">Informant Mobile Number (Optional)</label>
-                <input type="tel" id="tip_reporter_phone" placeholder="+91 98XXX XXXXX" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-800">
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Submit Button -->
-        <div class="flex items-center justify-between pt-2 border-t border-slate-200">
-          <div class="text-[11px] text-slate-500 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
-            <span>Direct link to Directorate Mining Flying Squads</span>
-          </div>
-          <button type="submit" id="tip_submit_btn" class="btn-gov bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-6 py-2.5 text-xs uppercase tracking-wider rounded shadow flex items-center gap-2 border border-amber-400">
-            <span>📢</span>
-            <span>Lodge Vigilance Tip Immediately</span>
-          </button>
-        </div>
-      </form>
-
-      <!-- Tip Result Alert -->
-      <div id="tip_success_card" class="hidden bg-emerald-50 border-2 border-emerald-600 rounded p-5 space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full bg-emerald-600 animate-ping"></span>
-            <h3 class="font-extrabold text-sm text-emerald-950 uppercase tracking-wide">
-              Vigilance Tip Lodged Successfully!
-            </h3>
-          </div>
-          <span class="badge badge-low text-xs font-bold px-2 py-0.5">ENFORCEMENT ALERTED</span>
-        </div>
-        <p class="text-xs text-emerald-900" id="tip_success_message">
-          Your tip has been encrypted and assigned a high-priority enforcement alert on the Mining Officer &amp; State Flying Squad consoles.
-        </p>
-        <div class="bg-white border border-emerald-300 rounded p-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <span class="text-[11px] text-slate-500 font-semibold block uppercase">Your Secret Tracking Token:</span>
-            <span class="font-mono text-base font-extrabold text-slate-900" id="tip_generated_token">SMG-TIP-849201</span>
-          </div>
-          <button type="button" onclick="copyTipToken()" class="btn-gov btn-gov-secondary text-xs px-3 py-1 font-bold">
-            📋 Copy Token
-          </button>
-        </div>
-        <p class="text-[11px] text-slate-600">
-          Save this token! You can switch to the <strong>"Track Tip Status"</strong> tab at any time to monitor squad dispatch and vehicle seizures.
-        </p>
-      </div>
-    </div>
-
-    <!-- TAB 2: TRACK TIP STATUS -->
-    <div id="whistleblower-track-tab" class="hidden space-y-4">
-      <div class="bg-slate-50 border border-slate-200 rounded p-4 space-y-3">
-        <form onsubmit="event.preventDefault(); executeTipTracking();" class="flex flex-wrap items-end gap-3 text-xs">
-          <div class="flex-1 min-w-[240px]">
-            <label class="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Enter Whistleblower Reference Token
-            </label>
-            <input type="text" id="track_token_input" placeholder="e.g. SMG-TIP-849201" class="w-full bg-white border border-slate-300 rounded px-3 py-2 text-xs font-mono text-slate-900 uppercase focus:outline-none focus:border-amber-600">
-          </div>
-          <button type="submit" class="btn-gov bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-5 py-2 text-xs uppercase tracking-wider rounded shadow flex items-center gap-1.5 border border-amber-500/50">
-            <span>🔍</span>
-            <span>Check Enforcement Status</span>
-          </button>
-        </form>
-
-        <div class="pt-1 flex items-center gap-2 text-[11px] text-slate-500">
-          <span>Sample Demo Token:</span>
-          <button type="button" onclick="document.getElementById('track_token_input').value='SMG-TIP-849201'; executeTipTracking();" class="font-mono text-amber-900 font-bold hover:underline">
-            SMG-TIP-849201 (Sabi Riverbed Raid)
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Track Result Container -->
-      <div id="tip_track_result" class="hidden bg-white border border-slate-300 rounded p-5 space-y-3">
-        <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-2.5 gap-2">
-          <div>
-            <span class="text-[10px] text-slate-500 uppercase font-semibold">Tip Tracking Record</span>
-            <h3 class="font-mono font-extrabold text-base text-slate-900" id="track_res_token">—</h3>
-          </div>
-          <span id="track_res_status_badge" class="badge badge-critical text-xs font-bold px-2.5 py-1 uppercase">
-            SQUAD DISPATCHED
-          </span>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div class="p-2.5 bg-slate-50 rounded border border-slate-200">
-            <span class="text-[10px] text-slate-500 font-semibold uppercase block">Incident Category</span>
-            <strong class="text-slate-900 mt-0.5 block" id="track_res_category">—</strong>
-          </div>
-          <div class="p-2.5 bg-slate-50 rounded border border-slate-200">
-            <span class="text-[10px] text-slate-500 font-semibold uppercase block">Location Observed</span>
-            <strong class="text-slate-900 mt-0.5 block" id="track_res_location">—</strong>
-          </div>
-          <div class="p-2.5 bg-slate-50 rounded border border-slate-200">
-            <span class="text-[10px] text-slate-500 font-semibold uppercase block">Reported Timestamp</span>
-            <strong class="text-slate-900 font-mono mt-0.5 block" id="track_res_time">—</strong>
-          </div>
-        </div>
-
-        <div class="bg-amber-50/70 border border-amber-300 rounded p-3 text-xs space-y-1">
-          <div class="font-bold text-amber-950 flex items-center gap-1.5">
-            <span>🛡️</span>
-            <span>Enforcement Flying Squad Action Status:</span>
-          </div>
-          <p class="text-slate-800 font-medium leading-relaxed pl-5" id="track_res_action">
-            Mining Flying Squad MES-Z4 dispatched from Behror Checkpost. Surveillance team deployed to intercept Sabi link road.
-          </p>
-        </div>
-      </div>
-
-      <div id="tip_track_not_found" class="hidden bg-slate-50 border border-slate-300 rounded p-4 text-center text-xs text-slate-600">
-        No citizen tip found matching this reference token. Please double check the token number.
-      </div>
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('report_illegal_mining') }}" class="btn-gov bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold px-5 py-2.5 text-xs uppercase tracking-wider rounded shadow flex items-center gap-1.5 border border-amber-400">
+        <span>✍️</span>
+        <span>Lodge Incident Report &rarr;</span>
+      </a>
+      <a href="{{ url_for('report_illegal_mining') }}?token=SMG-TIP-849201" class="btn-gov btn-gov-secondary text-xs px-4 py-2.5 font-bold">
+        <span>🔍</span>
+        <span>Track Tip Status</span>
+      </a>
     </div>
   </section>
 
@@ -941,181 +719,6 @@ async function loadPublicMineInfo(mineId) {
     }
   } catch (err) {
     console.error("Failed to fetch public mine info:", err);
-  }
-}
-
-// --- WHISTLEBLOWER JAVASCRIPT CONTROLLERS ---
-
-function switchWhistleblowerTab(tab) {
-  const reportTab = document.getElementById("whistleblower-report-tab");
-  const trackTab = document.getElementById("whistleblower-track-tab");
-  const btnReport = document.getElementById("tab-btn-report");
-  const btnTrack = document.getElementById("tab-btn-track");
-
-  if (tab === 'report') {
-    reportTab.classList.remove("hidden");
-    trackTab.classList.add("hidden");
-    btnReport.className = "px-3 py-1.5 rounded text-xs font-bold transition bg-amber-600 text-slate-950 shadow-xs";
-    btnTrack.className = "px-3 py-1.5 rounded text-xs font-bold transition bg-transparent text-slate-700 hover:text-slate-900";
-  } else {
-    reportTab.classList.add("hidden");
-    trackTab.classList.remove("hidden");
-    btnTrack.className = "px-3 py-1.5 rounded text-xs font-bold transition bg-amber-600 text-slate-950 shadow-xs";
-    btnReport.className = "px-3 py-1.5 rounded text-xs font-bold transition bg-transparent text-slate-700 hover:text-slate-900";
-  }
-}
-
-function acquireGpsLocation() {
-  if (!navigator.geolocation) {
-    alert("Geolocation is not supported by your browser. Please enter coordinates manually if known.");
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      document.getElementById("tip_latitude").value = pos.coords.latitude.toFixed(5);
-      document.getElementById("tip_longitude").value = pos.coords.longitude.toFixed(5);
-      alert(`📍 GPS Coordinates pinned successfully: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
-    },
-    (err) => {
-      alert("Unable to acquire your GPS location: " + (err.message || "Permission denied."));
-    },
-    { enableHighAccuracy: true, timeout: 8000 }
-  );
-}
-
-function handlePhotoPreview(event) {
-  const file = event.target.files[0];
-  const container = document.getElementById("tip_photo_preview_container");
-  const preview = document.getElementById("tip_photo_preview");
-  if (file) {
-    preview.src = URL.createObjectURL(file);
-    container.classList.remove("hidden");
-  } else {
-    container.classList.add("hidden");
-  }
-}
-
-function toggleAnonymousFields(isAnonymous) {
-  const fields = document.getElementById("tip_contact_fields");
-  if (isAnonymous) {
-    fields.classList.add("hidden");
-  } else {
-    fields.classList.remove("hidden");
-  }
-}
-
-async function submitWhistleblowerReport() {
-  const submitBtn = document.getElementById("tip_submit_btn");
-  const originalBtnHtml = submitBtn.innerHTML;
-
-  try {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = `<span>⏳</span><span>Transmitting Encrypted Vigilance Tip...</span>`;
-
-    const formData = new FormData();
-    formData.append("incident_type", document.getElementById("tip_category").value);
-    formData.append("incident_date", document.getElementById("tip_incident_date").value);
-    formData.append("location_name", document.getElementById("tip_location_name").value);
-    formData.append("latitude", document.getElementById("tip_latitude").value);
-    formData.append("longitude", document.getElementById("tip_longitude").value);
-    formData.append("description", document.getElementById("tip_description").value);
-    formData.append("is_anonymous", document.getElementById("tip_is_anonymous").checked ? "true" : "false");
-    formData.append("reporter_name", document.getElementById("tip_reporter_name") ? document.getElementById("tip_reporter_name").value : "");
-    formData.append("reporter_phone", document.getElementById("tip_reporter_phone") ? document.getElementById("tip_reporter_phone").value : "");
-
-    const fileInput = document.getElementById("tip_evidence_file");
-    if (fileInput && fileInput.files[0]) {
-      formData.append("evidence_file", fileInput.files[0]);
-    }
-
-    const res = await fetch("/api/public/whistleblower", {
-      method: "POST",
-      body: formData
-    });
-
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      alert(data.error || "Failed to lodge vigilance report. Please check required fields.");
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalBtnHtml;
-      return;
-    }
-
-    // Success UI
-    document.getElementById("whistleblower_form").classList.add("hidden");
-    const successCard = document.getElementById("tip_success_card");
-    document.getElementById("tip_generated_token").textContent = data.report_token;
-    document.getElementById("tip_success_message").textContent = data.message;
-    successCard.classList.remove("hidden");
-
-    // Scroll to success card
-    successCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-  } catch (err) {
-    alert("Network or server error while submitting vigilance tip. Please try again.");
-    console.error(err);
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = originalBtnHtml;
-  }
-}
-
-function copyTipToken() {
-  const token = document.getElementById("tip_generated_token").textContent.trim();
-  if (!token) return;
-  navigator.clipboard.writeText(token).then(() => {
-    alert(`Copied tracking token to clipboard: ${token}`);
-  }).catch(() => {
-    alert(`Tracking token: ${token}`);
-  });
-}
-
-async function executeTipTracking() {
-  const tokenInput = document.getElementById("track_token_input");
-  const token = (tokenInput ? tokenInput.value : "").trim().toUpperCase();
-
-  if (!token) {
-    alert("Please enter a valid whistleblower reference token (e.g. SMG-TIP-849201).");
-    return;
-  }
-
-  const resultBox = document.getElementById("tip_track_result");
-  const notFoundBox = document.getElementById("tip_track_not_found");
-  resultBox.classList.add("hidden");
-  notFoundBox.classList.add("hidden");
-
-  try {
-    const res = await fetch(`/api/public/track-tip/${encodeURIComponent(token)}`);
-    const data = await res.json();
-
-    if (!res.ok || !data.found) {
-      notFoundBox.textContent = data.message || `No citizen tip found matching '${token}'. Please verify your tracking code.`;
-      notFoundBox.classList.remove("hidden");
-      return;
-    }
-
-    document.getElementById("track_res_token").textContent = data.report_token;
-    document.getElementById("track_res_category").textContent = data.incident_type;
-    document.getElementById("track_res_location").textContent = data.location_name;
-    document.getElementById("track_res_time").textContent = data.created_at;
-    document.getElementById("track_res_action").textContent = data.action_taken;
-
-    const badge = document.getElementById("track_res_status_badge");
-    badge.textContent = data.status_label || data.status;
-
-    if (data.status === 'RESOLVED' || data.status === 'RAID_CONDUCTED') {
-      badge.className = "badge badge-low text-xs font-bold px-2.5 py-1 uppercase";
-    } else if (data.status === 'SQUAD_DISPATCHED') {
-      badge.className = "badge badge-critical text-xs font-bold px-2.5 py-1 uppercase animate-pulse";
-    } else {
-      badge.className = "badge badge-medium text-xs font-bold px-2.5 py-1 uppercase";
-    }
-
-    resultBox.classList.remove("hidden");
-    resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  } catch (err) {
-    notFoundBox.textContent = "Unable to fetch enforcement status at this time. Please try again.";
-    notFoundBox.classList.remove("hidden");
   }
 }
 

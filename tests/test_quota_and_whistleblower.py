@@ -162,6 +162,17 @@ class TestQuotaAndWhistleblower(unittest.TestCase):
         self.assertIn(data.get("lock_type"), ["LEASE_EXPIRED", "QUOTA_EXHAUSTED"])
         self.assertIn("STATUTORY", data.get("error", ""))
 
+    def test_07_dedicated_whistleblower_template_accessible(self):
+        """Test that /report-illegal-mining and /whistleblower render the standalone vigilance page."""
+        for path in ["/report-illegal-mining", "/whistleblower"]:
+            res = self.client.get(path)
+            self.assertEqual(res.status_code, 200)
+            html = res.data.decode("utf-8")
+            self.assertIn("Report Illegal Mining", html)
+            self.assertIn("whistleblower_form", html)
+            self.assertIn("Lodge Incident Report", html)
+            self.assertIn("Track Tip Status", html)
+
 
 if __name__ == "__main__":
     unittest.main()
