@@ -20,14 +20,17 @@
       </p>
     </div>
 
-    <!-- Summary Stats Badge -->
-    <div class="flex items-center gap-3">
+    <!-- Summary Stats Badge & Links -->
+    <div class="flex items-center gap-3 flex-wrap">
       <div class="text-right">
         <div class="text-[10px] text-slate-400 uppercase font-mono font-bold">Total Statutory Penalties / Escrow Withheld</div>
         <div class="text-xl font-black text-amber-400">₹{{ "{:,.0f}".format(total_penalties_withheld) }}</div>
       </div>
+      <a href="{{ url_for('admin_supply_chain') }}" class="btn-gov bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs py-2 px-3 rounded shadow flex items-center gap-1">
+        <span>🔗 Statewide Supply Chain &rarr;</span>
+      </a>
       <a href="{{ url_for('contractor_dashboard') }}" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3 rounded shadow">
-        Open Contractor Portal &rarr;
+        Open Contractor Portal
       </a>
     </div>
   </div>
@@ -136,12 +139,64 @@
     </div>
   </div>
 
-  <!-- Master Multi-Sector Reconciliation Table -->
+  <!-- CONTRACTOR CUSTODY STOCK OVERVIEW (MIDDLE-TIER) -->
+  {% if contractor_recons %}
+  <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+    <div class="flex justify-between items-center mb-3">
+      <div>
+        <h3 class="font-bold text-slate-900 text-sm">Contractor Custody Stock &amp; Supply-Chain Middle Layer</h3>
+        <p class="text-[11px] text-slate-500">Legal Source &rarr; Contractor Stock Custody &rarr; Downstream Consumer Project</p>
+      </div>
+      <a href="{{ url_for('admin_supply_chain') }}" class="text-xs text-indigo-700 hover:text-indigo-900 font-bold">
+        Detailed Supply Chain Ledger &rarr;
+      </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {% for cr in contractor_recons %}
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="font-bold text-slate-900">{{ cr.contractor.contractor_name }}</div>
+            <div class="text-[10px] text-slate-500 font-mono">{{ cr.contractor.contractor_code }} &bull; GSTN: {{ cr.contractor.gstn }}</div>
+          </div>
+          {% if cr.unreconciled_mt > 0 %}
+          <span class="badge badge-medium text-amber-900 bg-amber-100 text-[10px]">EXCEPTION REVIEW</span>
+          {% else %}
+          <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">STOCK RECONCILED</span>
+          {% endif %}
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 text-center pt-1 border-t border-slate-200 font-mono text-[11px]">
+          <div>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">Opening</span>
+            <span class="font-bold text-slate-800">{{ "{:,.0f}".format(cr.opening_stock_mt) }} MT</span>
+          </div>
+          <div>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">Legal Receipts</span>
+            <span class="font-bold text-indigo-900">+{{ "{:,.0f}".format(cr.total_receipts_mt) }} MT</span>
+          </div>
+          <div>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">Dispatches</span>
+            <span class="font-bold text-amber-900">&minus;{{ "{:,.0f}".format(cr.total_dispatches_mt) }} MT</span>
+          </div>
+          <div>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">Closing Stock</span>
+            <span class="font-black text-emerald-900">{{ "{:,.0f}".format(cr.expected_closing_stock_mt) }} MT</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Master Multi-Sector Reconciliation Table (Downstream Consumer / Project Audit Layer) -->
   <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
     <div class="p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
       <div>
-        <h3 class="font-bold text-slate-900 text-sm">Multi-Sector Mineral Consumption Audit Ledger</h3>
-        <p class="text-[11px] text-slate-500">Cross-checks physical structural volumes against verified e-Rawaana transit passes to detect unaccounted mafia mineral</p>
+        <h3 class="font-bold text-slate-900 text-sm">Downstream Consumer &amp; Project Mineral Audit Ledger</h3>
+        <p class="text-[11px] text-slate-500">Cross-checks downstream physical structural volumes against verified contractor deliveries and e-Rawaana passes</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <span class="text-[11px] bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded font-bold font-mono flex items-center gap-1">
@@ -158,7 +213,7 @@
         <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
           <tr>
             <th class="py-3 px-3">Project &amp; Sector</th>
-            <th class="py-3 px-3">Contractor / Agency</th>
+            <th class="py-3 px-3">Supplying Contractor &amp; Client</th>
             <th class="py-3 px-3">Concession Source</th>
             <th class="py-3 px-3">Primary Mineral</th>
             <th class="py-3 px-3 text-right">Target Required</th>
@@ -194,8 +249,8 @@
               </div>
             </td>
             <td class="py-3 px-3">
-              <div class="font-bold text-slate-800">{{ p.contractor_name }}</div>
-              <div class="text-[10px] text-slate-500">{{ p.executing_agency }}</div>
+              <div class="font-bold text-indigo-950">Contractor: {{ p.supplying_contractor_name or 'Sharma Infrastructure Ltd' }}</div>
+              <div class="text-[10px] text-slate-600 font-sans">Consumer: <strong class="text-slate-800">{{ p.contractor_name }}</strong> &bull; {{ p.executing_agency }}</div>
             </td>
             <td class="py-3 px-3">
               <div class="text-xs font-semibold text-slate-800">{{ p.mine_name or ('Mine #' ~ p.mine_id) }}</div>

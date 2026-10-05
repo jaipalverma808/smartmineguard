@@ -2812,92 +2812,232 @@ def operator_weighbridge():
     return render_template("operator_weighbridge.html", mine=mine, weighments=weighments, weighbridges=weighbridges, active_trips=active_trips)
 
 
-# --- CONTRACTOR INFRASTRUCTURE & e-MB WALLET ROUTES ---
+# --- CONTRACTOR SUPPLY CHAIN & MATERIAL RECONCILIATION ROUTES ---
+
+def get_contractor_reconciliation(contractor_id):
+    """
+    Computes rolling stock reconciliation for a registered Contractor:
+    Opening Stock + Verified Mine Receipts + Verified River Receipts = Total Available
+    Total Available - Verified Downstream Dispatches = Expected Closing Stock
+    Flags Material Reconciliation Exception if dispatches exceed legal verified stock.
+    """
+    contractor = db.query("SELECT * FROM contractors WHERE id = ?", (int(contractor_id),), one=True)
+    if not contractor:
+        contractor = db.query("SELECT * FROM contractors ORDER BY id ASC LIMIT 1", one=True)
+    if not contractor:
+        contractor = {
+            "id": 1,
+            "contractor_code": "CONT-001",
+            "contractor_name": "Sharma Infrastructure Ltd",
+            "pan_no": "AAACH4114R",
+            "gstn": "06AAACH4114R2ZG",
+            "contact_person": "Ramesh Sharma (Director Logistics)",
+            "contact_phone": "+91 98120 44551",
+            "email": "projects@sharmainfra.com",
+            "opening_stock_mt": 200.0,
+            "status": "ACTIVE"
+        }
+    c_id = contractor["id"]
+    receipts = db.query("""
+        SELECT * FROM contractor_receipts 
+        WHERE contractor_id = ? 
+        ORDER BY received_at DESC, id DESC
+    """, (c_id,)) or []
+
+    dispatches = db.query("""
+        SELECT * FROM contractor_dispatches 
+        WHERE contractor_id = ? 
+        ORDER BY dispatched_at DESC, id DESC
+    """, (c_id,)) or []
+
+    opening_stock = float(contractor.get("opening_stock_mt") or 0.0)
+    mine_receipts = sum(float(r["net_weight_mt"] or 0.0) for r in receipts if str(r.get("source_category") or "").upper() == "MINE")
+    river_receipts = sum(float(r["net_weight_mt"] or 0.0) for r in receipts if str(r.get("source_category") or "").upper() == "RIVER")
+    other_receipts = sum(float(r["net_weight_mt"] or 0.0) for r in receipts if str(r.get("source_category") or "").upper() not in ("MINE", "RIVER"))
+    total_receipts = mine_receipts + river_receipts + other_receipts
+    total_available = round(opening_stock + total_receipts, 2)
+    total_dispatches = round(sum(float(d["quantity_mt"] or 0.0) for d in dispatches), 2)
+    expected_closing = round(max(0.0, total_available - total_dispatches), 2)
+
+    # Reconciliation Exception handling (Dispatches > Legal Available Material)
+    if total_dispatches > total_available:
+        unreconciled_qty = round(total_dispatches - total_available, 2)
+        reconciled = False
+        reconciliation_status = "EXCEPTION_FLAGGED"
+        reconciliation_label = "MATERIAL RECONCILIATION EXCEPTION"
+        exception_notes = "Dispatch quantity exceeds verified legal source receipts. Discrepancy flagged for officer audit (potential operational reasons: delayed e-Rawaana transit records, authorized quarry transfer not yet logged, stockpile measurement variance, weighbridge calibration adjustment)."
+    else:
+        unreconciled_qty = 0.0
+        reconciled = True
+        reconciliation_status = "RECONCILED"
+        reconciliation_label = "MATERIAL POSITION RECONCILED"
+        exception_notes = "All outbound material dispatches are fully accounted for by verified legal source receipts."
+
+    return {
+        "contractor": contractor,
+        "receipts": receipts,
+        "dispatches": dispatches,
+        "opening_stock_mt": opening_stock,
+        "mine_receipts_mt": round(mine_receipts, 2),
+        "river_receipts_mt": round(river_receipts, 2),
+        "other_receipts_mt": round(other_receipts, 2),
+        "total_receipts_mt": round(total_receipts, 2),
+        "total_available_mt": total_available,
+        "total_dispatches_mt": total_dispatches,
+        "expected_closing_stock_mt": expected_closing,
+        "unreconciled_mt": unreconciled_qty,
+        "is_reconciled": reconciled,
+        "reconciliation_status": reconciliation_status,
+        "reconciliation_label": reconciliation_label,
+        "exception_notes": exception_notes
+    }
+
 
 @app.route("/contractor/dashboard")
 @login_required(roles=["CONTRACTOR", "ADMIN"])
 def contractor_dashboard():
-    """Multi-Sector Contractor & Development Project Portal (e-MB & DTCP/RERA Mineral Ledger)."""
-    project_id = request.args.get("project_id")
-    project_code = request.args.get("code")
-    project = None
-    all_projects = []
-    try:
-        all_projects = db.query("""
-            SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
-            FROM infrastructure_projects ip
-            LEFT JOIN mines m ON m.id = ip.mine_id
-            LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
-            ORDER BY ip.id ASC
-        """)
-        if project_id and project_id.isdigit():
-            project = db.query("""
-                SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
-                FROM infrastructure_projects ip
-                LEFT JOIN mines m ON m.id = ip.mine_id
-                LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
-                WHERE ip.id = ?
-            """, (int(project_id),), one=True)
-        elif project_code:
-            project = db.query("""
-                SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
-                FROM infrastructure_projects ip
-                LEFT JOIN mines m ON m.id = ip.mine_id
-                LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
-                WHERE ip.project_code = ?
-            """, (project_code,), one=True)
-            
-        if not project and all_projects:
-            project = all_projects[0]
-    except Exception as _p_err:
-        logger.warning(f"Could not load project from DB: {_p_err}")
+    """
+    Contractor Material Custody & Rolling Stock Portal.
+    Represents the Contractor as the middle entity receiving legally verified mineral
+    from approved sources, maintaining rolling stock, and dispatching to downstream consumers/projects.
+    """
+    contractor_id = request.args.get("contractor_id")
+    if not contractor_id:
+        user_id = session.get("user_id")
+        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+        if user and user.get("assigned_contractor_id"):
+            contractor_id = user["assigned_contractor_id"]
+        else:
+            contractor_id = 1
 
-    if not project:
-        project = {
-            "id": 1,
-            "project_code": "NHAI-PKG-04",
-            "project_name": "NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)",
-            "contractor_name": "Sharma Infrastructure Ltd",
-            "executing_agency": "National Highways Authority of India (NHAI)",
-            "project_category": "HIGHWAY_INFRA",
-            "primary_mineral": "River Sand & Sub-base Fill",
-            "chainage_section": "Km 82+400 to Km 97+400",
-            "road_length_km": 15.0,
-            "concrete_volume_m3": 4500.0,
-            "sand_required_mt": 2025.0,
-            "sand_received_mt": 1600.0,
-            "mineral_required_mt": 2025.0,
-            "mineral_received_mt": 1600.0,
-            "aggregate_required_mt": 3800.0,
-            "aggregate_received_mt": 3800.0,
-            "penalty_rate_per_mt": 600.0,
-            "status": "DEFICIT_FLAGGED",
-            "regulatory_framework": "NHAI Contract & IRC:15 Standard (e-MB)",
-            "work_order_no": "WO/NHAI/RO-HAR/2026/089"
-        }
+    recon_data = get_contractor_reconciliation(contractor_id)
+    contractor = recon_data["contractor"]
 
-    recent_deliveries = []
-    if project:
-        try:
-            recent_deliveries = db.query("""
-                SELECT p.*, t.registration_number as truck_registration, m.name as source_name
-                FROM permits p
-                LEFT JOIN trucks t ON t.id = p.truck_id
-                LEFT JOIN mines m ON m.id = p.mine_id
-                WHERE p.project_work_order = ? OR p.status IN ('CONSUMED_AT_SITE', 'DELIVERED')
-                ORDER BY p.id DESC LIMIT 15
-            """, (project["project_code"],))
-        except Exception as _deliv_err:
-            logger.warning(f"Could not load deliveries: {_deliv_err}")
-            recent_deliveries = []
+    # Downstream consumer projects supplied by or associated with this contractor
+    consumer_projects = db.query("""
+        SELECT ip.*,
+               (SELECT COALESCE(SUM(quantity_mt), 0.0) FROM contractor_dispatches WHERE project_id = ip.id AND contractor_id = ?) as dispatched_by_contractor_mt
+        FROM infrastructure_projects ip
+        ORDER BY ip.id ASC
+    """, (contractor["id"],)) or []
 
-    return render_template("contractor_dashboard.html", project=project, all_projects=all_projects, recent_deliveries=recent_deliveries)
+    all_contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
+
+    # Available legal sources for quick inbound receipt demo
+    legal_sources = db.query("SELECT id, name, district, state, mineral FROM mines ORDER BY id ASC") or []
+
+    # Active permits available for inward receiving
+    available_permits = db.query("""
+        SELECT p.*, m.name as mine_name, t.registration_number as truck_registration
+        FROM permits p
+        LEFT JOIN mines m ON m.id = p.mine_id
+        LEFT JOIN trucks t ON t.id = p.truck_id
+        WHERE p.status IN ('ACTIVE', 'ISSUED')
+        ORDER BY p.id DESC LIMIT 10
+    """) or []
+
+    # Target project if project_id is requested (for backward compatibility)
+    req_proj_id = request.args.get("project_id")
+    selected_project = None
+    if req_proj_id and req_proj_id.isdigit():
+        selected_project = db.query("SELECT * FROM infrastructure_projects WHERE id = ?", (int(req_proj_id),), one=True)
+    if not selected_project and consumer_projects:
+        selected_project = consumer_projects[0]
+
+    return render_template(
+        "contractor_dashboard.html",
+        contractor=contractor,
+        recon=recon_data,
+        receipts=recon_data["receipts"],
+        dispatches=recon_data["dispatches"],
+        consumer_projects=consumer_projects,
+        all_contractors=all_contractors,
+        legal_sources=legal_sources,
+        available_permits=available_permits,
+        project=selected_project,
+        all_projects=consumer_projects,
+        recent_deliveries=recon_data["receipts"]
+    )
+
+
+@app.route("/api/contractor/receive-permit", methods=["POST"])
+@login_required(roles=["CONTRACTOR", "ADMIN"])
+def api_contractor_receive_permit():
+    """
+    Inbound Material Receipt: Legal Source -> Contractor Stock.
+    Verifies legal e-Rawaana from registered source and adds tonnage to contractor stock balance.
+    """
+    data = request.get_json(silent=True) or {}
+    permit_number = (data.get("permit_number") or "").strip().upper()
+    contractor_id = data.get("contractor_id")
+    if not contractor_id:
+        user_id = session.get("user_id")
+        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+        contractor_id = user["assigned_contractor_id"] if (user and user.get("assigned_contractor_id")) else 1
+    contractor_id = int(contractor_id)
+
+    if not permit_number:
+        return jsonify({"success": False, "error": "e-Rawaana transit pass number is required."}), 400
+
+    permit = db.query("""
+        SELECT p.*, t.registration_number as truck_reg, m.name as mine_name 
+        FROM permits p 
+        LEFT JOIN trucks t ON t.id = p.truck_id 
+        LEFT JOIN mines m ON m.id = p.mine_id 
+        WHERE UPPER(p.permit_number) = ?
+    """, (permit_number,), one=True)
+    if not permit:
+        return jsonify({"success": False, "error": f"e-Rawaana '{permit_number}' not found in state mining central registry."}), 404
+
+    existing_rec = db.query("SELECT id FROM contractor_receipts WHERE permit_number = ? AND contractor_id = ?", (permit_number, contractor_id), one=True)
+    if existing_rec:
+        return jsonify({"success": False, "error": f"Permit '{permit_number}' is ALREADY recorded in Contractor Stock Ledger."}), 400
+
+    mineral = permit.get("mineral") or "Mineral Aggregate"
+    source_name = permit.get("source_name") or permit.get("mine_name") or "Authorized Mining Concession"
+    is_river = "sand" in mineral.lower() or "river" in source_name.lower() or "khol" in source_name.lower()
+    source_cat = "RIVER" if is_river else "MINE"
+    weight_mt = float(permit.get("permitted_weight_mt") or 25.0)
+    truck_no = permit.get("truck_reg") or permit.get("vehicle_number") or "HR26AB1234"
+
+    rec_count = db.query("SELECT COUNT(*) as c FROM contractor_receipts", one=True)["c"] or 0
+    receipt_code = f"REC-SHM-{rec_count + 1:02d}"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    db.execute("""
+        INSERT INTO contractor_receipts 
+        (receipt_code, contractor_id, permit_id, permit_number, source_mine_id, source_name, source_category, mineral, net_weight_mt, vehicle_number, received_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (receipt_code, contractor_id, permit["id"], permit_number, permit.get("mine_id"), source_name, source_cat, mineral, weight_mt, truck_no, now_str, "VERIFIED"))
+
+    db.execute("""
+        UPDATE permits 
+        SET status = 'DELIVERED', 
+            contractor_id = ?,
+            received_at_site = ?
+        WHERE id = ?
+    """, (contractor_id, now_str, permit["id"]))
+
+    log_audit("CONTRACTOR_INBOUND_RECEIPT", f"Contractor #{contractor_id} received {weight_mt} MT {mineral} from {source_name} via e-Rawaana {permit_number}.", entity="CONTRACTOR_STOCK")
+
+    recon = get_contractor_reconciliation(contractor_id)
+    return jsonify({
+        "success": True,
+        "receipt_code": receipt_code,
+        "permit_number": permit_number,
+        "source_name": source_name,
+        "source_category": source_cat,
+        "added_mt": weight_mt,
+        "total_available_mt": recon["total_available_mt"],
+        "expected_closing_stock_mt": recon["expected_closing_stock_mt"],
+        "message": f"Successfully received {weight_mt} MT into contractor stock."
+    })
 
 
 @app.route("/api/contractor/receive-truck", methods=["POST"])
 @login_required(roles=["CONTRACTOR", "ADMIN"])
 def api_contractor_receive_truck():
-    """Site Gate QR Scan Endpoint to verify arriving e-Rawaana and credit mineral wallet."""
+    """Site Gate QR Scan Endpoint (Maintains backward compatibility while updating contractor stock)."""
     data = request.get_json(silent=True) or {}
     permit_number = (data.get("permit_number") or "").strip().upper()
     project_id = data.get("project_id", 1)
@@ -2909,7 +3049,13 @@ def api_contractor_receive_truck():
     if not project:
         return jsonify({"success": False, "error": "Infrastructure project record not found"}), 404
 
-    permit = db.query("SELECT * FROM permits WHERE UPPER(permit_number) = ?", (permit_number,), one=True)
+    permit = db.query("""
+        SELECT p.*, t.registration_number as truck_reg, m.name as mine_name 
+        FROM permits p 
+        LEFT JOIN trucks t ON t.id = p.truck_id 
+        LEFT JOIN mines m ON m.id = p.mine_id 
+        WHERE UPPER(p.permit_number) = ?
+    """, (permit_number,), one=True)
     if not permit:
         return jsonify({"success": False, "error": f"e-Rawaana '{permit_number}' not found in state mining central registry."}), 404
 
@@ -2918,18 +3064,33 @@ def api_contractor_receive_truck():
 
     tonnage = float(permit.get("permitted_weight_mt") or 20.0)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    contractor_id = project.get("contractor_id") or 1
 
-    # Mark permit as consumed at site and bind to project
+    # Record inward receipt into contractor_receipts if not yet recorded
+    existing_rec = db.query("SELECT id FROM contractor_receipts WHERE permit_number = ? AND contractor_id = ?", (permit_number, contractor_id), one=True)
+    if not existing_rec:
+        rec_count = db.query("SELECT COUNT(*) as c FROM contractor_receipts", one=True)["c"] or 0
+        receipt_code = f"REC-SHM-{rec_count + 1:02d}"
+        mineral = permit.get("mineral") or project.get("primary_mineral") or "Mineral Aggregate"
+        source_name = permit.get("mine_name") or permit.get("source_name") or "State Mining Concession"
+        source_cat = "RIVER" if "sand" in mineral.lower() else "MINE"
+        truck_no = permit.get("truck_reg") or "HR26AB1234"
+        db.execute("""
+            INSERT INTO contractor_receipts 
+            (receipt_code, contractor_id, permit_id, permit_number, source_mine_id, source_name, source_category, mineral, net_weight_mt, vehicle_number, received_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (receipt_code, contractor_id, permit["id"], permit_number, permit.get("mine_id"), source_name, source_cat, mineral, tonnage, truck_no, now_str, "VERIFIED"))
+
     db.execute("""
         UPDATE permits 
         SET status = 'CONSUMED_AT_SITE', 
             project_work_order = ?, 
             received_at_site = ?,
+            contractor_id = ?,
             is_billed_in_emb = 0
         WHERE id = ?
-    """, (project["project_code"], now_str, permit["id"]))
+    """, (project["project_code"], now_str, contractor_id, permit["id"]))
 
-    # Update project received mineral
     current_rec = float(project.get("mineral_received_mt") or project.get("sand_received_mt") or 0.0)
     target_req = float(project.get("mineral_required_mt") or project.get("sand_required_mt") or 0.0)
     new_received = round(current_rec + tonnage, 1)
@@ -2953,6 +3114,81 @@ def api_contractor_receive_truck():
     })
 
 
+@app.route("/api/contractor/dispatch-material", methods=["POST"])
+@login_required(roles=["CONTRACTOR", "ADMIN"])
+def api_contractor_dispatch_material():
+    """
+    Outbound Material Dispatch: Contractor Stock -> Downstream Consumer / Project.
+    Dispatches legally verified material from contractor custody to downstream projects.
+    Updates project received balance and recalculates contractor rolling stock.
+    """
+    data = request.get_json(silent=True) or {}
+    contractor_id = data.get("contractor_id")
+    if not contractor_id:
+        user_id = session.get("user_id")
+        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+        contractor_id = user["assigned_contractor_id"] if (user and user.get("assigned_contractor_id")) else 1
+    contractor_id = int(contractor_id)
+
+    project_id = data.get("project_id")
+    quantity_mt = float(data.get("quantity_mt") or 0.0)
+    if quantity_mt <= 0:
+        return jsonify({"success": False, "error": "Dispatch quantity must be greater than 0 MT."}), 400
+
+    project = None
+    if project_id:
+        project = db.query("SELECT * FROM infrastructure_projects WHERE id = ?", (int(project_id),), one=True)
+    if not project:
+        return jsonify({"success": False, "error": "Valid downstream consumer project must be selected."}), 400
+
+    consumer_name = project.get("project_name") or data.get("consumer_name") or "Downstream Consumer Project"
+    project_code = project.get("project_code")
+    mineral = data.get("mineral") or project.get("primary_mineral") or "Mineral Aggregate"
+    vehicle_number = (data.get("vehicle_number") or "HR26AB1234").strip().upper()
+    driver_name = (data.get("driver_name") or "Designated Commercial Driver").strip()
+
+    dsp_count = db.query("SELECT COUNT(*) as c FROM contractor_dispatches", one=True)["c"] or 0
+    dispatch_code = f"DSP-{dsp_count + 1:03d}"
+    eway_bill = data.get("e_way_bill_no") or f"EWB-06-2026-{dsp_count + 886:03d}"
+    invoice_no = data.get("invoice_no") or f"INV/SHM/26-{dsp_count + 96:03d}"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    db.execute("""
+        INSERT INTO contractor_dispatches 
+        (dispatch_code, contractor_id, project_id, consumer_name, project_code, mineral, quantity_mt, vehicle_number, driver_name, e_way_bill_no, invoice_no, dispatched_at, status, reconciliation_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (dispatch_code, contractor_id, project["id"], consumer_name, project_code, mineral, quantity_mt, vehicle_number, driver_name, eway_bill, invoice_no, now_str, "VERIFIED", "RECONCILED"))
+
+    current_rec = float(project.get("mineral_received_mt") or project.get("sand_received_mt") or 0.0)
+    target_req = float(project.get("mineral_required_mt") or project.get("sand_required_mt") or 0.0)
+    new_received = round(current_rec + quantity_mt, 1)
+    tolerance_mt = target_req * 0.05
+    new_status = "COMPLIANT" if (target_req - new_received) <= tolerance_mt else "DEFICIT_FLAGGED"
+
+    db.execute("""
+        UPDATE infrastructure_projects 
+        SET sand_received_mt = ?, mineral_received_mt = ?, status = ?
+        WHERE id = ?
+    """, (new_received, new_received, new_status, project["id"]))
+
+    log_audit("CONTRACTOR_OUTBOUND_DISPATCH", f"Contractor #{contractor_id} dispatched {quantity_mt} MT {mineral} to {project_code} ({consumer_name}) under dispatch {dispatch_code}.", entity="CONTRACTOR_DISPATCH")
+
+    recon = get_contractor_reconciliation(contractor_id)
+    return jsonify({
+        "success": True,
+        "dispatch_code": dispatch_code,
+        "consumer_name": consumer_name,
+        "project_code": project_code,
+        "quantity_mt": quantity_mt,
+        "new_closing_stock_mt": recon["expected_closing_stock_mt"],
+        "unreconciled_mt": recon["unreconciled_mt"],
+        "reconciliation_status": recon["reconciliation_status"],
+        "reconciliation_label": recon["reconciliation_label"],
+        "project_received_mt": new_received,
+        "message": f"Successfully dispatched {quantity_mt} MT to {project_code}."
+    })
+
+
 @app.route("/contractor/download-noc/<int:project_id>")
 @login_required(roles=["CONTRACTOR", "ADMIN"])
 def contractor_download_noc(project_id):
@@ -2969,6 +3205,47 @@ def contractor_download_noc(project_id):
 
     flash("Royalty Clearance Certificate generated and logged in official statutory audit registry.", "success")
     return redirect(url_for("contractor_dashboard"))
+
+
+@app.route("/admin/supply-chain")
+@login_required(roles=["ADMIN"])
+def admin_supply_chain():
+    """
+    Admin Statewide Material Supply Chain Ledger:
+    LEGAL SOURCE -> CONTRACTOR CUSTODY (STOCK) -> DOWNSTREAM CONSUMERS & PROJECTS.
+    """
+    contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
+    contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
+
+    receipts = db.query("""
+        SELECT cr.*, c.contractor_name, c.contractor_code
+        FROM contractor_receipts cr
+        JOIN contractors c ON c.id = cr.contractor_id
+        ORDER BY cr.received_at DESC, cr.id DESC
+    """) or []
+
+    dispatches = db.query("""
+        SELECT cd.*, c.contractor_name, c.contractor_code
+        FROM contractor_dispatches cd
+        JOIN contractors c ON c.id = cd.contractor_id
+        ORDER BY cd.dispatched_at DESC, cd.id DESC
+    """) or []
+
+    projects = db.query("""
+        SELECT ip.*, c.contractor_name, m.name as mine_name
+        FROM infrastructure_projects ip
+        LEFT JOIN contractors c ON c.id = ip.contractor_id
+        LEFT JOIN mines m ON m.id = ip.mine_id
+        ORDER BY ip.id ASC
+    """) or []
+
+    return render_template(
+        "admin_supply_chain.html",
+        contractor_recons=contractor_recons,
+        receipts=receipts,
+        dispatches=dispatches,
+        projects=projects
+    )
 
 
 @app.route("/admin/infrastructure-audit")
@@ -3009,10 +3286,11 @@ def admin_infrastructure_audit():
 
     try:
         projects = db.query(f"""
-            SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+            SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name, c.contractor_name as supplying_contractor_name
             FROM infrastructure_projects ip
             LEFT JOIN mines m ON m.id = ip.mine_id
             LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+            LEFT JOIN contractors c ON c.id = ip.contractor_id
             {where_sql}
             ORDER BY ip.id ASC
         """, params)
@@ -3034,6 +3312,11 @@ def admin_infrastructure_audit():
         actionable_deficit = max(0.0, raw_deficit - tolerance_mt) if raw_deficit > tolerance_mt else 0.0
         rate = float(p.get("penalty_rate_per_mt") or 600.0)
         total_penalties += actionable_deficit * rate
+
+    # Also include contractor stock summaries for supply-chain context
+    contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
+    contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
+
     return render_template("admin_infrastructure_audit.html",
         projects=projects,
         mines=mines,
@@ -3044,7 +3327,8 @@ def admin_infrastructure_audit():
         total_concrete_volume=total_concrete,
         total_sand_required=total_mineral_req,
         total_sand_received=total_mineral_rec,
-        total_penalties_withheld=total_penalties
+        total_penalties_withheld=total_penalties,
+        contractor_recons=contractor_recons
     )
 
 

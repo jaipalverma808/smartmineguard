@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Statewide Material Supply Chain & Contractor Stock Reconciliation - SmartMineGuard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header Banner -->
+  <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-slate-700 rounded-lg p-5 text-white shadow-lg flex flex-wrap justify-between items-center gap-4">
+    <div class="space-y-1">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+        <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">
+          Directorate of Mines &amp; Geology &bull; Supply Chain Integrity Division
+        </span>
+      </div>
+      <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+        <span>🔗 Statewide Material Supply Chain &amp; Contractor Custody Ledger</span>
+      </h1>
+      <p class="text-xs text-slate-300 max-w-3xl leading-relaxed">
+        Monitors the complete multi-tier mineral movement chain: 
+        <strong class="text-emerald-300">LEGAL SOURCE</strong> (Mines &amp; Riverbeds) &rarr; 
+        <strong class="text-amber-300">CONTRACTOR CUSTODIAN</strong> (Rolling Stock) &rarr; 
+        <strong class="text-sky-300">CONSUMERS &amp; PROJECTS</strong> (Highway, RERA, RMC).
+      </p>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('admin_infrastructure_audit') }}" class="btn-gov bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs py-2 px-3.5 rounded shadow">
+        Consumer Project Audit &rarr;
+      </a>
+      <a href="{{ url_for('contractor_dashboard') }}" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow">
+        Open Contractor Portal
+      </a>
+    </div>
+  </div>
+
+  <!-- SECTION 1: CONTRACTORS ROLLING STOCK OVERVIEW -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div class="p-4 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
+      <div>
+        <h3 class="font-bold text-slate-900 text-sm">Contractor Custody Stock &amp; Reconciliation Status</h3>
+        <p class="text-[11px] text-slate-500">Opening Stock + Verified Receipts &minus; Dispatches = Expected Closing Stock</p>
+      </div>
+      <span class="text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 px-2.5 py-1 rounded">
+        {{ contractor_recons|length }} Registered Mineral Stockholders
+      </span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+          <tr>
+            <th class="py-3 px-3">Contractor</th>
+            <th class="py-3 px-3 text-right">Opening Stock</th>
+            <th class="py-3 px-3 text-right">Mine Receipts</th>
+            <th class="py-3 px-3 text-right">River Receipts</th>
+            <th class="py-3 px-3 text-right font-black">Total Available</th>
+            <th class="py-3 px-3 text-right">Dispatches</th>
+            <th class="py-3 px-3 text-right font-black">Expected Stock</th>
+            <th class="py-3 px-3 text-right">Unreconciled</th>
+            <th class="py-3 px-3 text-center">Status</th>
+            <th class="py-3 px-3 text-center">Drill-Down</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-mono">
+          {% for cr in contractor_recons %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-3 font-sans">
+              <div class="font-bold text-slate-900 text-xs">{{ cr.contractor.contractor_name }}</div>
+              <div class="text-[10px] text-indigo-700 font-mono font-bold">{{ cr.contractor.contractor_code }} &bull; GSTN: {{ cr.contractor.gstn }}</div>
+            </td>
+            <td class="py-3 px-3 text-right text-slate-700">
+              {{ "{:,.1f}".format(cr.opening_stock_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right text-indigo-900 font-bold">
+              +{{ "{:,.1f}".format(cr.mine_receipts_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right text-sky-900 font-bold">
+              +{{ "{:,.1f}".format(cr.river_receipts_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right font-black text-blue-950 bg-blue-50/50">
+              {{ "{:,.1f}".format(cr.total_available_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right text-amber-950 font-bold">
+              &minus;{{ "{:,.1f}".format(cr.total_dispatches_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right font-black text-emerald-950 bg-emerald-50/50">
+              {{ "{:,.1f}".format(cr.expected_closing_stock_mt) }} MT
+            </td>
+            <td class="py-3 px-3 text-right font-bold {% if cr.unreconciled_mt > 0 %}text-amber-800 bg-amber-50/60{% else %}text-slate-400{% endif %}">
+              {% if cr.unreconciled_mt > 0 %}
+              {{ "{:,.1f}".format(cr.unreconciled_mt) }} MT
+              {% else %}
+              0.0 MT
+              {% endif %}
+            </td>
+            <td class="py-3 px-3 text-center">
+              {% if cr.unreconciled_mt > 0 %}
+              <span class="badge badge-medium text-amber-900 bg-amber-100 text-[10px]">EXCEPTION REVIEW</span>
+              {% else %}
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">RECONCILED</span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-3 text-center">
+              <a href="{{ url_for('contractor_dashboard', contractor_id=cr.contractor.id) }}" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2 py-1 rounded">
+                Inspect Portal &rarr;
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 2: SOURCE-WISE RECEIPTS (SOURCE -> CONTRACTOR) -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div class="p-4 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <span>📥</span>
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm">Source-Wise Inward Receipts (Source &rarr; Contractor)</h3>
+          <p class="text-[11px] text-slate-500">Verified transit passes issued by authorized mines and riverbed concessions entering contractor custody</p>
+        </div>
+      </div>
+      <span class="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded">
+        {{ receipts|length }} Verified Inbound Consignments
+      </span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+          <tr>
+            <th class="py-2.5 px-3">Receipt Ref</th>
+            <th class="py-2.5 px-3">Source Name &amp; Lease</th>
+            <th class="py-2.5 px-3">Receiving Contractor</th>
+            <th class="py-2.5 px-3">Material</th>
+            <th class="py-2.5 px-3 text-right">Receipt Quantity</th>
+            <th class="py-2.5 px-3">e-Rawaana Pass No.</th>
+            <th class="py-2.5 px-3">Carrier Vehicle</th>
+            <th class="py-2.5 px-3">Date</th>
+            <th class="py-2.5 px-3 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-mono">
+          {% for r in receipts %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-2.5 px-3 font-bold text-indigo-900">{{ r.receipt_code }}</td>
+            <td class="py-2.5 px-3 font-sans">
+              <div class="font-bold text-slate-900">{{ r.source_name }}</div>
+              <div class="text-[10px] text-slate-500">
+                {% if r.source_category == 'RIVER' %}🌊 River Sand Concession{% else %}⛏ Hard-Rock Quarry Lease{% endif %}
+              </div>
+            </td>
+            <td class="py-2.5 px-3 font-sans text-slate-800 font-semibold">{{ r.contractor_name }}</td>
+            <td class="py-2.5 px-3 text-slate-600 font-sans">{{ r.mineral }}</td>
+            <td class="py-2.5 px-3 text-right font-extrabold text-emerald-800">{{ "{:,.1f}".format(r.net_weight_mt) }} MT</td>
+            <td class="py-2.5 px-3 font-bold text-slate-800">{{ r.permit_number }}</td>
+            <td class="py-2.5 px-3 text-slate-700">{{ r.vehicle_number }}</td>
+            <td class="py-2.5 px-3 text-slate-500 text-[11px]">{{ r.received_at[:16] }}</td>
+            <td class="py-2.5 px-3 text-center">
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">VERIFIED</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 3: CONSUMER-WISE DISPATCHES (CONTRACTOR -> CONSUMERS / PROJECTS) -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div class="p-4 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
+      <div class="flex items-center gap-2">
+        <span>📤</span>
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm">Consumer-Wise Downstream Dispatches (Contractor &rarr; Consumer / Project)</h3>
+          <p class="text-[11px] text-slate-500">Dispatches from contractor custody to downstream buyers, builders, and infrastructure sites</p>
+        </div>
+      </div>
+      <span class="text-xs font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
+        {{ dispatches|length }} Outbound Dispatches
+      </span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+          <tr>
+            <th class="py-2.5 px-3">Dispatch Ref</th>
+            <th class="py-2.5 px-3">Downstream Consumer / Project</th>
+            <th class="py-2.5 px-3">Supplying Contractor</th>
+            <th class="py-2.5 px-3">Material</th>
+            <th class="py-2.5 px-3 text-right">Dispatch Quantity</th>
+            <th class="py-2.5 px-3">Carrier &amp; Driver</th>
+            <th class="py-2.5 px-3">e-Way Bill No.</th>
+            <th class="py-2.5 px-3">Date</th>
+            <th class="py-2.5 px-3 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-mono">
+          {% for d in dispatches %}
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-2.5 px-3 font-bold text-indigo-900">{{ d.dispatch_code }}</td>
+            <td class="py-2.5 px-3 font-sans">
+              <div class="font-bold text-slate-900">{{ d.consumer_name }}</div>
+              <div class="text-[10px] text-indigo-700 font-mono font-bold">{{ d.project_code }}</div>
+            </td>
+            <td class="py-2.5 px-3 font-sans text-slate-800 font-semibold">{{ d.contractor_name }}</td>
+            <td class="py-2.5 px-3 text-slate-600 font-sans">{{ d.mineral }}</td>
+            <td class="py-2.5 px-3 text-right font-extrabold text-indigo-950">{{ "{:,.1f}".format(d.quantity_mt) }} MT</td>
+            <td class="py-2.5 px-3 text-slate-700">
+              <div>{{ d.vehicle_number }}</div>
+              <div class="text-[10px] text-slate-400 font-sans">{{ d.driver_name }}</div>
+            </td>
+            <td class="py-2.5 px-3 text-slate-600 text-[11px]">{{ d.e_way_bill_no }}</td>
+            <td class="py-2.5 px-3 text-slate-500 text-[11px]">{{ d.dispatched_at[:16] }}</td>
+            <td class="py-2.5 px-3 text-center">
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">VERIFIED</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

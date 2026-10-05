@@ -209,8 +209,11 @@
       <a href="{{ url_for('reports') }}" class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}">
         Reports &amp; Dossiers
       </a>
+      <a href="{{ url_for('admin_supply_chain') }}" class="nav-link bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900 {% if request.endpoint == 'admin_supply_chain' %}active{% endif %} flex items-center gap-1 font-bold">
+        <span>🔗 Supply Chain Ledger</span>
+      </a>
       <a href="{{ url_for('admin_infrastructure_audit') }}" class="nav-link bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 hover:bg-indigo-900 {% if request.endpoint == 'admin_infrastructure_audit' %}active{% endif %} flex items-center gap-1 font-bold">
-        <span>🛣️ e-MB Highway Audit</span>
+        <span>🛣️ Consumer Project Audit</span>
       </a>
 
       <!-- Executive State Registries & Audit Dropdown (Trucks, e-Rawaanas, Trips, Master Data) -->
@@ -331,15 +334,18 @@
       </a>
 
       {% elif current_user.role == 'CONTRACTOR' %}
-      <!-- CONTRACTOR / HIGHWAY BUILDER Navigation -->
+      <!-- CONTRACTOR / MATERIAL CUSTODIAN Navigation -->
       <a href="{{ url_for('contractor_dashboard') }}" class="nav-link {% if request.endpoint == 'contractor_dashboard' %}active{% endif %} flex items-center gap-1 font-bold text-white">
-        <span>🏗️ Highway Project &amp; e-MB Wallet</span>
+        <span>🏗️ Contractor Stock Portal</span>
       </a>
-      <a href="{{ url_for('contractor_dashboard') }}#gate-scanner" class="nav-link bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 hover:bg-emerald-900 flex items-center gap-1 font-bold">
-        <span>📲 Site Gate QR Verify</span>
+      <a href="{{ url_for('contractor_dashboard') }}#inbound-receipt-console" class="nav-link bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 hover:bg-emerald-900 flex items-center gap-1 font-bold">
+        <span>📥 Inbound Source Receipts</span>
       </a>
-      <a href="{{ url_for('contractor_dashboard') }}#consignments" class="nav-link">
-        📦 Inward Deliveries
+      <a href="{{ url_for('contractor_dashboard') }}#outbound-dispatch-console" class="nav-link bg-indigo-950/70 text-indigo-300 border border-indigo-600/50 hover:bg-indigo-900 flex items-center gap-1 font-bold">
+        <span>📤 Outbound Dispatches</span>
+      </a>
+      <a href="{{ url_for('contractor_dashboard') }}#consumer-projects" class="nav-link">
+        🏢 Downstream Projects
       </a>
       <a href="{{ url_for('contractor_download_noc', project_id=1) }}" class="nav-link bg-amber-950/70 text-amber-200 border border-amber-600/60 hover:bg-amber-900 font-bold flex items-center gap-1">
         <span>📜 Royalty NOC (PDF)</span>

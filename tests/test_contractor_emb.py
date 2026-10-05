@@ -27,8 +27,9 @@ class TestContractorInfrastructureReconciliation(unittest.TestCase):
         res = self.client.post('/login', data={'username': 'contractor1', 'password': 'contractor123'}, follow_redirects=True)
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Sharma Infrastructure", res.data)
-        self.assertIn(b"Structural Volume", res.data)
-        self.assertIn(b"Target Required", res.data)
+        self.assertIn(b"Opening Stock", res.data)
+        self.assertIn(b"Total Available", res.data)
+        self.assertIn(b"Closing Stock", res.data)
 
     def test_02_site_gate_receive_truck_api(self):
         """Test Site Gate QR scan endpoint credits mineral wallet and prevents double-counting."""

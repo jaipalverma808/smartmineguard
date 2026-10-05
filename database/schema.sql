@@ -387,6 +387,61 @@ CREATE TABLE IF NOT EXISTS citizen_reports (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 21. REGISTERED MINERAL CONTRACTORS (STOCK CUSTODIANS / MIDDLEMEN)
+CREATE TABLE IF NOT EXISTS contractors (
+    id SERIAL PRIMARY KEY,
+    contractor_code VARCHAR(50) UNIQUE NOT NULL,
+    contractor_name VARCHAR(200) NOT NULL,
+    pan_no VARCHAR(50),
+    gstn VARCHAR(50),
+    contact_person VARCHAR(100),
+    contact_phone VARCHAR(50),
+    email VARCHAR(100),
+    opening_stock_mt DOUBLE PRECISION DEFAULT 200.0,
+    status VARCHAR(50) DEFAULT 'ACTIVE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 22. CONTRACTOR INBOUND SOURCE RECEIPTS (SOURCE -> CONTRACTOR)
+CREATE TABLE IF NOT EXISTS contractor_receipts (
+    id SERIAL PRIMARY KEY,
+    receipt_code VARCHAR(50) UNIQUE NOT NULL,
+    contractor_id INTEGER REFERENCES contractors(id) ON DELETE CASCADE,
+    permit_id INTEGER REFERENCES permits(id) ON DELETE SET NULL,
+    permit_number VARCHAR(100) NOT NULL,
+    source_mine_id INTEGER REFERENCES mines(id),
+    source_name VARCHAR(200) NOT NULL,
+    source_category VARCHAR(50) DEFAULT 'MINE',
+    mineral VARCHAR(100) NOT NULL,
+    net_weight_mt DOUBLE PRECISION NOT NULL,
+    vehicle_number VARCHAR(50),
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'VERIFIED'
+);
+
+-- 23. CONTRACTOR OUTBOUND DISPATCHES (CONTRACTOR -> CONSUMER / PROJECT)
+CREATE TABLE IF NOT EXISTS contractor_dispatches (
+    id SERIAL PRIMARY KEY,
+    dispatch_code VARCHAR(50) UNIQUE NOT NULL,
+    contractor_id INTEGER REFERENCES contractors(id) ON DELETE CASCADE,
+    project_id INTEGER REFERENCES infrastructure_projects(id) ON DELETE SET NULL,
+    consumer_name VARCHAR(200) NOT NULL,
+    project_code VARCHAR(100),
+    mineral VARCHAR(100) NOT NULL,
+    quantity_mt DOUBLE PRECISION NOT NULL,
+    vehicle_number VARCHAR(50),
+    driver_name VARCHAR(150),
+    e_way_bill_no VARCHAR(100),
+    invoice_no VARCHAR(100),
+    dispatched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'VERIFIED',
+    reconciliation_status VARCHAR(50) DEFAULT 'RECONCILED'
+);
+
+ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS contractor_id INTEGER REFERENCES contractors(id) DEFAULT 1;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_contractor_id INTEGER REFERENCES contractors(id);
+ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_id INTEGER REFERENCES contractors(id);
+
 -- SPATIAL & PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_mines_geom ON mines USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_trucks_geom ON trucks USING GIST (geom);
@@ -398,4 +453,8 @@ CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
 CREATE INDEX IF NOT EXISTS idx_investigations_case ON investigations(case_id);
 CREATE INDEX IF NOT EXISTS idx_infra_proj_code ON infrastructure_projects(project_code);
 CREATE INDEX IF NOT EXISTS idx_citizen_token ON citizen_reports(report_token);
+CREATE INDEX IF NOT EXISTS idx_contractor_code ON contractors(contractor_code);
+CREATE INDEX IF NOT EXISTS idx_dispatch_code ON contractor_dispatches(dispatch_code);
+CREATE INDEX IF NOT EXISTS idx_receipt_code ON contractor_receipts(receipt_code);
+
 

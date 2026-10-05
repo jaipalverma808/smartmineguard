@@ -637,6 +637,59 @@ class DatabaseManager:
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INTEGER DEFAULT 0;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
+
+                            -- CONTRACTORS & MATERIAL RECONCILIATION
+                            CREATE TABLE IF NOT EXISTS contractors (
+                                id SERIAL PRIMARY KEY,
+                                contractor_code VARCHAR(50) UNIQUE NOT NULL,
+                                contractor_name VARCHAR(200) NOT NULL,
+                                pan_no VARCHAR(50),
+                                gstn VARCHAR(50),
+                                contact_person VARCHAR(100),
+                                contact_phone VARCHAR(50),
+                                email VARCHAR(100),
+                                opening_stock_mt DOUBLE PRECISION DEFAULT 200.0,
+                                status VARCHAR(50) DEFAULT 'ACTIVE',
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+
+                            CREATE TABLE IF NOT EXISTS contractor_receipts (
+                                id SERIAL PRIMARY KEY,
+                                receipt_code VARCHAR(50) UNIQUE NOT NULL,
+                                contractor_id INTEGER REFERENCES contractors(id) ON DELETE CASCADE,
+                                permit_id INTEGER REFERENCES permits(id) ON DELETE SET NULL,
+                                permit_number VARCHAR(100) NOT NULL,
+                                source_mine_id INTEGER REFERENCES mines(id),
+                                source_name VARCHAR(200) NOT NULL,
+                                source_category VARCHAR(50) DEFAULT 'MINE',
+                                mineral VARCHAR(100) NOT NULL,
+                                net_weight_mt DOUBLE PRECISION NOT NULL,
+                                vehicle_number VARCHAR(50),
+                                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                status VARCHAR(50) DEFAULT 'VERIFIED'
+                            );
+
+                            CREATE TABLE IF NOT EXISTS contractor_dispatches (
+                                id SERIAL PRIMARY KEY,
+                                dispatch_code VARCHAR(50) UNIQUE NOT NULL,
+                                contractor_id INTEGER REFERENCES contractors(id) ON DELETE CASCADE,
+                                project_id INTEGER REFERENCES infrastructure_projects(id) ON DELETE SET NULL,
+                                consumer_name VARCHAR(200) NOT NULL,
+                                project_code VARCHAR(100),
+                                mineral VARCHAR(100) NOT NULL,
+                                quantity_mt DOUBLE PRECISION NOT NULL,
+                                vehicle_number VARCHAR(50),
+                                driver_name VARCHAR(150),
+                                e_way_bill_no VARCHAR(100),
+                                invoice_no VARCHAR(100),
+                                dispatched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                status VARCHAR(50) DEFAULT 'VERIFIED',
+                                reconciliation_status VARCHAR(50) DEFAULT 'RECONCILED'
+                            );
+
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS contractor_id INTEGER REFERENCES contractors(id) DEFAULT 1;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS assigned_contractor_id INTEGER REFERENCES contractors(id);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_id INTEGER REFERENCES contractors(id);
                         """)
                         conn.commit()
                     except Exception as _m_err:
@@ -1307,6 +1360,113 @@ class DatabaseManager:
             """)
             # Mine 4 (Khetri Zone): Dispatched 64,200 MT > 60,000 MT Quota -> Auto-locked
             cur.execute("UPDATE mines SET status = 'QUOTA_EXCEEDED' WHERE id = 4")
+
+            # CONTRACTOR & MATERIAL RECONCILIATION TABLES (SQLite)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS contractors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contractor_code TEXT UNIQUE NOT NULL,
+                    contractor_name TEXT NOT NULL,
+                    pan_no TEXT,
+                    gstn TEXT,
+                    contact_person TEXT,
+                    contact_phone TEXT,
+                    email TEXT,
+                    opening_stock_mt REAL DEFAULT 200.0,
+                    status TEXT DEFAULT 'ACTIVE',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS contractor_receipts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    receipt_code TEXT UNIQUE NOT NULL,
+                    contractor_id INTEGER,
+                    permit_id INTEGER,
+                    permit_number TEXT NOT NULL,
+                    source_mine_id INTEGER,
+                    source_name TEXT NOT NULL,
+                    source_category TEXT DEFAULT 'MINE',
+                    mineral TEXT NOT NULL,
+                    net_weight_mt REAL NOT NULL,
+                    vehicle_number TEXT,
+                    received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'VERIFIED'
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS contractor_dispatches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dispatch_code TEXT UNIQUE NOT NULL,
+                    contractor_id INTEGER,
+                    project_id INTEGER,
+                    consumer_name TEXT NOT NULL,
+                    project_code TEXT,
+                    mineral TEXT NOT NULL,
+                    quantity_mt REAL NOT NULL,
+                    vehicle_number TEXT,
+                    driver_name TEXT,
+                    e_way_bill_no TEXT,
+                    invoice_no TEXT,
+                    dispatched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'VERIFIED',
+                    reconciliation_status TEXT DEFAULT 'RECONCILED'
+                )
+            """)
+
+            # Add extension columns if missing
+            ip_cols = [r[1] for r in cur.execute("PRAGMA table_info(infrastructure_projects)").fetchall()]
+            if "contractor_id" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN contractor_id INTEGER DEFAULT 1")
+
+            u_cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+            if "assigned_contractor_id" not in u_cols:
+                cur.execute("ALTER TABLE users ADD COLUMN assigned_contractor_id INTEGER DEFAULT 1")
+
+            p_cols = [r[1] for r in cur.execute("PRAGMA table_info(permits)").fetchall()]
+            if "contractor_id" not in p_cols:
+                cur.execute("ALTER TABLE permits ADD COLUMN contractor_id INTEGER DEFAULT 1")
+
+            # Seed Contractor 1: Sharma Infrastructure Ltd
+            cur.execute("""
+                INSERT OR REPLACE INTO contractors 
+                (id, contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status)
+                VALUES (1, 'CONT-001', 'Sharma Infrastructure Ltd', 'AAACH4114R', '06AAACH4114R2ZG', 'Ramesh Sharma (Director Logistics)', '+91 98120 44551', 'projects@sharmainfra.com', 200.0, 'ACTIVE')
+            """)
+
+            # Seed Inbound Receipts (Source -> Contractor)
+            rec_count = cur.execute("SELECT COUNT(*) FROM contractor_receipts").fetchone()[0]
+            if rec_count == 0:
+                cur.executemany("""
+                    INSERT INTO contractor_receipts (receipt_code, contractor_id, permit_number, source_mine_id, source_name, source_category, mineral, net_weight_mt, vehicle_number, received_at, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    ('REC-SHM-01', 1, 'SMG-2026-00126', 3, 'Khol Silica Sand & Stone Pit (Riverbed Sand Concession #1)', 'RIVER', 'River Sand & Sub-base Fill', 200.0, 'HR26AB1234', '2026-10-04 10:15:00', 'VERIFIED'),
+                    ('REC-SHM-02', 1, 'SMG-2026-00142', 3, 'Khol Silica Sand & Stone Pit (Riverbed Sand Concession #1)', 'RIVER', 'River Sand & Sub-base Fill', 200.0, 'RJ14GA5521', '2026-10-04 15:45:00', 'VERIFIED'),
+                    ('REC-SHM-03', 1, 'SMG-2026-00125', 1, 'Aravalli Quartzite Quarry Block A (Alwar)', 'MINE', 'Quartzite Aggregate', 200.0, 'HR26AB1234', '2026-10-05 08:30:00', 'VERIFIED'),
+                    ('REC-SHM-04', 1, 'SMG-2026-00150', 1, 'Aravalli Quartzite Quarry Block A (Alwar)', 'MINE', 'Quartzite Aggregate', 150.0, 'HR26XY9988', '2026-10-05 11:20:00', 'VERIFIED'),
+                    ('REC-SHM-05', 1, 'SMG-2026-00153', 2, 'Kotputli High-Grade Limestone Lease', 'MINE', 'High-Grade Limestone', 250.0, 'RJ14GA5521', '2026-10-05 14:10:00', 'VERIFIED')
+                ])
+
+            # Seed Outbound Dispatches (Contractor -> Consumer / Project)
+            dsp_count = cur.execute("SELECT COUNT(*) FROM contractor_dispatches").fetchone()[0]
+            if dsp_count == 0:
+                cur.executemany("""
+                    INSERT INTO contractor_dispatches (dispatch_code, contractor_id, project_id, consumer_name, project_code, mineral, quantity_mt, vehicle_number, driver_name, e_way_bill_no, invoice_no, dispatched_at, status, reconciliation_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    ('DSP-001', 1, 1, 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'NHAI-PKG-04', 'River Sand & Sub-base Fill', 100.0, 'HR26AB1234', 'Balwan Singh', 'EWB-06-2026-881', 'INV/SHM/26-091', '2026-10-05 09:15:00', 'VERIFIED', 'RECONCILED'),
+                    ('DSP-002', 1, 2, 'CyberCity Commercial Towers Phase-2 (Tower D & E)', 'DLF-CYBER-T2', '20mm/40mm Quartzite Aggregate & Grit', 150.0, 'HR26BC5678', 'Jagdish Prasad', 'EWB-06-2026-882', 'INV/SHM/26-092', '2026-10-05 10:45:00', 'VERIFIED', 'RECONCILED'),
+                    ('DSP-003', 1, 3, 'ACC ReadyMix Concrete & Batching Hub #8', 'RMC-NCR-08', '10mm/20mm Graded Stone Chips', 75.0, 'RJ14GA5521', 'Sukhdev Yadav', 'EWB-06-2026-883', 'INV/SHM/26-093', '2026-10-05 12:30:00', 'VERIFIED', 'RECONCILED'),
+                    ('DSP-004', 1, 4, 'Gurugram-Sohna Express Feeder Highway Bypass', 'PWD-HW-2026', 'WMM & GSB Sub-Base Ballast', 200.0, 'HR26AB9012', 'Manoj Kumar', 'EWB-06-2026-884', 'INV/SHM/26-094', '2026-10-05 13:40:00', 'VERIFIED', 'RECONCILED'),
+                    ('DSP-005', 1, 6, 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'KOT-CEMENT-01', 'High-Grade Raw Limestone', 325.0, 'RJ14CD3456', 'Dharmendra Yadav', 'EWB-06-2026-885', 'INV/SHM/26-095', '2026-10-05 16:10:00', 'VERIFIED', 'RECONCILED')
+                ])
+
+            # Ensure contractor users are bound to contractor 1
+            cur.execute("UPDATE users SET assigned_contractor_id = 1 WHERE role = 'CONTRACTOR'")
+            cur.execute("UPDATE infrastructure_projects SET contractor_id = 1 WHERE contractor_id IS NULL")
 
             conn.commit()
         finally:
