@@ -583,13 +583,17 @@ class DatabaseManager:
                             ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_state TEXT;
                             ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason TEXT;
 
-                            -- INFRASTRUCTURE PROJECTS (e-MB HIGHWAY RECONCILIATION)
+                            -- INFRASTRUCTURE & MULTI-SECTOR PROJECTS (e-MB, RERA, RMC RECONCILIATION)
                             CREATE TABLE IF NOT EXISTS infrastructure_projects (
                                 id SERIAL PRIMARY KEY,
                                 project_code VARCHAR(100) UNIQUE NOT NULL,
                                 project_name VARCHAR(255) NOT NULL,
                                 contractor_name VARCHAR(200) NOT NULL,
                                 executing_agency VARCHAR(200) NOT NULL,
+                                project_category VARCHAR(50) DEFAULT 'HIGHWAY_INFRA',
+                                mine_id INTEGER REFERENCES mines(id) DEFAULT 1,
+                                sub_mine_id INTEGER REFERENCES quarry_blocks(id),
+                                primary_mineral VARCHAR(100) DEFAULT 'Quartzite Aggregate',
                                 chainage_section VARCHAR(100),
                                 road_length_km DOUBLE PRECISION DEFAULT 15.0,
                                 concrete_volume_m3 DOUBLE PRECISION DEFAULT 4500.0,
@@ -597,15 +601,27 @@ class DatabaseManager:
                                 sand_received_mt DOUBLE PRECISION DEFAULT 1600.0,
                                 aggregate_required_mt DOUBLE PRECISION DEFAULT 3800.0,
                                 aggregate_received_mt DOUBLE PRECISION DEFAULT 3800.0,
+                                mineral_required_mt DOUBLE PRECISION DEFAULT 2025.0,
+                                mineral_received_mt DOUBLE PRECISION DEFAULT 1600.0,
                                 penalty_rate_per_mt DOUBLE PRECISION DEFAULT 600.0,
                                 status VARCHAR(50) DEFAULT 'DEFICIT_FLAGGED',
+                                regulatory_framework VARCHAR(150) DEFAULT 'Public Works e-MB & IRC:15',
                                 work_order_no VARCHAR(100),
                                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                             );
-                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INTEGER DEFAULT 0;
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
                             ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
+
+                            -- Extension columns for Multi-Sector Development & Mineral Specific Tracking
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS project_category VARCHAR(50) DEFAULT 'HIGHWAY_INFRA';
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mine_id INTEGER DEFAULT 1;
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS sub_mine_id INTEGER;
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS primary_mineral VARCHAR(100) DEFAULT 'Quartzite Aggregate';
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mineral_required_mt DOUBLE PRECISION DEFAULT 2025.0;
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS mineral_received_mt DOUBLE PRECISION DEFAULT 1600.0;
+                            ALTER TABLE infrastructure_projects ADD COLUMN IF NOT EXISTS regulatory_framework VARCHAR(150) DEFAULT 'Public Works e-MB & IRC:15';
 
                             -- Allow CONTRACTOR role in users table constraint
                             ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
@@ -621,20 +637,30 @@ class DatabaseManager:
                         logger.warning(f"PostgreSQL schema migrations non-fatal: {_m_err}")
 
                     try:
-                        cur.execute("SELECT count(*) FROM infrastructure_projects")
-                        infra_count = cur.fetchone()[0]
-                        if infra_count == 0:
-                            cur.execute("""
-                                INSERT INTO infrastructure_projects 
-                                (id, project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no)
-                                VALUES 
-                                (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/NHAI/RO-HAR/2026/089'),
-                                (2, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'WO/PWD-HAR/B&R/2026/142'),
-                                (3, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Division', 'Ministry of Road Transport & Highways (MoRTH)', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/MORTH/NH-19/EXP/2025/310')
-                                ON CONFLICT (id) DO NOTHING;
-                            """)
-                            conn.commit()
-                            logger.info("PostgreSQL infrastructure_projects seeded successfully.")
+                        cur.execute("""
+                            INSERT INTO infrastructure_projects 
+                            (id, project_code, project_name, contractor_name, executing_agency, project_category, mine_id, sub_mine_id, primary_mineral, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, mineral_required_mt, mineral_received_mt, penalty_rate_per_mt, status, regulatory_framework, work_order_no)
+                            VALUES 
+                            (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'HIGHWAY_INFRA', 3, 41, 'River Sand & Sub-base Fill', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 2025.0, 1600.0, 600.0, 'DEFICIT_FLAGGED', 'NHAI Contract & IRC:15 Standard (e-MB)', 'WO/NHAI/RO-HAR/2026/089'),
+                            (2, 'DLF-CYBER-T2', 'CyberCity Commercial Towers Phase-2 (Tower D & E)', 'DLF Universal & Real Estate Developers Ltd', 'Town & Country Planning (DTCP / RERA HR-GGM-882)', 'REAL_ESTATE_BUILDER', 1, 1, '20mm/40mm Quartzite Aggregate & Grit', 'Sector 25A, CyberCity Gurugram', 0.0, 12500.0, 5625.0, 4100.0, 9800.0, 7200.0, 9800.0, 7200.0, 750.0, 'DEFICIT_FLAGGED', 'DTCP Sanction & RERA Occupancy Certificate (OC Lock)', 'BP/DTCP-GGM/2025/COMM-412'),
+                            (3, 'RMC-NCR-08', 'ACC ReadyMix Concrete & Batching Hub #8', 'ACC Concrete Solutions (Supplying 42 Private Builders)', 'State Pollution Control Board & Industries Dept', 'RMC_BATCHING_PLANT', 1, 21, '10mm/20mm Graded Stone Chips', 'Plot 44, Manesar Industrial Model Township', 0.0, 24000.0, 10800.0, 10800.0, 18500.0, 18500.0, 18500.0, 18500.0, 650.0, 'COMPLIANT', 'RMC Inward e-Rawaana vs Outward Dispatch Tax Invoicing', 'RMC/HSPCB/CONS/2026/018'),
+                            (4, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'HIGHWAY_INFRA', 1, 12, 'WMM & GSB Sub-Base Ballast', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'Public Works e-MB & Clause 10CC Verification', 'WO/PWD-HAR/B&R/2026/142'),
+                            (5, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Infrastructure Division', 'Delhi Metro Rail Corporation (DMRC) / MoRTH', 'METRO_INDUSTRIAL', 4, NULL, 'High-Strength Structural Quartz Ballast', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'DMRC Technical Specification & MMDR Sec 21 Audit', 'WO/MORTH/NH-19/EXP/2025/310'),
+                            (6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL', 2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0, 4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED', 'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055')
+                            ON CONFLICT (id) DO UPDATE SET
+                                project_name = EXCLUDED.project_name,
+                                contractor_name = EXCLUDED.contractor_name,
+                                executing_agency = EXCLUDED.executing_agency,
+                                project_category = EXCLUDED.project_category,
+                                mine_id = EXCLUDED.mine_id,
+                                sub_mine_id = EXCLUDED.sub_mine_id,
+                                primary_mineral = EXCLUDED.primary_mineral,
+                                mineral_required_mt = EXCLUDED.mineral_required_mt,
+                                mineral_received_mt = EXCLUDED.mineral_received_mt,
+                                regulatory_framework = EXCLUDED.regulatory_framework;
+                        """)
+                        conn.commit()
+                        logger.info("PostgreSQL multi-sector infrastructure_projects synchronized successfully.")
                     except Exception as _seed_infra_err:
                         try:
                             conn.rollback()
@@ -1119,7 +1145,7 @@ class DatabaseManager:
             if "received_at_site" not in p_cols:
                 cur.execute("ALTER TABLE permits ADD COLUMN received_at_site DATETIME")
 
-            # Infrastructure Projects Table (e-MB Highway & Construction Reconciliation)
+            # Infrastructure & Multi-Sector Projects Table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS infrastructure_projects (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1127,6 +1153,10 @@ class DatabaseManager:
                     project_name TEXT NOT NULL,
                     contractor_name TEXT NOT NULL,
                     executing_agency TEXT NOT NULL,
+                    project_category TEXT DEFAULT 'HIGHWAY_INFRA',
+                    mine_id INTEGER DEFAULT 1,
+                    sub_mine_id INTEGER,
+                    primary_mineral TEXT DEFAULT 'Quartzite Aggregate',
                     chainage_section TEXT,
                     road_length_km REAL DEFAULT 15.0,
                     concrete_volume_m3 REAL DEFAULT 4500.0,
@@ -1134,70 +1164,45 @@ class DatabaseManager:
                     sand_received_mt REAL DEFAULT 1600.0,
                     aggregate_required_mt REAL DEFAULT 3800.0,
                     aggregate_received_mt REAL DEFAULT 3800.0,
+                    mineral_required_mt REAL DEFAULT 2025.0,
+                    mineral_received_mt REAL DEFAULT 1600.0,
                     penalty_rate_per_mt REAL DEFAULT 600.0,
                     status TEXT DEFAULT 'DEFICIT_FLAGGED',
+                    regulatory_framework TEXT DEFAULT 'Public Works e-MB & IRC:15',
                     work_order_no TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
-            # Seed infrastructure projects if empty
-            has_projects = cur.execute("SELECT COUNT(*) FROM infrastructure_projects").fetchone()[0]
-            if has_projects == 0:
-                cur.executemany("""
-                    INSERT INTO infrastructure_projects 
-                    (project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, [
-                    (
-                        "NHAI-PKG-04",
-                        "NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)",
-                        "Sharma Infrastructure Ltd",
-                        "National Highways Authority of India (NHAI)",
-                        "Km 82+400 to Km 97+400",
-                        15.0,
-                        4500.0,
-                        2025.0,
-                        1600.0,
-                        3800.0,
-                        3800.0,
-                        600.0,
-                        "DEFICIT_FLAGGED",
-                        "WO/NHAI/RO-HAR/2026/089"
-                    ),
-                    (
-                        "PWD-HW-2026",
-                        "Gurugram-Sohna Express Feeder Highway Bypass",
-                        "Apex Roadways & Infrastructure Ltd",
-                        "Haryana State PWD (B&R) Division",
-                        "Ch 0+000 to Ch 12+800",
-                        12.8,
-                        3200.0,
-                        1440.0,
-                        1440.0,
-                        2700.0,
-                        2700.0,
-                        600.0,
-                        "COMPLIANT",
-                        "WO/PWD-HAR/B&R/2026/142"
-                    ),
-                    (
-                        "DMRC-EXT-02",
-                        "Faridabad-Palwal High-Speed Transit Viaduct Corridor",
-                        "L&T Construction Heavy Civil Division",
-                        "Ministry of Road Transport & Highways (MoRTH)",
-                        "Pier P-102 to Pier P-320",
-                        8.5,
-                        8000.0,
-                        3600.0,
-                        3450.0,
-                        6800.0,
-                        6800.0,
-                        600.0,
-                        "DEFICIT_FLAGGED",
-                        "WO/MORTH/NH-19/EXP/2025/310"
-                    )
-                ])
+            ip_cols = [r[1] for r in cur.execute("PRAGMA table_info(infrastructure_projects)").fetchall()]
+            if "project_category" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN project_category TEXT DEFAULT 'HIGHWAY_INFRA'")
+            if "mine_id" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN mine_id INTEGER DEFAULT 1")
+            if "sub_mine_id" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN sub_mine_id INTEGER")
+            if "primary_mineral" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN primary_mineral TEXT DEFAULT 'Quartzite Aggregate'")
+            if "mineral_required_mt" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN mineral_required_mt REAL DEFAULT 2025.0")
+            if "mineral_received_mt" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN mineral_received_mt REAL DEFAULT 1600.0")
+            if "regulatory_framework" not in ip_cols:
+                cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN regulatory_framework TEXT DEFAULT 'Public Works e-MB & IRC:15'")
+
+            # Synchronize 6 realistic projects representing all sectors & mines
+            cur.executemany("""
+                INSERT OR REPLACE INTO infrastructure_projects 
+                (id, project_code, project_name, contractor_name, executing_agency, project_category, mine_id, sub_mine_id, primary_mineral, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, mineral_required_mt, mineral_received_mt, penalty_rate_per_mt, status, regulatory_framework, work_order_no)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [
+                (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'HIGHWAY_INFRA', 3, 41, 'River Sand & Sub-base Fill', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 2025.0, 1600.0, 600.0, 'DEFICIT_FLAGGED', 'NHAI Contract & IRC:15 Standard (e-MB)', 'WO/NHAI/RO-HAR/2026/089'),
+                (2, 'DLF-CYBER-T2', 'CyberCity Commercial Towers Phase-2 (Tower D & E)', 'DLF Universal & Real Estate Developers Ltd', 'Town & Country Planning (DTCP / RERA HR-GGM-882)', 'REAL_ESTATE_BUILDER', 1, 1, '20mm/40mm Quartzite Aggregate & Grit', 'Sector 25A, CyberCity Gurugram', 0.0, 12500.0, 5625.0, 4100.0, 9800.0, 7200.0, 9800.0, 7200.0, 750.0, 'DEFICIT_FLAGGED', 'DTCP Sanction & RERA Occupancy Certificate (OC Lock)', 'BP/DTCP-GGM/2025/COMM-412'),
+                (3, 'RMC-NCR-08', 'ACC ReadyMix Concrete & Batching Hub #8', 'ACC Concrete Solutions (Supplying 42 Private Builders)', 'State Pollution Control Board & Industries Dept', 'RMC_BATCHING_PLANT', 1, 21, '10mm/20mm Graded Stone Chips', 'Plot 44, Manesar Industrial Model Township', 0.0, 24000.0, 10800.0, 10800.0, 18500.0, 18500.0, 18500.0, 18500.0, 650.0, 'COMPLIANT', 'RMC Inward e-Rawaana vs Outward Dispatch Tax Invoicing', 'RMC/HSPCB/CONS/2026/018'),
+                (4, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'HIGHWAY_INFRA', 1, 12, 'WMM & GSB Sub-Base Ballast', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'Public Works e-MB & Clause 10CC Verification', 'WO/PWD-HAR/B&R/2026/142'),
+                (5, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Infrastructure Division', 'Delhi Metro Rail Corporation (DMRC) / MoRTH', 'METRO_INDUSTRIAL', 4, None, 'High-Strength Structural Quartz Ballast', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'DMRC Technical Specification & MMDR Sec 21 Audit', 'WO/MORTH/NH-19/EXP/2025/310'),
+                (6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3', 'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL', 2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0, 4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED', 'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055')
+            ])
 
             conn.commit()
         finally:

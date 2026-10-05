@@ -314,13 +314,17 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 18. INFRASTRUCTURE & HIGHWAY e-MB PROJECTS RECONCILIATION
+-- 18. MULTI-SECTOR INFRASTRUCTURE & CONSTRUCTION PROJECTS RECONCILIATION
 CREATE TABLE IF NOT EXISTS infrastructure_projects (
     id SERIAL PRIMARY KEY,
     project_code VARCHAR(100) UNIQUE NOT NULL,
     project_name VARCHAR(255) NOT NULL,
     contractor_name VARCHAR(200) NOT NULL,
     executing_agency VARCHAR(200) NOT NULL,
+    project_category VARCHAR(50) DEFAULT 'HIGHWAY_INFRA',
+    mine_id INTEGER REFERENCES mines(id) DEFAULT 1,
+    sub_mine_id INTEGER REFERENCES quarry_blocks(id),
+    primary_mineral VARCHAR(100) DEFAULT 'Quartzite Aggregate',
     chainage_section VARCHAR(100),
     road_length_km DOUBLE PRECISION DEFAULT 15.0,
     concrete_volume_m3 DOUBLE PRECISION DEFAULT 4500.0,
@@ -328,8 +332,11 @@ CREATE TABLE IF NOT EXISTS infrastructure_projects (
     sand_received_mt DOUBLE PRECISION DEFAULT 1600.0,
     aggregate_required_mt DOUBLE PRECISION DEFAULT 3800.0,
     aggregate_received_mt DOUBLE PRECISION DEFAULT 3800.0,
+    mineral_required_mt DOUBLE PRECISION DEFAULT 2025.0,
+    mineral_received_mt DOUBLE PRECISION DEFAULT 1600.0,
     penalty_rate_per_mt DOUBLE PRECISION DEFAULT 600.0,
     status VARCHAR(50) DEFAULT 'DEFICIT_FLAGGED',
+    regulatory_framework VARCHAR(150) DEFAULT 'Public Works e-MB & IRC:15',
     work_order_no VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

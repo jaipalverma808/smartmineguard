@@ -1156,7 +1156,45 @@ def dashboard():
         """)
         all_trucks = db.query("SELECT id, registration_number, vehicle_type, max_capacity_mt FROM trucks ORDER BY registration_number ASC")
         try:
-            infrastructure_projects = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC")
+            if scope == "submine" and selected_sub_mine_id:
+                # Sub-mine pit filter: show projects originating from or bound to this quarry block pit
+                infrastructure_projects = db.query("""
+                    SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                    FROM infrastructure_projects ip
+                    LEFT JOIN mines m ON m.id = ip.mine_id
+                    LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                    WHERE ip.sub_mine_id = ?
+                    ORDER BY ip.id ASC
+                """, (selected_sub_mine_id,))
+                if not infrastructure_projects and selected_mine_id:
+                    # Fallback to concession mine projects if no pit-specific projects
+                    infrastructure_projects = db.query("""
+                        SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                        FROM infrastructure_projects ip
+                        LEFT JOIN mines m ON m.id = ip.mine_id
+                        LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                        WHERE ip.mine_id = ?
+                        ORDER BY ip.id ASC
+                    """, (selected_mine_id,))
+            elif scope == "mine" and selected_mine_id:
+                # Mine filter: show all contractors / projects sourcing from this mine concession
+                infrastructure_projects = db.query("""
+                    SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                    FROM infrastructure_projects ip
+                    LEFT JOIN mines m ON m.id = ip.mine_id
+                    LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                    WHERE ip.mine_id = ?
+                    ORDER BY ip.id ASC
+                """, (selected_mine_id,))
+            else:
+                # Statewide / All Mines: show all multi-sector development projects
+                infrastructure_projects = db.query("""
+                    SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                    FROM infrastructure_projects ip
+                    LEFT JOIN mines m ON m.id = ip.mine_id
+                    LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                    ORDER BY ip.id ASC
+                """)
         except Exception as _ip_err:
             logger.warning(f"Could not load infrastructure_projects: {_ip_err}")
             infrastructure_projects = []
@@ -2769,12 +2807,38 @@ def operator_weighbridge():
 @app.route("/contractor/dashboard")
 @login_required(roles=["CONTRACTOR", "ADMIN"])
 def contractor_dashboard():
-    """Contractor & Highway EPC Builder Portal for e-MB Mineral Wallet Reconciliation."""
+    """Multi-Sector Contractor & Development Project Portal (e-MB & DTCP/RERA Mineral Ledger)."""
+    project_id = request.args.get("project_id")
+    project_code = request.args.get("code")
     project = None
+    all_projects = []
     try:
-        project = db.query("SELECT * FROM infrastructure_projects WHERE project_code = 'NHAI-PKG-04'", one=True)
-        if not project:
-            project = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC LIMIT 1", one=True)
+        all_projects = db.query("""
+            SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+            FROM infrastructure_projects ip
+            LEFT JOIN mines m ON m.id = ip.mine_id
+            LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+            ORDER BY ip.id ASC
+        """)
+        if project_id and project_id.isdigit():
+            project = db.query("""
+                SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                FROM infrastructure_projects ip
+                LEFT JOIN mines m ON m.id = ip.mine_id
+                LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                WHERE ip.id = ?
+            """, (int(project_id),), one=True)
+        elif project_code:
+            project = db.query("""
+                SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+                FROM infrastructure_projects ip
+                LEFT JOIN mines m ON m.id = ip.mine_id
+                LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+                WHERE ip.project_code = ?
+            """, (project_code,), one=True)
+            
+        if not project and all_projects:
+            project = all_projects[0]
     except Exception as _p_err:
         logger.warning(f"Could not load project from DB: {_p_err}")
 
@@ -2785,15 +2849,20 @@ def contractor_dashboard():
             "project_name": "NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)",
             "contractor_name": "Sharma Infrastructure Ltd",
             "executing_agency": "National Highways Authority of India (NHAI)",
+            "project_category": "HIGHWAY_INFRA",
+            "primary_mineral": "River Sand & Sub-base Fill",
             "chainage_section": "Km 82+400 to Km 97+400",
             "road_length_km": 15.0,
             "concrete_volume_m3": 4500.0,
             "sand_required_mt": 2025.0,
             "sand_received_mt": 1600.0,
+            "mineral_required_mt": 2025.0,
+            "mineral_received_mt": 1600.0,
             "aggregate_required_mt": 3800.0,
             "aggregate_received_mt": 3800.0,
             "penalty_rate_per_mt": 600.0,
             "status": "DEFICIT_FLAGGED",
+            "regulatory_framework": "NHAI Contract & IRC:15 Standard (e-MB)",
             "work_order_no": "WO/NHAI/RO-HAR/2026/089"
         }
 
@@ -2812,13 +2881,13 @@ def contractor_dashboard():
             logger.warning(f"Could not load deliveries: {_deliv_err}")
             recent_deliveries = []
 
-    return render_template("contractor_dashboard.html", project=project, recent_deliveries=recent_deliveries)
+    return render_template("contractor_dashboard.html", project=project, all_projects=all_projects, recent_deliveries=recent_deliveries)
 
 
 @app.route("/api/contractor/receive-truck", methods=["POST"])
 @login_required(roles=["CONTRACTOR", "ADMIN"])
 def api_contractor_receive_truck():
-    """Site Gate QR Scan Endpoint to verify arriving e-Rawaana and credit e-MB wallet."""
+    """Site Gate QR Scan Endpoint to verify arriving e-Rawaana and credit mineral wallet."""
     data = request.get_json(silent=True) or {}
     permit_number = (data.get("permit_number") or "").strip().upper()
     project_id = data.get("project_id", 1)
@@ -2850,15 +2919,17 @@ def api_contractor_receive_truck():
         WHERE id = ?
     """, (project["project_code"], now_str, permit["id"]))
 
-    # Update project received sand
-    new_received = round(float(project["sand_received_mt"] or 0.0) + tonnage, 1)
-    new_status = "COMPLIANT" if new_received >= float(project["sand_required_mt"]) else "DEFICIT_FLAGGED"
+    # Update project received mineral
+    current_rec = float(project.get("mineral_received_mt") or project.get("sand_received_mt") or 0.0)
+    target_req = float(project.get("mineral_required_mt") or project.get("sand_required_mt") or 0.0)
+    new_received = round(current_rec + tonnage, 1)
+    new_status = "COMPLIANT" if new_received >= target_req else "DEFICIT_FLAGGED"
 
     db.execute("""
         UPDATE infrastructure_projects 
-        SET sand_received_mt = ?, status = ?
+        SET sand_received_mt = ?, mineral_received_mt = ?, status = ?
         WHERE id = ?
-    """, (new_received, new_status, project["id"]))
+    """, (new_received, new_received, new_status, project["id"]))
 
     log_audit("CONTRACTOR_GATE_RECEIVE", f"e-Rawaana {permit_number} ({tonnage} MT) verified and received at {project['project_code']} site gate.", entity="PERMIT")
 
@@ -2892,24 +2963,69 @@ def contractor_download_noc(project_id):
 @app.route("/admin/infrastructure-audit")
 @login_required(roles=["ADMIN"])
 def admin_infrastructure_audit():
-    """Statewide Highway & Public Works Infrastructure Mineral Reconciliation (e-MB Audit)."""
+    """Statewide Multi-Sector Infrastructure & Development Mineral Reconciliation Audit."""
+    req_mine = request.args.get("mine_id")
+    req_sub_mine = request.args.get("sub_mine_id")
+    req_category = request.args.get("category")
+
+    mines = db.query("SELECT id, name, district, state FROM mines ORDER BY id ASC")
+    
+    where_clauses = []
+    params = []
+
+    selected_mine_id = None
+    if req_mine and req_mine.isdigit() and int(req_mine) > 0:
+        selected_mine_id = int(req_mine)
+        where_clauses.append("ip.mine_id = ?")
+        params.append(selected_mine_id)
+        sub_mines = db.query("SELECT id, block_code, block_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (selected_mine_id,))
+    else:
+        sub_mines = db.query("SELECT id, mine_id, block_code, block_name FROM quarry_blocks ORDER BY mine_id ASC, id ASC")
+
+    selected_sub_mine_id = None
+    if req_sub_mine and req_sub_mine.isdigit() and int(req_sub_mine) > 0:
+        selected_sub_mine_id = int(req_sub_mine)
+        where_clauses.append("ip.sub_mine_id = ?")
+        params.append(selected_sub_mine_id)
+
+    selected_category = None
+    if req_category and req_category.strip():
+        selected_category = req_category.strip().upper()
+        where_clauses.append("ip.project_category = ?")
+        params.append(selected_category)
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
     try:
-        projects = db.query("SELECT * FROM infrastructure_projects ORDER BY id ASC")
+        projects = db.query(f"""
+            SELECT ip.*, m.name as mine_name, qb.block_name as sub_mine_name
+            FROM infrastructure_projects ip
+            LEFT JOIN mines m ON m.id = ip.mine_id
+            LEFT JOIN quarry_blocks qb ON qb.id = ip.sub_mine_id
+            {where_sql}
+            ORDER BY ip.id ASC
+        """, params)
     except Exception as _p_err:
         logger.warning(f"Could not load infrastructure_projects: {_p_err}")
         projects = []
+
     total_concrete = sum(float(p.get("concrete_volume_m3") or 0.0) for p in projects)
-    total_sand_req = sum(float(p.get("sand_required_mt") or 0.0) for p in projects)
-    total_sand_rec = sum(float(p.get("sand_received_mt") or 0.0) for p in projects)
+    total_mineral_req = sum(float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0) for p in projects)
+    total_mineral_rec = sum(float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0) for p in projects)
     total_penalties = sum(
-        max(0.0, float(p.get("sand_required_mt") or 0.0) - float(p.get("sand_received_mt") or 0.0)) * float(p.get("penalty_rate_per_mt") or 600.0)
+        max(0.0, float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0) - float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0)) * float(p.get("penalty_rate_per_mt") or 600.0)
         for p in projects
     )
     return render_template("admin_infrastructure_audit.html",
         projects=projects,
+        mines=mines,
+        sub_mines=sub_mines,
+        selected_mine_id=selected_mine_id,
+        selected_sub_mine_id=selected_sub_mine_id,
+        selected_category=selected_category,
         total_concrete_volume=total_concrete,
-        total_sand_required=total_sand_req,
-        total_sand_received=total_sand_rec,
+        total_sand_required=total_mineral_req,
+        total_sand_received=total_mineral_rec,
         total_penalties_withheld=total_penalties
     )
 

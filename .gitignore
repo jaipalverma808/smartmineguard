@@ -16,5 +16,6 @@ __pycache__/
 *$py.class
 venv/
 .venv/
-env/
+# Generated Reports
+static/reports/*.pdf
 

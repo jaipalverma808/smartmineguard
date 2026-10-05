@@ -120,11 +120,55 @@ INSERT INTO stock_production (id, mine_id, mineral, record_date, opening_stock_m
 (4, 4, 'Copper Tailings / Quartz', CURRENT_DATE, 5400.0, 800.0, 720.0, 5480.0, 'Crushed overburden dispatch.')
 ON CONFLICT (id) DO NOTHING;
 
--- 15. INFRASTRUCTURE PROJECTS (e-MB HIGHWAY RECONCILIATION)
-INSERT INTO infrastructure_projects (id, project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no) VALUES
-(1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/NHAI/RO-HAR/2026/089'),
-(2, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'WO/PWD-HAR/B&R/2026/142'),
-(3, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Division', 'Ministry of Road Transport & Highways (MoRTH)', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/MORTH/NH-19/EXP/2025/310')
+-- 15. MULTI-SECTOR INFRASTRUCTURE & CONSTRUCTION PROJECTS
+INSERT INTO infrastructure_projects (
+    id, project_code, project_name, contractor_name, executing_agency, project_category, 
+    mine_id, sub_mine_id, primary_mineral, chainage_section, road_length_km, concrete_volume_m3, 
+    sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, 
+    mineral_required_mt, mineral_received_mt, penalty_rate_per_mt, status, regulatory_framework, work_order_no
+) VALUES
+(
+    1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 
+    'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'HIGHWAY_INFRA',
+    3, 41, 'River Sand & Sub-base Fill', 'Km 82+400 to Km 97+400', 15.0, 4500.0,
+    2025.0, 1600.0, 3800.0, 3800.0, 2025.0, 1600.0, 600.0, 'DEFICIT_FLAGGED',
+    'NHAI Contract & IRC:15 Standard (e-MB)', 'WO/NHAI/RO-HAR/2026/089'
+),
+(
+    2, 'DLF-CYBER-T2', 'CyberCity Commercial Towers Phase-2 (Tower D & E)',
+    'DLF Universal & Real Estate Developers Ltd', 'Town & Country Planning (DTCP / RERA HR-GGM-882)', 'REAL_ESTATE_BUILDER',
+    1, 1, '20mm/40mm Quartzite Aggregate & Grit', 'Sector 25A, CyberCity Gurugram', 0.0, 12500.0,
+    5625.0, 4100.0, 9800.0, 7200.0, 9800.0, 7200.0, 750.0, 'DEFICIT_FLAGGED',
+    'DTCP Sanction & RERA Occupancy Certificate (OC Lock)', 'BP/DTCP-GGM/2025/COMM-412'
+),
+(
+    3, 'RMC-NCR-08', 'ACC ReadyMix Concrete & Batching Hub #8',
+    'ACC Concrete Solutions (Supplying 42 Private Builders)', 'State Pollution Control Board & Industries Dept', 'RMC_BATCHING_PLANT',
+    1, 21, '10mm/20mm Graded Stone Chips', 'Plot 44, Manesar Industrial Model Township', 0.0, 24000.0,
+    10800.0, 10800.0, 18500.0, 18500.0, 18500.0, 18500.0, 650.0, 'COMPLIANT',
+    'RMC Inward e-Rawaana vs Outward Dispatch Tax Invoicing', 'RMC/HSPCB/CONS/2026/018'
+),
+(
+    4, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass',
+    'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'HIGHWAY_INFRA',
+    1, 12, 'WMM & GSB Sub-Base Ballast', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0,
+    1440.0, 1440.0, 2700.0, 2700.0, 2700.0, 2700.0, 600.0, 'COMPLIANT',
+    'Public Works e-MB & Clause 10CC Verification', 'WO/PWD-HAR/B&R/2026/142'
+),
+(
+    5, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor',
+    'L&T Construction Heavy Civil Infrastructure Division', 'Delhi Metro Rail Corporation (DMRC) / MoRTH', 'METRO_INDUSTRIAL',
+    4, NULL, 'High-Strength Structural Quartz Ballast', 'Pier P-102 to Pier P-320', 8.5, 8000.0,
+    3600.0, 3450.0, 6800.0, 6800.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED',
+    'DMRC Technical Specification & MMDR Sec 21 Audit', 'WO/MORTH/NH-19/EXP/2025/310'
+),
+(
+    6, 'KOT-CEMENT-01', 'Kotputli UltraTech Clinker Expansion Kiln Unit #3',
+    'Bhiwadi Cement Raw Materials Ltd', 'Bureau of Industrial Standards & Mines Safety', 'METRO_INDUSTRIAL',
+    2, 38, 'High-Grade Raw Limestone', 'Industrial Plot B-12, Kotputli Clinker Zone', 0.0, 18000.0,
+    4500.0, 4500.0, 14500.0, 13200.0, 14500.0, 13200.0, 800.0, 'DEFICIT_FLAGGED',
+    'Industrial Mineral Concession & Quota Reconciliation', 'IND/RAJ/KOT-CLN/2026/055'
+)
 ON CONFLICT (id) DO NOTHING;
 
 

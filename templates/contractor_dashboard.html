@@ -1,76 +1,119 @@
 {% extends "base.html" %}
 
-{% block title %}Contractor Infrastructure Portal & e-MB Mineral Wallet - SmartMineGuard{% endblock %}
+{% block title %}Contractor & Development Project Mineral Portal - SmartMineGuard{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
-  <!-- Executive Contractor Header Banner -->
-  <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-700/60 rounded-lg p-5 text-white shadow-xl flex flex-wrap justify-between items-center gap-4">
-    <div class="space-y-1">
-      <div class="flex items-center gap-2">
-        <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
-        <span class="text-xs font-mono uppercase tracking-widest text-indigo-300 font-bold">NHAI / State PWD Infrastructure EPC Portal</span>
-        <span class="text-[10px] bg-indigo-900/80 border border-indigo-500 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">e-MB LINKED</span>
+  <!-- Executive Contractor Header Banner & Project Switcher -->
+  <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-700/60 rounded-lg p-5 text-white shadow-xl space-y-4">
+    <div class="flex flex-wrap justify-between items-center gap-4">
+      <div class="space-y-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+          <span class="text-xs font-mono uppercase tracking-widest text-indigo-300 font-bold">
+            {% if project.project_category == 'HIGHWAY_INFRA' %}
+            🛣️ Highway EPC &amp; Public Works Portal
+            {% elif project.project_category == 'REAL_ESTATE_BUILDER' %}
+            🏢 Private Real Estate Builder &amp; DTCP/RERA Portal
+            {% elif project.project_category == 'RMC_BATCHING_PLANT' %}
+            🏭 Ready-Mix Concrete (RMC) Batching Hub Portal
+            {% elif project.project_category == 'METRO_INDUSTRIAL' %}
+            🚇 High-Speed Transit &amp; Industrial Corridor Portal
+            {% else %}
+            🏗️ Development Contractor Portal
+            {% endif %}
+          </span>
+          <span class="text-[10px] bg-indigo-900/80 border border-indigo-500 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
+            {{ project.regulatory_framework or 'MMDR SEC 21 COMPLIANT' }}
+          </span>
+        </div>
+        <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+          <span>🏗️ {{ project.contractor_name }}</span>
+        </h1>
+        <p class="text-xs text-slate-300 max-w-2xl leading-relaxed">
+          Active Project: <strong class="text-white">{{ project.project_name }}</strong> &bull; Work Order / Sanction: <span class="font-mono text-amber-300">{{ project.work_order_no }}</span> &bull; Agency: <strong class="text-white">{{ project.executing_agency }}</strong>
+        </p>
       </div>
-      <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-        <span>🏗️ {{ project.contractor_name }}</span>
-      </h1>
-      <p class="text-xs text-slate-300 max-w-2xl leading-relaxed">
-        Active Project: <strong class="text-white">{{ project.project_name }}</strong> &bull; Work Order: <span class="font-mono text-amber-300">{{ project.work_order_no }}</span> &bull; Agency: <strong class="text-white">{{ project.executing_agency }}</strong>
-      </p>
+
+      <!-- Quick Action Hub -->
+      <div class="flex items-center gap-2.5">
+        <a href="#gate-scanner" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          <span>Gate QR Scanner</span>
+        </a>
+        <a href="{{ url_for('contractor_download_noc', project_id=project.id) }}" class="btn-gov bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>Download Royalty NOC (PDF)</span>
+        </a>
+      </div>
     </div>
 
-    <!-- Quick Action Hub -->
-    <div class="flex items-center gap-2.5">
-      <a href="#gate-scanner" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
-        <span>Gate QR Scanner</span>
-      </a>
-      <a href="{{ url_for('contractor_download_noc', project_id=project.id) }}" class="btn-gov bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        <span>Download Royalty NOC (PDF)</span>
-      </a>
+    <!-- Multi-Project & Development Sector Switcher -->
+    {% if all_projects and all_projects|length > 1 %}
+    <div class="pt-3 border-t border-indigo-900/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-indigo-300 font-bold uppercase tracking-wider text-[11px]">Select Project / Sector:</span>
+        {% for ap in all_projects %}
+        <a href="{{ url_for('contractor_dashboard', project_id=ap.id) }}" 
+           class="px-2.5 py-1 rounded text-xs font-semibold transition {% if ap.id == project.id %}bg-indigo-600 text-white font-bold shadow{% else %}bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 border border-indigo-800{% endif %}">
+          {% if ap.project_category == 'HIGHWAY_INFRA' %}🛣️{% elif ap.project_category == 'REAL_ESTATE_BUILDER' %}🏢{% elif ap.project_category == 'RMC_BATCHING_PLANT' %}🏭{% elif ap.project_category == 'METRO_INDUSTRIAL' %}🚇{% else %}🏗️{% endif %}
+          {{ ap.project_code }}
+        </a>
+        {% endfor %}
+      </div>
+      <div class="text-[11px] text-indigo-300 font-mono">
+        Sourced From: <strong>{{ project.mine_name or 'Central Concession' }}</strong> {% if project.sub_mine_name %} &bull; {{ project.sub_mine_name }}{% endif %}
+      </div>
     </div>
+    {% endif %}
   </div>
 
-  <!-- KPI Cards: e-MB Road Volume vs Mineral Wallet -->
+  <!-- KPI Cards: Structural Volume vs Mineral Wallet -->
+  {% set req_mt = (project.mineral_required_mt or project.sand_required_mt or 0) %}
+  {% set rec_mt = (project.mineral_received_mt or project.sand_received_mt or 0) %}
+  {% set deficit_mt = (req_mt - rec_mt) %}
+  {% set penalty_amount = (deficit_mt * (project.penalty_rate_per_mt or 600)) if deficit_mt > 0 else 0 %}
+
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3.5">
     
-    <!-- 1. Road Concrete Volume -->
+    <!-- 1. Structural Volume -->
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
       <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-        <span>🛣️ Road Volume (e-MB)</span>
+        <span>📐 Structural Volume</span>
       </div>
       <div class="text-xl font-extrabold text-slate-900 mt-1">{{ "{:,.1f}".format(project.concrete_volume_m3) }} m³</div>
-      <div class="text-[10px] text-slate-500 font-mono mt-0.5">Length: {{ project.road_length_km }} km &bull; M40 PQC</div>
+      <div class="text-[10px] text-slate-500 font-mono mt-0.5">
+        {% if project.road_length_km and project.road_length_km > 0 %}Length: {{ project.road_length_km }} km{% else %}Built-Up Area Sanction{% endif %}
+      </div>
     </div>
 
-    <!-- 2. Theoretical Sand Required -->
+    <!-- 2. Target Mineral Required -->
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
       <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-        <span>📐 Sand Required (IRC)</span>
+        <span>⚖️ Target Required</span>
       </div>
-      <div class="text-xl font-extrabold text-indigo-950 mt-1">{{ "{:,.1f}".format(project.sand_required_mt) }} MT</div>
-      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Formula: 0.45 MT/m³ Standard</div>
+      <div class="text-xl font-extrabold text-indigo-950 mt-1">{{ "{:,.1f}".format(req_mt) }} MT</div>
+      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5 truncate" title="{{ project.primary_mineral }}">
+        {{ project.primary_mineral or 'Mineral Requirement' }}
+      </div>
     </div>
 
-    <!-- 3. Legal Sand Received -->
+    <!-- 3. Legal Mineral Received -->
     <div class="p-4 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs">
       <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
-        <span>✅ Verified Sand Received</span>
+        <span>✅ Verified Received</span>
       </div>
-      <div class="text-xl font-extrabold text-emerald-950 mt-1">{{ "{:,.1f}".format(project.sand_received_mt) }} MT</div>
+      <div class="text-xl font-extrabold text-emerald-950 mt-1">{{ "{:,.1f}".format(rec_mt) }} MT</div>
       <div class="text-[10px] text-emerald-700 font-semibold mt-0.5">
-        {{ "%.1f"|format((project.sand_received_mt / project.sand_required_mt * 100) if project.sand_required_mt > 0 else 100) }}% e-Rawaana Matched
+        {{ "%.1f"|format((rec_mt / req_mt * 100) if req_mt > 0 else 100) }}% e-Rawaana Matched
       </div>
     </div>
 
     <!-- 4. Deficit / Shortfall -->
-    {% set deficit_mt = (project.sand_required_mt - project.sand_received_mt) %}
     <div class="p-4 {% if deficit_mt > 0 %}bg-red-50 border border-red-300{% else %}bg-slate-50 border border-slate-200{% endif %} rounded-lg shadow-xs">
       <div class="text-[11px] font-bold {% if deficit_mt > 0 %}text-red-700{% else %}text-slate-500{% endif %} uppercase tracking-wider flex items-center gap-1">
-        <span>⚠️ Sand Deficit</span>
+        <span>⚠️ Unaccounted Gap</span>
       </div>
       <div class="text-xl font-extrabold {% if deficit_mt > 0 %}text-red-900{% else %}text-slate-700{% endif %} mt-1">
         {% if deficit_mt > 0 %}+{{ "{:,.1f}".format(deficit_mt) }} MT{% else %}0.0 MT{% endif %}
@@ -80,17 +123,16 @@
       </div>
     </div>
 
-    <!-- 5. Treasury Withholding Penalty -->
-    {% set penalty_amount = (deficit_mt * project.penalty_rate_per_mt) if deficit_mt > 0 else 0 %}
+    <!-- 5. Treasury / Escrow Penalty Withheld -->
     <div class="p-4 {% if penalty_amount > 0 %}bg-amber-50 border border-amber-300{% else %}bg-emerald-50 border border-emerald-200{% endif %} rounded-lg shadow-xs">
       <div class="text-[11px] font-bold {% if penalty_amount > 0 %}text-amber-800{% else %}text-emerald-800{% endif %} uppercase tracking-wider flex items-center gap-1">
-        <span>💰 Treasury Penalty Cut</span>
+        <span>💰 Statutory Penalty Cut</span>
       </div>
       <div class="text-xl font-black {% if penalty_amount > 0 %}text-amber-900{% else %}text-emerald-900{% endif %} mt-1">
         {% if penalty_amount > 0 %}₹{{ "{:,.0f}".format(penalty_amount) }}{% else %}₹0 (CLEAR){% endif %}
       </div>
       <div class="text-[10px] {% if penalty_amount > 0 %}text-amber-700 font-bold{% else %}text-emerald-600{% endif %} mt-0.5">
-        {% if penalty_amount > 0 %}Withheld from next RA Bill{% else %}Zero Statutory Penalty{% endif %}
+        {% if penalty_amount > 0 %}Withheld / OC Locked{% else %}Zero Statutory Penalty{% endif %}
       </div>
     </div>
 
@@ -98,10 +140,10 @@
 
   <!-- Compliance Progress Bar Card -->
   <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-3">
-    <div class="flex justify-between items-center">
+    <div class="flex justify-between items-center flex-wrap gap-2">
       <div>
         <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-          <span>📊 e-MB Mineral Reconciliation &amp; Royalty Clearance Progress</span>
+          <span>📊 Statutory Mineral Royalty Clearance &amp; Compliance Progress</span>
           {% if deficit_mt <= 0 %}
           <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">100% ROYALTY COMPLIANT</span>
           {% else %}
@@ -109,27 +151,31 @@
           {% endif %}
         </h3>
         <p class="text-xs text-slate-500 mt-0.5">
-          Government payment will automatically deduct ₹{{ "{:,.0f}".format(penalty_amount) }} (Royalty + 5x statutory penalty) unless remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified e-Rawaana transit passes are scanned at site gate.
+          {% if project.project_category == 'REAL_ESTATE_BUILDER' %}
+          Municipal Town &amp; Country Planning will withhold the <strong>Occupancy Certificate (OC Lock)</strong> until remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified e-Rawaana passes are submitted.
+          {% else %}
+          Government will automatically withhold ₹{{ "{:,.0f}".format(penalty_amount) }} from the contractor RA bill cheque unless remaining {{ "{:,.1f}".format(deficit_mt) }} MT of verified passes are scanned at gate.
+          {% endif %}
         </p>
       </div>
       <span class="text-xs font-mono font-bold text-slate-700">
-        {{ "{:,.1f}".format(project.sand_received_mt) }} / {{ "{:,.1f}".format(project.sand_required_mt) }} MT
+        {{ "{:,.1f}".format(rec_mt) }} / {{ "{:,.1f}".format(req_mt) }} MT ({{ project.primary_mineral or 'Mineral' }})
       </span>
     </div>
 
-    {% set pct = [100.0, (project.sand_received_mt / project.sand_required_mt * 100.0)]|min if project.sand_required_mt > 0 else 100.0 %}
+    {% set pct = [100.0, (rec_mt / req_mt * 100.0)]|min if req_mt > 0 else 100.0 %}
     <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden p-0.5 border border-slate-300">
       <div class="h-full rounded-full transition-all duration-500 {% if pct >= 100 %}bg-emerald-600{% elif pct >= 80 %}bg-amber-500{% else %}bg-red-600{% endif %}" style="width: {{ pct }}%;"></div>
     </div>
 
     <div class="flex justify-between items-center text-[11px] text-slate-500">
-      <span>0 MT (Start of Paving)</span>
+      <span>0 MT (Start of Delivery)</span>
       <span class="font-bold text-slate-700">{{ "%.1f"|format(pct) }}% Mineral Verified</span>
-      <span>Target: {{ "{:,.1f}".format(project.sand_required_mt) }} MT (PQC Milestone)</span>
+      <span>Target: {{ "{:,.1f}".format(req_mt) }} MT (Milestone Required)</span>
     </div>
   </div>
 
-  <!-- 2-Column Section: Site Gate QR Scanner & Manual Quick Receipt -->
+  <!-- 2-Column Section: Site Gate QR Scanner & Sector Sandbox Legal Info Card -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="gate-scanner">
     
     <!-- Site Gate Scanning Console -->
@@ -140,8 +186,8 @@
             📲
           </div>
           <div>
-            <h3 class="font-bold text-slate-900 text-sm">Site Gate Inward Truck Receipt</h3>
-            <p class="text-[11px] text-slate-500">Scan incoming e-Rawaana QR code to credit sand into your e-MB wallet</p>
+            <h3 class="font-bold text-slate-900 text-sm">Site Gate Inward Mineral Receipt</h3>
+            <p class="text-[11px] text-slate-500">Scan incoming e-Rawaana QR code to credit {{ project.primary_mineral or 'mineral' }} to project ledger</p>
           </div>
         </div>
         <span class="text-[10px] bg-slate-100 text-slate-700 font-mono px-2 py-0.5 rounded border border-slate-300">Gate Terminal</span>
@@ -177,27 +223,53 @@
       </div>
     </div>
 
-    <!-- The Anti-Fraud Legal Sandbox Info Card -->
+    <!-- The Anti-Fraud Statutory Sandbox Info Card -->
     <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-lg p-5 shadow-sm space-y-4 border border-indigo-800">
       <div class="border-b border-indigo-800/80 pb-3 flex items-center gap-2">
         <span class="text-xl">🛡️</span>
         <div>
-          <h3 class="font-bold text-sm text-indigo-200 uppercase tracking-wider">Statutory Mineral Royalty Defense</h3>
-          <p class="text-[11px] text-slate-400">CPWD / State PWD Standard Tender Clause &amp; MMDR Sec 21</p>
+          <h3 class="font-bold text-sm text-indigo-200 uppercase tracking-wider">
+            {% if project.project_category == 'REAL_ESTATE_BUILDER' %}
+            🏢 DTCP &amp; RERA Occupancy Certificate (OC-Lock) Defense
+            {% elif project.project_category == 'RMC_BATCHING_PLANT' %}
+            🏭 RMC Inward vs Outward Mass-Balance Audit
+            {% else %}
+            🛣️ Public Works e-MB &amp; IRC:15 Standard Defense
+            {% endif %}
+          </h3>
+          <p class="text-[11px] text-slate-400">{{ project.regulatory_framework or 'MMDR Act Section 21' }}</p>
         </div>
       </div>
 
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        {% if project.project_category == 'REAL_ESTATE_BUILDER' %}
         <p>
-          <strong class="text-white">Why Unbilled Mafia Sand Causes Contractor Loss:</strong> Under Section 21 of the MMDR Act and Public Works Accounting Manuals, the government releases payment based strictly on <strong>Road Volume measured in e-MB</strong>.
+          <strong class="text-white">Why Private Builders Cannot Use Sand Mafia Goods:</strong> Town &amp; Country Planning calculates concrete volume based on approved architectural drawings. If a developer buys unbilled cash sand/aggregate from the mafia, the municipal system detects an e-Rawaana shortfall and <strong>blocks the Occupancy Certificate (OC)</strong>, preventing flat handovers and buyer registration.
+        </p>
+        <div class="p-3 bg-indigo-900/50 border border-indigo-700/60 rounded text-[11px] space-y-1">
+          <div class="font-bold text-amber-300">The Municipal Lock:</div>
+          <div>Project requires {{ "{:,.1f}".format(req_mt) }} MT of {{ project.primary_mineral }}. Current deficit is {{ "{:,.1f}".format(deficit_mt) }} MT.</div>
+          <div class="text-emerald-300 font-bold pt-1">Escrow deposit penalty of ₹{{ "{:,.0f}".format(penalty_amount) }} required before OC release.</div>
+        </div>
+        {% elif project.project_category == 'RMC_BATCHING_PLANT' %}
+        <p>
+          <strong class="text-white">RMC Inward Raw Material Verification:</strong> Ready-Mix concrete hubs must account for every tonne of aggregate and sand loaded into automated batching silos. State pollution control and GST cross-check batching logs against inward e-Rawaana transit passes.
+        </p>
+        <div class="p-3 bg-indigo-900/50 border border-indigo-700/60 rounded text-[11px] space-y-1">
+          <div class="font-bold text-emerald-300">Continuous Reconciliation:</div>
+          <div>Automated scales ensure batching output matches registered legal incoming stone chips and sand.</div>
+        </div>
+        {% else %}
+        <p>
+          <strong class="text-white">Why Unbilled Mafia Mineral Causes Contractor Loss:</strong> Under Section 21 of the MMDR Act, highway payments are released strictly on <strong>Road Dimensions in the e-MB</strong>.
         </p>
         <div class="p-3 bg-indigo-900/50 border border-indigo-700/60 rounded text-[11px] space-y-1">
           <div class="font-bold text-amber-300">The Mathematical Lock:</div>
-          <div>If you pave 4,500 m³ of concrete, civil engineering standards require 2,025 MT of sand. If you purchased 425 MT from illegal cartels in cash, your e-MB wallet will show a 425 MT deficit.</div>
-          <div class="text-emerald-300 font-bold pt-1">The Treasury will automatically deduct ₹2,55,000 from your bill cheque.</div>
+          <div>For {{ "{:,.1f}".format(project.concrete_volume_m3) }} m³ concrete, civil formulas require {{ "{:,.1f}".format(req_mt) }} MT of {{ project.primary_mineral }}. Deficit of {{ "{:,.1f}".format(deficit_mt) }} MT will be cut from the contractor bill cheque.</div>
         </div>
+        {% endif %}
         <p class="text-[11px] text-slate-400">
-          Ensure all tippers arriving at your batching plant carry authentic e-Rawaana passes issued by state-approved quarries.
+          Source Quarry: <strong>{{ project.mine_name or 'State Mining Concession' }}</strong> ({{ project.sub_mine_name or 'Central Pit' }}).
         </p>
       </div>
     </div>
@@ -232,17 +304,19 @@
           <tr class="hover:bg-slate-50 transition">
             <td class="py-2.5 px-3 font-bold text-indigo-900">{{ p.permit_number }}</td>
             <td class="py-2.5 px-3 font-bold text-slate-800">{{ p.truck_registration or 'HR26AB1234' }}</td>
-            <td class="py-2.5 px-3 text-slate-600">{{ p.mineral or 'Quartzite Sand' }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ p.mineral or project.primary_mineral or 'Mineral' }}</td>
             <td class="py-2.5 px-3 text-right font-extrabold text-emerald-800">{{ "{:,.1f}".format(p.permitted_weight_mt or 20.0) }} MT</td>
-            <td class="py-2.5 px-3 text-slate-600">{{ p.source_name or 'Aravalli Quarry Block 1A' }}</td>
+            <td class="py-2.5 px-3 text-slate-600">{{ p.source_name or project.mine_name or 'Approved Quarry' }}</td>
             <td class="py-2.5 px-3 text-slate-500 text-[11px]">{{ p.created_at[:16] }}</td>
             <td class="py-2.5 px-3 text-center">
-              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">CREDITED TO e-MB</span>
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">CREDITED TO WALLET</span>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-center py-6 text-slate-400">No inward passes recorded yet for this project. Use the Gate Scanner above to scan arriving tipper trucks.</td>
+            <td colspan="7" class="text-center py-6 text-slate-400 font-sans">
+              No inward passes recorded yet for this project. Use the Gate Scanner above to scan arriving tipper trucks.
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -282,7 +356,7 @@ async function receiveTruckPermit() {
 
     if (res.ok && data.success) {
       fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
-      fb.innerHTML = `✓ <strong>Success:</strong> Verified e-Rawaana <code>${permitNum}</code>. Credited <strong>${data.added_mt} MT</strong> to project e-MB wallet. New Total: <strong>${data.new_total_mt} MT</strong>!`;
+      fb.innerHTML = `✓ <strong>Success:</strong> Verified e-Rawaana <code>${permitNum}</code>. Credited <strong>${data.added_mt} MT</strong> to project mineral wallet. New Total: <strong>${data.new_total_mt} MT</strong>!`;
       input.value = '';
       setTimeout(() => { window.location.reload(); }, 1800);
     } else {

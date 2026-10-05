@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Highway & Infrastructure Mineral Audit (e-MB Reconciliation) - SmartMineGuard{% endblock %}
+{% block title %}Multi-Sector Infrastructure & Mineral Audit (e-MB & DTCP/RERA) - SmartMineGuard{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -10,47 +10,125 @@
     <div class="space-y-1">
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">Directorate of Mines &amp; Geology &bull; Treasury Anti-Fraud Division</span>
+        <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">Directorate of Mines &amp; Geology &bull; Statutory Anti-Fraud &amp; Treasury Division</span>
       </div>
       <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-        <span>🛣️ Highway &amp; Infrastructure Mineral Reconciliation (e-MB Audit)</span>
+        <span>🏗️ Multi-Sector Infrastructure &amp; Construction Mineral Audit</span>
       </h1>
       <p class="text-xs text-slate-300 max-w-3xl leading-relaxed">
-        Autonomous statutory cross-check linking <strong>Public Works Electronic Measurement Books (e-MB)</strong>, concrete mix design consumption standards (IRC:15), and certified <strong>e-Rawaana mineral dispatch transit passes</strong> under Section 21 of the MMDR Act.
+        Statewide statutory mineral reconciliation engine linking <strong>Public Works e-MB</strong>, <strong>Municipal DTCP/RERA Building Sanctions (OC Lock)</strong>, <strong>RMC Batching Plants</strong>, and <strong>e-Rawaana Transit Passes</strong> under MMDR Act Section 21.
       </p>
     </div>
 
     <!-- Summary Stats Badge -->
     <div class="flex items-center gap-3">
       <div class="text-right">
-        <div class="text-[10px] text-slate-400 uppercase font-mono font-bold">Total Statutory Penalties Withheld</div>
+        <div class="text-[10px] text-slate-400 uppercase font-mono font-bold">Total Statutory Penalties / Escrow Withheld</div>
         <div class="text-xl font-black text-amber-400">₹{{ "{:,.0f}".format(total_penalties_withheld) }}</div>
       </div>
+      <a href="{{ url_for('contractor_dashboard') }}" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3 rounded shadow">
+        Open Contractor Portal &rarr;
+      </a>
     </div>
   </div>
 
-  <!-- Statewide Macro KPI Cards -->
+  <!-- Interactive Mine, Sub-Mine Pit & Sector Filter Bar -->
+  <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+    <form method="GET" action="{{ url_for('admin_infrastructure_audit') }}" class="flex flex-wrap items-center gap-3">
+      
+      <!-- Concession Mine Filter -->
+      <div class="flex-1 min-w-[200px]">
+        <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Concession Mine</label>
+        <select name="mine_id" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
+          <option value="">-- All Concession Mines (Statewide) --</option>
+          {% for m in mines %}
+          <option value="{{ m.id }}" {% if selected_mine_id == m.id %}selected{% endif %}>
+            {{ m.name }} ({{ m.district or 'Concession' }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Concession Sub-Mine Pit Filter -->
+      <div class="flex-1 min-w-[220px]">
+        <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sub-Mine Pit / Quarry Block</label>
+        <select name="sub_mine_id" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
+          <option value="">-- All Sub-Mine Pits in Concession --</option>
+          {% for sm in sub_mines %}
+          <option value="{{ sm.id }}" {% if selected_sub_mine_id == sm.id %}selected{% endif %}>
+            {{ sm.block_name }} ({{ sm.block_code }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Sector Quick Filter Dropdown -->
+      <div class="flex-1 min-w-[200px]">
+        <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Development Sector</label>
+        <select name="category" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
+          <option value="">-- All Sectors (Highways, Builders, RMC, Metro) --</option>
+          <option value="HIGHWAY_INFRA" {% if selected_category == 'HIGHWAY_INFRA' %}selected{% endif %}>🛣️ Highway Infrastructure (NHAI/PWD)</option>
+          <option value="REAL_ESTATE_BUILDER" {% if selected_category == 'REAL_ESTATE_BUILDER' %}selected{% endif %}>🏢 Private Real Estate Builders (DTCP/RERA)</option>
+          <option value="RMC_BATCHING_PLANT" {% if selected_category == 'RMC_BATCHING_PLANT' %}selected{% endif %}>🏭 Ready-Mix Concrete (RMC) Hubs</option>
+          <option value="METRO_INDUSTRIAL" {% if selected_category == 'METRO_INDUSTRIAL' %}selected{% endif %}>🚇 Metro &amp; Industrial Corridors</option>
+        </select>
+      </div>
+
+      <div class="flex items-end gap-2 pt-4">
+        <a href="{{ url_for('admin_infrastructure_audit') }}" class="btn-gov bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded">
+          Reset Filter
+        </a>
+      </div>
+    </form>
+
+    <!-- Sector Quick Filter Badges -->
+    <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+      <span class="text-[11px] font-bold text-slate-500 uppercase">Quick Sector Filter:</span>
+      <a href="{{ url_for('admin_infrastructure_audit', mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id) }}" 
+         class="px-2.5 py-1 rounded font-bold transition {% if not selected_category %}bg-slate-900 text-white{% else %}bg-slate-100 hover:bg-slate-200 text-slate-700{% endif %}">
+        All Sectors ({{ projects|length }})
+      </a>
+      <a href="{{ url_for('admin_infrastructure_audit', mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id, category='HIGHWAY_INFRA') }}" 
+         class="px-2.5 py-1 rounded font-bold transition {% if selected_category == 'HIGHWAY_INFRA' %}bg-blue-800 text-white{% else %}bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200{% endif %}">
+        🛣️ Highway EPC (e-MB)
+      </a>
+      <a href="{{ url_for('admin_infrastructure_audit', mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id, category='REAL_ESTATE_BUILDER') }}" 
+         class="px-2.5 py-1 rounded font-bold transition {% if selected_category == 'REAL_ESTATE_BUILDER' %}bg-purple-800 text-white{% else %}bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200{% endif %}">
+        🏢 Private Builders (RERA OC Lock)
+      </a>
+      <a href="{{ url_for('admin_infrastructure_audit', mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id, category='RMC_BATCHING_PLANT') }}" 
+         class="px-2.5 py-1 rounded font-bold transition {% if selected_category == 'RMC_BATCHING_PLANT' %}bg-amber-800 text-white{% else %}bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200{% endif %}">
+        🏭 RMC Concrete Hubs
+      </a>
+      <a href="{{ url_for('admin_infrastructure_audit', mine_id=selected_mine_id, sub_mine_id=selected_sub_mine_id, category='METRO_INDUSTRIAL') }}" 
+         class="px-2.5 py-1 rounded font-bold transition {% if selected_category == 'METRO_INDUSTRIAL' %}bg-teal-800 text-white{% else %}bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200{% endif %}">
+        🚇 Metro &amp; Industrial
+      </a>
+    </div>
+  </div>
+
+  <!-- Macro KPI Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Active Highway &amp; Metro Projects</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Filtered Development Projects</div>
       <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ projects|length }} Projects</div>
-      <div class="text-[10px] text-slate-500 mt-0.5">NHAI, State PWD &amp; DMRC</div>
+      <div class="text-[10px] text-slate-500 mt-0.5">Highways, Private Real Estate &amp; RMC</div>
     </div>
 
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Concrete Laid (e-MB)</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Concrete Laid / Volume</div>
       <div class="text-2xl font-extrabold text-indigo-950 mt-1">{{ "{:,.1f}".format(total_concrete_volume) }} m³</div>
-      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Physical Road Dimension Verified</div>
+      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Physical Structural Dimension Verified</div>
     </div>
 
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Theoretical Sand Required</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Theoretical Mineral Required</div>
       <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ "{:,.1f}".format(total_sand_required) }} MT</div>
-      <div class="text-[10px] text-slate-500 mt-0.5">IRC Standard (0.45 MT/m³)</div>
+      <div class="text-[10px] text-slate-500 mt-0.5">Standard Civil Mix Formula Calculated</div>
     </div>
 
     <div class="p-4 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Verified e-Rawaana Sand Received</div>
+      <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Verified Legal Mineral Received</div>
       <div class="text-2xl font-extrabold text-emerald-950 mt-1">{{ "{:,.1f}".format(total_sand_received) }} MT</div>
       <div class="text-[10px] text-emerald-700 font-semibold mt-0.5">
         {{ "%.1f"|format((total_sand_received / total_sand_required * 100) if total_sand_required > 0 else 100) }}% Legal Compliance Rate
@@ -58,15 +136,15 @@
     </div>
   </div>
 
-  <!-- Master Infrastructure Projects Reconciliation Table -->
+  <!-- Master Multi-Sector Reconciliation Table -->
   <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
     <div class="p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
       <div>
-        <h3 class="font-bold text-slate-900 text-sm">Statewide Infrastructure Consumption Audit Ledger</h3>
-        <p class="text-[11px] text-slate-500">Compares physical road dimensions against verified e-Rawaana transit passes to detect cash/unbilled mafia sand</p>
+        <h3 class="font-bold text-slate-900 text-sm">Multi-Sector Mineral Consumption Audit Ledger</h3>
+        <p class="text-[11px] text-slate-500">Cross-checks physical structural volumes against verified e-Rawaana transit passes to detect unaccounted mafia mineral</p>
       </div>
       <span class="text-xs bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded font-bold font-mono">
-        Law: MMDR Sec 21 &amp; PWD GCC Clause
+        Statutory Lock: MMDR Sec 21 &bull; DTCP OC Lock &bull; e-MB Clause
       </span>
     </div>
 
@@ -74,37 +152,65 @@
       <table class="w-full text-left text-xs">
         <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
           <tr>
-            <th class="py-3 px-3">Project Code &amp; Title</th>
-            <th class="py-3 px-3">EPC Contractor &amp; Agency</th>
-            <th class="py-3 px-3 text-right">Road Concrete (e-MB)</th>
-            <th class="py-3 px-3 text-right">Sand Needed</th>
-            <th class="py-3 px-3 text-right">Sand Received</th>
-            <th class="py-3 px-3 text-right">Deficit (Illegal Sand)</th>
-            <th class="py-3 px-3 text-right">Treasury Penalty Cut</th>
+            <th class="py-3 px-3">Project &amp; Sector</th>
+            <th class="py-3 px-3">Contractor / Agency</th>
+            <th class="py-3 px-3">Concession Source</th>
+            <th class="py-3 px-3">Primary Mineral</th>
+            <th class="py-3 px-3 text-right">Target Required</th>
+            <th class="py-3 px-3 text-right">Verified Received</th>
+            <th class="py-3 px-3 text-right">Deficit (Mafia Gap)</th>
+            <th class="py-3 px-3 text-right">Penalty / OC Lock</th>
             <th class="py-3 px-3 text-center">Status</th>
+            <th class="py-3 px-3 text-center">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 font-mono">
           {% for p in projects %}
-          {% set deficit = ((p.sand_required_mt or 0) - (p.sand_received_mt or 0)) %}
+          {% set req_mt = (p.mineral_required_mt or p.sand_required_mt or 0) %}
+          {% set rec_mt = (p.mineral_received_mt or p.sand_received_mt or 0) %}
+          {% set deficit = (req_mt - rec_mt) %}
           {% set penalty = (deficit * (p.penalty_rate_per_mt or 600)) if deficit > 0 else 0 %}
           <tr class="hover:bg-slate-50 transition">
             <td class="py-3 px-3">
               <div class="font-bold text-slate-900 text-xs">{{ p.project_name }}</div>
-              <div class="text-[10px] text-indigo-700 font-bold">{{ p.project_code }} &bull; {{ p.chainage_section }}</div>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="text-[10px] text-indigo-700 font-bold">{{ p.project_code }}</span>
+                {% if p.project_category == 'HIGHWAY_INFRA' %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-900 border border-blue-200">🛣️ Highway EPC</span>
+                {% elif p.project_category == 'REAL_ESTATE_BUILDER' %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-900 border border-purple-200">🏢 Real Estate Builder</span>
+                {% elif p.project_category == 'RMC_BATCHING_PLANT' %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">🏭 RMC Concrete Hub</span>
+                {% elif p.project_category == 'METRO_INDUSTRIAL' %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-100 text-teal-900 border border-teal-200">🚇 Metro / Industrial</span>
+                {% endif %}
+              </div>
             </td>
             <td class="py-3 px-3">
               <div class="font-bold text-slate-800">{{ p.contractor_name }}</div>
               <div class="text-[10px] text-slate-500">{{ p.executing_agency }}</div>
             </td>
-            <td class="py-3 px-3 text-right font-bold text-slate-800">
-              {{ "{:,.1f}".format(p.concrete_volume_m3 or 0) }} m³
+            <td class="py-3 px-3">
+              <div class="text-xs font-semibold text-slate-800">{{ p.mine_name or ('Mine #' ~ p.mine_id) }}</div>
+              <div class="text-[10px] text-slate-500">
+                {% if p.sub_mine_name %}
+                {{ p.sub_mine_name }}
+                {% elif p.sub_mine_id %}
+                Pit #{{ p.sub_mine_id }}
+                {% else %}
+                State Concession Corridor
+                {% endif %}
+              </div>
             </td>
-            <td class="py-3 px-3 text-right text-slate-600">
-              {{ "{:,.1f}".format(p.sand_required_mt or 0) }} MT
+            <td class="py-3 px-3">
+              <span class="font-semibold text-slate-800 text-xs">{{ p.primary_mineral or 'Mineral / Sand' }}</span>
+              <div class="text-[10px] text-slate-400">{{ p.regulatory_framework or 'MMDR Verification' }}</div>
+            </td>
+            <td class="py-3 px-3 text-right text-slate-600 font-bold">
+              {{ "{:,.1f}".format(req_mt) }} MT
             </td>
             <td class="py-3 px-3 text-right font-bold text-emerald-800">
-              {{ "{:,.1f}".format(p.sand_received_mt or 0) }} MT
+              {{ "{:,.1f}".format(rec_mt) }} MT
             </td>
             <td class="py-3 px-3 text-right font-extrabold {% if deficit > 0 %}text-red-700 bg-red-50/50{% else %}text-slate-500{% endif %}">
               {% if deficit > 0 %}+{{ "{:,.1f}".format(deficit) }} MT{% else %}0.0 MT{% endif %}
@@ -116,8 +222,19 @@
               {% if deficit <= 0 %}
               <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">COMPLIANT</span>
               {% else %}
-              <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">PENALTY CUT</span>
+              <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">DEFICIT LOCKED</span>
               {% endif %}
+            </td>
+            <td class="py-3 px-3 text-center">
+              <a href="{{ url_for('contractor_dashboard', project_id=p.id) }}" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 font-bold px-2 py-1 rounded">
+                Portal &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="text-center py-8 text-slate-400 font-sans">
+              No development projects found matching the selected Mine, Sub-Mine Pit, or Sector criteria.
             </td>
           </tr>
           {% endfor %}
@@ -126,24 +243,75 @@
     </div>
   </div>
 
-  <!-- The Legal & Administrative Explanation Card -->
-  <div class="p-5 bg-white border border-slate-200 rounded-lg shadow-xs space-y-3">
-    <h4 class="font-bold text-slate-900 text-sm flex items-center gap-2">
-      <span>⚖️ Administrative Operating Mechanism: How Treasury Enforces Deductions</span>
-    </h4>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600 leading-relaxed">
-      <div class="p-3 bg-slate-50 rounded border border-slate-200 space-y-1">
-        <strong class="text-slate-800 block text-xs">1. Concrete Dimensions from e-MB:</strong>
-        Junior Engineer enters physical dimensions (e.g. 4,500 m³). No contractor can tamper with this figure because it determines their overall road payment.
+  <!-- Special Statutory Guide: How We Track Sand Mafia Deliveries to Private Builders & Other Sectors -->
+  <div class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-lg p-6 shadow-md space-y-4 border border-indigo-800">
+    <div class="border-b border-indigo-800/80 pb-3 flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🛡️</span>
+        <div>
+          <h3 class="font-bold text-base text-indigo-100">Statutory Enforcement: How SmartMineGuard Tracks Sand Mafia Deliveries to Private Real Estate Builders</h3>
+          <p class="text-xs text-slate-300">Complete multi-sector closure preventing unbilled cash mineral consumption outside highways</p>
+        </div>
       </div>
-      <div class="p-3 bg-slate-50 rounded border border-slate-200 space-y-1">
-        <strong class="text-slate-800 block text-xs">2. Automatic Sand Formula:</strong>
-        By Indian Road Congress (IRC:15) mix-design formulas, 4,500 m³ strictly requires 2,025 MT of sand. The software computes this requirement automatically.
+      <span class="text-xs font-mono font-bold bg-indigo-900 border border-indigo-700 text-indigo-200 px-2.5 py-1 rounded">
+        MMDR Act Section 21(4) &amp; RERA Haryana / Rajasthan
+      </span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs leading-relaxed text-slate-200">
+      
+      <!-- 1. DTCP / RERA OC-Lock -->
+      <div class="p-3.5 bg-indigo-900/40 rounded border border-indigo-700/60 space-y-2">
+        <div class="flex items-center gap-1.5 font-bold text-amber-300 text-xs">
+          <span>🏢 1. DTCP / RERA OC-Lock</span>
+        </div>
+        <p>
+          Private builders submit approved structural drawings to Town &amp; Country Planning (DTCP). The system calculates exact structural concrete &amp; sand volume (e.g. DLF CyberCity: 9,800 MT).
+        </p>
+        <div class="text-[11px] text-amber-200 bg-amber-950/60 p-2 rounded border border-amber-800/60">
+          <strong>The Enforcement:</strong> Municipal Authorities will <strong>refuse to grant the Occupancy Certificate (OC)</strong> or electricity/water connection until full mineral royalty NOC is validated.
+        </div>
       </div>
-      <div class="p-3 bg-slate-50 rounded border border-slate-200 space-y-1">
-        <strong class="text-slate-800 block text-xs">3. Automatic Cheque Deduction:</strong>
-        If the contractor only shows passes for 1,600 MT, the system detects a 425 MT deficit and cuts ₹2,55,000 directly from their Running Account bill cheque before bank release.
+
+      <!-- 2. RMC Batching Hub Audit -->
+      <div class="p-3.5 bg-indigo-900/40 rounded border border-indigo-700/60 space-y-2">
+        <div class="flex items-center gap-1.5 font-bold text-emerald-300 text-xs">
+          <span>🏭 2. RMC Mass-Balance</span>
+        </div>
+        <p>
+          90% of urban real estate uses Ready-Mix Concrete (RMC). SmartMineGuard reconciles RMC plant inward raw aggregate/sand against outward transit mixer dispatch tax invoices.
+        </p>
+        <div class="text-[11px] text-emerald-200 bg-emerald-950/60 p-2 rounded border border-emerald-800/60">
+          <strong>The Enforcement:</strong> If an RMC plant delivers 10,000 m³ of concrete but only received 4,000 MT of legal e-Rawaana sand, the discrepancy triggers immediate factory sealing.
+        </div>
       </div>
+
+      <!-- 3. Highway e-MB Reconciliation -->
+      <div class="p-3.5 bg-indigo-900/40 rounded border border-indigo-700/60 space-y-2">
+        <div class="flex items-center gap-1.5 font-bold text-blue-300 text-xs">
+          <span>🛣️ 3. Public Works e-MB</span>
+        </div>
+        <p>
+          Junior Engineers record physical paved dimensions in the Electronic Measurement Book (e-MB). The system computes exact IRC:15 mix design requirements.
+        </p>
+        <div class="text-[11px] text-blue-200 bg-blue-950/60 p-2 rounded border border-blue-800/60">
+          <strong>The Enforcement:</strong> Unbilled mafia sand produces an immediate shortfall; treasury automatically deducts royalty + 5x penalty straight from contractor RA cheques.
+        </div>
+      </div>
+
+      <!-- 4. Smart Checkpoints & AIS-140 GPS -->
+      <div class="p-3.5 bg-indigo-900/40 rounded border border-indigo-700/60 space-y-2">
+        <div class="flex items-center gap-1.5 font-bold text-teal-300 text-xs">
+          <span>🚨 4. Transit Gate Intercept</span>
+        </div>
+        <p>
+          Every tipper entering an urban municipal boundary must cross automated highway ANPR cameras and dynamic weighbridges.
+        </p>
+        <div class="text-[11px] text-teal-200 bg-teal-950/60 p-2 rounded border border-teal-800/60">
+          <strong>The Enforcement:</strong> Any vehicle carrying sand without an active QR e-Rawaana matched to an authorized builder or project is impounded on the spot under MMDR Sec 21(4).
+        </div>
+      </div>
+
     </div>
   </div>
 
