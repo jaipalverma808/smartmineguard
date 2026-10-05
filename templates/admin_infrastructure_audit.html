@@ -86,8 +86,8 @@
         </thead>
         <tbody class="divide-y divide-slate-100 font-mono">
           {% for p in projects %}
-          {% set deficit = (p.sand_required_mt - p.sand_received_mt) %}
-          {% set penalty = (deficit * p.penalty_rate_per_mt) if deficit > 0 else 0 %}
+          {% set deficit = ((p.sand_required_mt or 0) - (p.sand_received_mt or 0)) %}
+          {% set penalty = (deficit * (p.penalty_rate_per_mt or 600)) if deficit > 0 else 0 %}
           <tr class="hover:bg-slate-50 transition">
             <td class="py-3 px-3">
               <div class="font-bold text-slate-900 text-xs">{{ p.project_name }}</div>
@@ -98,13 +98,13 @@
               <div class="text-[10px] text-slate-500">{{ p.executing_agency }}</div>
             </td>
             <td class="py-3 px-3 text-right font-bold text-slate-800">
-              {{ "{:,.1f}".format(p.concrete_volume_m3) }} m³
+              {{ "{:,.1f}".format(p.concrete_volume_m3 or 0) }} m³
             </td>
             <td class="py-3 px-3 text-right text-slate-600">
-              {{ "{:,.1f}".format(p.sand_required_mt) }} MT
+              {{ "{:,.1f}".format(p.sand_required_mt or 0) }} MT
             </td>
             <td class="py-3 px-3 text-right font-bold text-emerald-800">
-              {{ "{:,.1f}".format(p.sand_received_mt) }} MT
+              {{ "{:,.1f}".format(p.sand_received_mt or 0) }} MT
             </td>
             <td class="py-3 px-3 text-right font-extrabold {% if deficit > 0 %}text-red-700 bg-red-50/50{% else %}text-slate-500{% endif %}">
               {% if deficit > 0 %}+{{ "{:,.1f}".format(deficit) }} MT{% else %}0.0 MT{% endif %}

@@ -314,6 +314,32 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 18. INFRASTRUCTURE & HIGHWAY e-MB PROJECTS RECONCILIATION
+CREATE TABLE IF NOT EXISTS infrastructure_projects (
+    id SERIAL PRIMARY KEY,
+    project_code VARCHAR(100) UNIQUE NOT NULL,
+    project_name VARCHAR(255) NOT NULL,
+    contractor_name VARCHAR(200) NOT NULL,
+    executing_agency VARCHAR(200) NOT NULL,
+    chainage_section VARCHAR(100),
+    road_length_km DOUBLE PRECISION DEFAULT 15.0,
+    concrete_volume_m3 DOUBLE PRECISION DEFAULT 4500.0,
+    sand_required_mt DOUBLE PRECISION DEFAULT 2025.0,
+    sand_received_mt DOUBLE PRECISION DEFAULT 1600.0,
+    aggregate_required_mt DOUBLE PRECISION DEFAULT 3800.0,
+    aggregate_received_mt DOUBLE PRECISION DEFAULT 3800.0,
+    penalty_rate_per_mt DOUBLE PRECISION DEFAULT 600.0,
+    status VARCHAR(50) DEFAULT 'DEFICIT_FLAGGED',
+    work_order_no VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- PERMITS e-MB INFRASTRUCTURE EXTENSION COLUMNS
+ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
+ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INT DEFAULT 0;
+ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
+ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
+
 -- SPATIAL & PERFORMANCE INDEXES
 CREATE INDEX IF NOT EXISTS idx_mines_geom ON mines USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_trucks_geom ON trucks USING GIST (geom);
@@ -323,4 +349,5 @@ CREATE INDEX IF NOT EXISTS idx_permits_qr ON permits(qr_code_hash);
 CREATE INDEX IF NOT EXISTS idx_trucks_reg ON trucks(registration_number);
 CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
 CREATE INDEX IF NOT EXISTS idx_investigations_case ON investigations(case_id);
+CREATE INDEX IF NOT EXISTS idx_infra_proj_code ON infrastructure_projects(project_code);
 

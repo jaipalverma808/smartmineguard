@@ -69,7 +69,12 @@ class DatabaseManager:
         self._pg_pool = None  # Connection pool for PostgreSQL
         self._query_cache = {}
         self._test_postgres()
-        if not self.use_postgres:
+        if self.use_postgres:
+            try:
+                self.init_db()
+            except Exception as e:
+                logger.error(f"PostgreSQL init error on startup: {e}")
+        else:
             self.init_sqlite(force=False)
             try:
                 self.run_auto_migrations()
@@ -577,6 +582,30 @@ class DatabaseManager:
                             ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS previous_state TEXT;
                             ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_state TEXT;
                             ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason TEXT;
+
+                            -- INFRASTRUCTURE PROJECTS (e-MB HIGHWAY RECONCILIATION)
+                            CREATE TABLE IF NOT EXISTS infrastructure_projects (
+                                id SERIAL PRIMARY KEY,
+                                project_code VARCHAR(100) UNIQUE NOT NULL,
+                                project_name VARCHAR(255) NOT NULL,
+                                contractor_name VARCHAR(200) NOT NULL,
+                                executing_agency VARCHAR(200) NOT NULL,
+                                chainage_section VARCHAR(100),
+                                road_length_km DOUBLE PRECISION DEFAULT 15.0,
+                                concrete_volume_m3 DOUBLE PRECISION DEFAULT 4500.0,
+                                sand_required_mt DOUBLE PRECISION DEFAULT 2025.0,
+                                sand_received_mt DOUBLE PRECISION DEFAULT 1600.0,
+                                aggregate_required_mt DOUBLE PRECISION DEFAULT 3800.0,
+                                aggregate_received_mt DOUBLE PRECISION DEFAULT 3800.0,
+                                penalty_rate_per_mt DOUBLE PRECISION DEFAULT 600.0,
+                                status VARCHAR(50) DEFAULT 'DEFICIT_FLAGGED',
+                                work_order_no VARCHAR(100),
+                                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS project_work_order VARCHAR(100) DEFAULT 'NHAI-PKG-04';
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS is_billed_in_emb INTEGER DEFAULT 0;
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS billed_under_emb_id VARCHAR(100);
+                            ALTER TABLE permits ADD COLUMN IF NOT EXISTS received_at_site TIMESTAMP;
                         """)
                         conn.commit()
                         logger.info("PostgreSQL schema migrations applied successfully.")
@@ -588,7 +617,29 @@ class DatabaseManager:
                         logger.warning(f"PostgreSQL schema migrations non-fatal: {_m_err}")
 
                     try:
-                        seq_tables = ['alerts', 'trips', 'trucks', 'permits', 'mines', 'weighments', 'checkpoints', 'users', 'audit_logs', 'stock_production', 'quarry_blocks', 'gps_tamper_events']
+                        cur.execute("SELECT count(*) FROM infrastructure_projects")
+                        infra_count = cur.fetchone()[0]
+                        if infra_count == 0:
+                            cur.execute("""
+                                INSERT INTO infrastructure_projects 
+                                (id, project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no)
+                                VALUES 
+                                (1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/NHAI/RO-HAR/2026/089'),
+                                (2, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'WO/PWD-HAR/B&R/2026/142'),
+                                (3, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Division', 'Ministry of Road Transport & Highways (MoRTH)', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/MORTH/NH-19/EXP/2025/310')
+                                ON CONFLICT (id) DO NOTHING;
+                            """)
+                            conn.commit()
+                            logger.info("PostgreSQL infrastructure_projects seeded successfully.")
+                    except Exception as _seed_infra_err:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        logger.warning(f"PostgreSQL infrastructure_projects seeding non-fatal: {_seed_infra_err}")
+
+                    try:
+                        seq_tables = ['alerts', 'trips', 'trucks', 'permits', 'mines', 'weighments', 'checkpoints', 'users', 'audit_logs', 'stock_production', 'quarry_blocks', 'gps_tamper_events', 'infrastructure_projects']
                         for tbl in seq_tables:
                             cur.execute(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1));")
                         conn.commit()
@@ -1402,6 +1453,25 @@ class DatabaseManager:
             dispatch_mt REAL NOT NULL DEFAULT 0.0,
             closing_stock_mt REAL NOT NULL,
             notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS infrastructure_projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_code TEXT UNIQUE,
+            project_name TEXT NOT NULL,
+            contractor_name TEXT NOT NULL,
+            executing_agency TEXT NOT NULL,
+            chainage_section TEXT,
+            road_length_km REAL DEFAULT 15.0,
+            concrete_volume_m3 REAL DEFAULT 4500.0,
+            sand_required_mt REAL DEFAULT 2025.0,
+            sand_received_mt REAL DEFAULT 1600.0,
+            aggregate_required_mt REAL DEFAULT 3800.0,
+            aggregate_received_mt REAL DEFAULT 3800.0,
+            penalty_rate_per_mt REAL DEFAULT 600.0,
+            status TEXT DEFAULT 'DEFICIT_FLAGGED',
+            work_order_no TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
         """)

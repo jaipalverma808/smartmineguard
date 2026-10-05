@@ -119,3 +119,11 @@ INSERT INTO stock_production (id, mine_id, mineral, record_date, opening_stock_m
 (4, 4, 'Copper Tailings / Quartz', CURRENT_DATE, 5400.0, 800.0, 720.0, 5480.0, 'Crushed overburden dispatch.')
 ON CONFLICT (id) DO NOTHING;
 
+-- 15. INFRASTRUCTURE PROJECTS (e-MB HIGHWAY RECONCILIATION)
+INSERT INTO infrastructure_projects (id, project_code, project_name, contractor_name, executing_agency, chainage_section, road_length_km, concrete_volume_m3, sand_required_mt, sand_received_mt, aggregate_required_mt, aggregate_received_mt, penalty_rate_per_mt, status, work_order_no) VALUES
+(1, 'NHAI-PKG-04', 'NH-48 Rewari-Bawal 4-Lane Highway Expansion (Pkg 4)', 'Sharma Infrastructure Ltd', 'National Highways Authority of India (NHAI)', 'Km 82+400 to Km 97+400', 15.0, 4500.0, 2025.0, 1600.0, 3800.0, 3800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/NHAI/RO-HAR/2026/089'),
+(2, 'PWD-HW-2026', 'Gurugram-Sohna Express Feeder Highway Bypass', 'Apex Roadways & Infrastructure Ltd', 'Haryana State PWD (B&R) Division', 'Ch 0+000 to Ch 12+800', 12.8, 3200.0, 1440.0, 1440.0, 2700.0, 2700.0, 600.0, 'COMPLIANT', 'WO/PWD-HAR/B&R/2026/142'),
+(3, 'DMRC-EXT-02', 'Faridabad-Palwal High-Speed Transit Viaduct Corridor', 'L&T Construction Heavy Civil Division', 'Ministry of Road Transport & Highways (MoRTH)', 'Pier P-102 to Pier P-320', 8.5, 8000.0, 3600.0, 3450.0, 6800.0, 6800.0, 600.0, 'DEFICIT_FLAGGED', 'WO/MORTH/NH-19/EXP/2025/310')
+ON CONFLICT (id) DO NOTHING;
+
+
