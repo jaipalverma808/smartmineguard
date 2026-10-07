@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Multi-Sector Infrastructure & Mineral Audit (e-MB & DTCP/RERA) - SmartMineGuard{% endblock %}
+{% block title %}Multi-Sector Construction Mineral Reconciliation & Anti-Mafia Audit — SmartMineGuard{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -10,46 +10,60 @@
     <div class="space-y-1">
       <div class="flex items-center gap-2">
         <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">Directorate of Mines &amp; Geology &bull; Statutory Anti-Fraud &amp; Treasury Division</span>
+        <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">
+          Directorate of Mines &amp; Geology &bull; Statutory Anti-Fraud &amp; Treasury Division
+        </span>
+        {% if is_officer_locked %}
+        <span class="text-[10px] bg-indigo-900/90 border border-indigo-400 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
+          🔒 JURISDICTION LOCKED: MINE #{{ selected_mine_id }}
+        </span>
+        {% endif %}
       </div>
       <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-        <span>🏗️ Multi-Sector Infrastructure &amp; Construction Mineral Audit</span>
+        <span>🏗️ Consumer &amp; Project Mineral Audit (Anti-Mafia Verification)</span>
       </h1>
       <p class="text-xs text-slate-300 max-w-3xl leading-relaxed">
-        Statewide statutory mineral reconciliation engine linking <strong>Public Works e-MB</strong>, <strong>Municipal DTCP/RERA Building Sanctions (OC Lock)</strong>, <strong>RMC Batching Plants</strong>, and <strong>e-Rawaana Transit Passes</strong> under MMDR Act Section 21.
+        Cross-checks civil engineering mineral demand against verified digital e-Rawaana transit passes. Projects claiming material without verified passes are caught with <strong>unaccounted black-market sand</strong> and face <strong>e-MB payment locks</strong> or <strong>RERA Occupancy Certificate freezes</strong>.
       </p>
     </div>
 
-    <!-- Summary Stats Badge & Links -->
+    <!-- Summary Stats Badge & Actions -->
     <div class="flex items-center gap-3 flex-wrap">
       <div class="text-right">
-        <div class="text-[10px] text-slate-400 uppercase font-mono font-bold">Total Statutory Penalties / Escrow Withheld</div>
+        <div class="text-[10px] text-slate-400 uppercase font-mono font-bold">Total Penalties / Escrow Withheld</div>
         <div class="text-xl font-black text-amber-400">₹{{ "{:,.0f}".format(total_penalties_withheld) }}</div>
       </div>
       <a href="{{ url_for('admin_supply_chain') }}" class="btn-gov bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs py-2 px-3 rounded shadow flex items-center gap-1">
         <span>🔗 Statewide Supply Chain &rarr;</span>
       </a>
       <a href="{{ url_for('contractor_dashboard') }}" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3 rounded shadow">
-        Open Contractor Portal
+        Open Depot Portal
       </a>
     </div>
   </div>
 
-  <!-- Interactive Mine, Sub-Mine Pit & Sector Filter Bar -->
+  <!-- Interactive Concession Mine, Sub-Mine Pit & Sector Filter Bar -->
   <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
     <form method="GET" action="{{ url_for('admin_infrastructure_audit') }}" class="flex flex-wrap items-center gap-3">
       
       <!-- Concession Mine Filter -->
       <div class="flex-1 min-w-[200px]">
         <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Concession Mine</label>
-        <select name="mine_id" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
-          <option value="">-- All Concession Mines (Statewide) --</option>
-          {% for m in mines %}
-          <option value="{{ m.id }}" {% if selected_mine_id == m.id %}selected{% endif %}>
-            {{ m.name }} ({{ m.district or 'Concession' }})
-          </option>
-          {% endfor %}
-        </select>
+        {% if is_officer_locked %}
+          <div class="bg-indigo-50 border border-indigo-300 rounded p-2 text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+            <span>🔒 Locked to Your Mine:</span>
+            <span>{% for m in mines if m.id == selected_mine_id %}{{ m.name }} ({{ m.district }}){% endfor %}</span>
+          </div>
+        {% else %}
+          <select name="mine_id" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
+            <option value="">-- All Concession Mines (Statewide) --</option>
+            {% for m in mines %}
+            <option value="{{ m.id }}" {% if selected_mine_id == m.id %}selected{% endif %}>
+              {{ m.name }} ({{ m.district or 'Concession' }})
+            </option>
+            {% endfor %}
+          </select>
+        {% endif %}
       </div>
 
       <!-- Concession Sub-Mine Pit Filter -->
@@ -65,13 +79,13 @@
         </select>
       </div>
 
-      <!-- Sector Quick Filter Dropdown -->
+      <!-- Development Sector Dropdown -->
       <div class="flex-1 min-w-[200px]">
         <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Development Sector</label>
         <select name="category" onchange="this.form.submit()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
           <option value="">-- All Sectors (Highways, Builders, RMC, Metro) --</option>
           <option value="HIGHWAY_INFRA" {% if selected_category == 'HIGHWAY_INFRA' %}selected{% endif %}>🛣️ Highway Infrastructure (NHAI/PWD)</option>
-          <option value="REAL_ESTATE_BUILDER" {% if selected_category == 'REAL_ESTATE_BUILDER' %}selected{% endif %}>🏢 Private Real Estate Builders (DTCP/RERA)</option>
+          <option value="REAL_ESTATE_BUILDER" {% if selected_category == 'REAL_ESTATE_BUILDER' %}selected{% endif %}>🏢 Private Real Estate Builders (RERA OC Lock)</option>
           <option value="RMC_BATCHING_PLANT" {% if selected_category == 'RMC_BATCHING_PLANT' %}selected{% endif %}>🏭 Ready-Mix Concrete (RMC) Hubs</option>
           <option value="METRO_INDUSTRIAL" {% if selected_category == 'METRO_INDUSTRIAL' %}selected{% endif %}>🚇 Metro &amp; Industrial Corridors</option>
         </select>
@@ -110,79 +124,81 @@
     </div>
   </div>
 
-  <!-- Macro KPI Cards -->
+  <!-- Macro KPI Summary Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Filtered Development Projects</div>
-      <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ projects|length }} Projects</div>
-      <div class="text-[10px] text-slate-500 mt-0.5">Highways, Private Real Estate &amp; RMC</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Filtered Construction Sites</div>
+      <div class="text-2xl font-black text-slate-900 mt-1">{{ projects|length }} Projects</div>
+      <div class="text-[10px] text-slate-500 mt-0.5">Highways, Real Estate &amp; RMC</div>
     </div>
 
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Concrete Laid / Volume</div>
-      <div class="text-2xl font-extrabold text-indigo-950 mt-1">{{ "{:,.1f}".format(total_concrete_volume) }} m³</div>
-      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Physical Structural Dimension Verified</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Concrete Poured</div>
+      <div class="text-2xl font-black text-indigo-950 mt-1">{{ "{:,.1f}".format(total_concrete_volume) }} m³</div>
+      <div class="text-[10px] text-indigo-600 font-semibold mt-0.5">Physical Structural Dimension</div>
     </div>
 
     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Theoretical Mineral Required</div>
-      <div class="text-2xl font-extrabold text-slate-900 mt-1">{{ "{:,.1f}".format(total_sand_required) }} MT</div>
-      <div class="text-[10px] text-slate-500 mt-0.5">Standard Civil Mix Formula Calculated</div>
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Theoretical Sand Required</div>
+      <div class="text-2xl font-black text-slate-900 mt-1">{{ "{:,.1f}".format(total_sand_required) }} MT</div>
+      <div class="text-[10px] text-slate-500 mt-0.5">Civil Engineering Mix Design</div>
     </div>
 
     <div class="p-4 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs">
-      <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Verified Legal Mineral Received</div>
-      <div class="text-2xl font-extrabold text-emerald-950 mt-1">{{ "{:,.1f}".format(total_sand_received) }} MT</div>
+      <div class="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Legally Verified Sand Received</div>
+      <div class="text-2xl font-black text-emerald-950 mt-1">{{ "{:,.1f}".format(total_sand_received) }} MT</div>
       <div class="text-[10px] text-emerald-700 font-semibold mt-0.5">
-        {{ "%.1f"|format((total_sand_received / total_sand_required * 100) if total_sand_required > 0 else 100) }}% Legal Compliance Rate
+        {{ "%.1f"|format((total_sand_received / total_sand_required * 100) if total_sand_required > 0 else 100) }}% Backed by e-Rawaana Passes
       </div>
     </div>
   </div>
 
-  <!-- CONTRACTOR CUSTODY STOCK OVERVIEW (MIDDLE-TIER) -->
+  <!-- MIDDLEMAN CUSTODIAN STOCK OVERVIEW -->
   {% if contractor_recons %}
   <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
     <div class="flex justify-between items-center mb-3">
       <div>
-        <h3 class="font-bold text-slate-900 text-sm">Contractor Custody Stock &amp; Supply-Chain Middle Layer</h3>
-        <p class="text-[11px] text-slate-500">Legal Source &rarr; Contractor Stock Custody &rarr; Downstream Consumer Project</p>
+        <h3 class="font-bold text-slate-900 text-sm">Middleman Stock Ledgers (Supplying Custodians)</h3>
+        <p class="text-[11px] text-slate-500">Legal Source &rarr; Middleman Custody Stock &rarr; Downstream Construction Projects</p>
       </div>
       <a href="{{ url_for('admin_supply_chain') }}" class="text-xs text-indigo-700 hover:text-indigo-900 font-bold">
-        Detailed Supply Chain Ledger &rarr;
+        Statewide Supply Chain Ledger &rarr;
       </a>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
       {% for cr in contractor_recons %}
       <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
         <div class="flex justify-between items-start">
           <div>
             <div class="font-bold text-slate-900">{{ cr.contractor.contractor_name }}</div>
-            <div class="text-[10px] text-slate-500 font-mono">{{ cr.contractor.contractor_code }} &bull; GSTN: {{ cr.contractor.gstn }}</div>
+            <div class="text-[10px] text-slate-500 font-mono">{{ cr.contractor.contractor_code }} &bull; GSTN: {{ cr.contractor.gstn or 'N/A' }}</div>
           </div>
           {% if cr.unreconciled_mt > 0 %}
-          <span class="badge badge-medium text-amber-900 bg-amber-100 text-[10px]">EXCEPTION REVIEW</span>
+          <span class="badge bg-red-100 text-red-900 border border-red-300 text-[10px] font-bold">🚨 MAFIA SURPLUS</span>
           {% else %}
-          <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">STOCK RECONCILED</span>
+          <span class="badge bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-bold">✅ 100% LEGAL</span>
           {% endif %}
         </div>
 
-        <div class="grid grid-cols-4 gap-2 text-center pt-1 border-t border-slate-200 font-mono text-[11px]">
+        <div class="grid grid-cols-4 gap-1.5 text-center pt-1 border-t border-slate-200 font-mono text-[11px]">
           <div>
             <span class="text-[9px] text-slate-500 block uppercase font-sans">Opening</span>
-            <span class="font-bold text-slate-800">{{ "{:,.0f}".format(cr.opening_stock_mt) }} MT</span>
+            <span class="font-bold text-slate-800">{{ "{:,.0f}".format(cr.opening_stock_mt) }}</span>
           </div>
           <div>
-            <span class="text-[9px] text-slate-500 block uppercase font-sans">Legal Receipts</span>
-            <span class="font-bold text-indigo-900">+{{ "{:,.0f}".format(cr.total_receipts_mt) }} MT</span>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">+ Purchases</span>
+            <span class="font-bold text-indigo-900">+{{ "{:,.0f}".format(cr.total_receipts_mt) }}</span>
           </div>
           <div>
-            <span class="text-[9px] text-slate-500 block uppercase font-sans">Dispatches</span>
-            <span class="font-bold text-amber-900">&minus;{{ "{:,.0f}".format(cr.total_dispatches_mt) }} MT</span>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">&minus; Dispatched</span>
+            <span class="font-bold text-amber-900">&minus;{{ "{:,.0f}".format(cr.total_dispatches_mt) }}</span>
           </div>
           <div>
-            <span class="text-[9px] text-slate-500 block uppercase font-sans">Closing Stock</span>
-            <span class="font-black text-emerald-900">{{ "{:,.0f}".format(cr.expected_closing_stock_mt) }} MT</span>
+            <span class="text-[9px] text-slate-500 block uppercase font-sans">Remaining</span>
+            <span class="font-black {% if cr.unreconciled_mt > 0 %}text-red-700{% else %}text-emerald-900{% endif %}">
+              {{ "{:,.0f}".format(cr.expected_closing_stock_mt) }}
+            </span>
           </div>
         </div>
       </div>
@@ -191,19 +207,19 @@
   </div>
   {% endif %}
 
-  <!-- Master Multi-Sector Reconciliation Table (Downstream Consumer / Project Audit Layer) -->
+  <!-- MASTER PROJECT RECONCILIATION TABLE (ANTI-MAFIA DEFICIT AUDIT) -->
   <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
     <div class="p-4 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
       <div>
-        <h3 class="font-bold text-slate-900 text-sm">Downstream Consumer &amp; Project Mineral Audit Ledger</h3>
-        <p class="text-[11px] text-slate-500">Cross-checks downstream physical structural volumes against verified contractor deliveries and e-Rawaana passes</p>
+        <h3 class="font-bold text-slate-900 text-sm">Downstream Construction Sites &amp; Mineral Verification Ledger</h3>
+        <p class="text-[11px] text-slate-500">Cross-verifies structural sand requirement against legally received deliveries from registered middlemen</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[11px] bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded font-bold font-mono flex items-center gap-1">
-          <span>⚖️</span> CPWD / IRC:15 Rule: 5% Natural Variance Buffer Active
+        <span class="text-[11px] bg-emerald-50 text-emerald-900 border border-emerald-300 px-2.5 py-1 rounded font-bold font-mono">
+          ⚖️ CPWD / IRC:15 Standard: 5% Natural Variance Buffer Active
         </span>
         <span class="text-xs bg-indigo-50 text-indigo-800 border border-indigo-200 px-2.5 py-1 rounded font-bold font-mono">
-          Statutory Lock: MMDR Sec 21 &bull; DTCP OC Lock &bull; e-MB Clause
+          Statutory Lock: MMDR Sec 21 &bull; DTCP OC Lock &bull; e-MB Freeze
         </span>
       </div>
     </div>
@@ -213,14 +229,14 @@
         <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
           <tr>
             <th class="py-3 px-3">Project &amp; Sector</th>
-            <th class="py-3 px-3">Supplying Contractor &amp; Client</th>
+            <th class="py-3 px-3">Supplying Middleman &amp; Client</th>
             <th class="py-3 px-3">Concession Source</th>
-            <th class="py-3 px-3">Primary Mineral</th>
-            <th class="py-3 px-3 text-right">Target Required</th>
+            <th class="py-3 px-3">Mineral</th>
+            <th class="py-3 px-3 text-right">Structural Required</th>
             <th class="py-3 px-3 text-right">Verified Received</th>
-            <th class="py-3 px-3 text-right">Deficit (Mafia Gap)</th>
-            <th class="py-3 px-3 text-right">Penalty / OC Lock</th>
-            <th class="py-3 px-3 text-center">Status</th>
+            <th class="py-3 px-3 text-right">Deficit (Mafia Sand)</th>
+            <th class="py-3 px-3 text-right">Penalty / Statutory Action</th>
+            <th class="py-3 px-3 text-center">Audit Status</th>
             <th class="py-3 px-3 text-center">Actions</th>
           </tr>
         </thead>
@@ -243,14 +259,14 @@
                 <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-900 border border-purple-200">🏢 Real Estate Builder</span>
                 {% elif p.project_category == 'RMC_BATCHING_PLANT' %}
                 <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">🏭 RMC Concrete Hub</span>
-                {% elif p.project_category == 'METRO_INDUSTRIAL' %}
+                {% else %}
                 <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-100 text-teal-900 border border-teal-200">🚇 Metro / Industrial</span>
                 {% endif %}
               </div>
             </td>
             <td class="py-3 px-3">
-              <div class="font-bold text-indigo-950">Contractor: {{ p.supplying_contractor_name or 'Sharma Infrastructure Ltd' }}</div>
-              <div class="text-[10px] text-slate-600 font-sans">Consumer: <strong class="text-slate-800">{{ p.contractor_name }}</strong> &bull; {{ p.executing_agency }}</div>
+              <div class="font-bold text-indigo-950">{{ p.supplying_contractor_name or 'Sharma Infrastructure Ltd' }}</div>
+              <div class="text-[10px] text-slate-600 font-sans">Client: <strong class="text-slate-800">{{ p.contractor_name }}</strong> &bull; {{ p.executing_agency }}</div>
             </td>
             <td class="py-3 px-3">
               <div class="text-xs font-semibold text-slate-800">{{ p.mine_name or ('Mine #' ~ p.mine_id) }}</div>
@@ -266,7 +282,7 @@
             </td>
             <td class="py-3 px-3">
               <span class="font-semibold text-slate-800 text-xs">{{ p.primary_mineral or 'Mineral / Sand' }}</span>
-              <div class="text-[10px] text-slate-400">{{ p.regulatory_framework or 'MMDR Verification' }}</div>
+              <div class="text-[10px] text-slate-400">MMDR Verification</div>
             </td>
             <td class="py-3 px-3 text-right text-slate-600 font-bold">
               {{ "{:,.1f}".format(req_mt) }} MT
@@ -277,7 +293,7 @@
             <td class="py-3 px-3 text-right font-extrabold {% if raw_deficit > tol_mt %}text-red-700 bg-red-50/50{% elif raw_deficit > 0 %}text-emerald-700 bg-emerald-50/40{% else %}text-slate-500{% endif %}">
               {% if raw_deficit > tol_mt %}
               +{{ "{:,.1f}".format(actionable_deficit) }} MT
-              <span class="text-[9px] text-red-600 block font-normal">(Beyond 5% Tol)</span>
+              <span class="text-[9px] text-red-600 block font-normal">(Black-Market Sand)</span>
               {% elif raw_deficit > 0 %}
               {{ "{:,.1f}".format(raw_deficit) }} MT
               <span class="text-[9px] text-emerald-600 block font-normal">(Within 5% Tol)</span>
@@ -286,25 +302,38 @@
               {% endif %}
             </td>
             <td class="py-3 px-3 text-right font-black {% if penalty > 0 %}text-amber-800 bg-amber-50/50{% else %}text-emerald-700{% endif %}">
-              {% if penalty > 0 %}₹{{ "{:,.0f}".format(penalty) }}{% else %}₹0 (CLEAR){% endif %}
-            </td>
-            <td class="py-3 px-3 text-center">
-              {% if raw_deficit <= tol_mt %}
-              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]" title="Within 5% CPWD/IRC statutory shrinkage tolerance">COMPLIANT (≤5% TOL)</span>
+              {% if penalty > 0 %}
+                <div>₹{{ "{:,.0f}".format(penalty) }}</div>
+                <div class="text-[9px] text-red-600 font-sans font-bold">
+                  {% if p.project_category == 'HIGHWAY_INFRA' %}
+                    ⛔ e-MB Payment Held
+                  {% elif p.project_category == 'REAL_ESTATE_BUILDER' %}
+                    ⛔ RERA OC Locked
+                  {% else %}
+                    ⛔ Escrow Freeze
+                  {% endif %}
+                </div>
               {% else %}
-              <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">DEFICIT LOCKED</span>
+                ₹0 (CLEAR)
               {% endif %}
             </td>
             <td class="py-3 px-3 text-center">
-              <a href="{{ url_for('contractor_dashboard', project_id=p.id) }}" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 font-bold px-2 py-1 rounded">
-                Portal &rarr;
+              {% if raw_deficit <= tol_mt %}
+              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">✅ COMPLIANT</span>
+              {% else %}
+              <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">⛔ DEFICIT LOCKED</span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-3 text-center">
+              <a href="{{ url_for('contractor_dashboard', project_id=p.id) }}" class="text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 font-bold px-2 py-1 rounded inline-block">
+                Inspect &rarr;
               </a>
             </td>
           </tr>
           {% else %}
           <tr>
             <td colspan="10" class="text-center py-8 text-slate-400 font-sans">
-              No development projects found matching the selected Mine, Sub-Mine Pit, or Sector criteria.
+              No construction projects found matching the selected Mine or Sector criteria.
             </td>
           </tr>
           {% endfor %}

@@ -3217,51 +3217,150 @@ def contractor_download_noc(project_id):
     return redirect(url_for("contractor_dashboard"))
 
 
+@app.route("/api/operator/register-contractor", methods=["POST"])
+@login_required(roles=["OPERATOR", "ADMIN", "OFFICER"])
+def api_operator_register_contractor():
+    """
+    Operator Registration Endpoint:
+    Allows Weighbridge Operator (or Officer/Admin) to register a new Middleman / Stock Custodian (Contractor)
+    who buys or lifts minerals from the concession.
+    """
+    data = request.get_json(silent=True) or {}
+    contractor_name = (data.get("contractor_name") or "").strip()
+    contact_person = (data.get("contact_person") or "").strip()
+    contact_phone = (data.get("contact_phone") or "").strip()
+    pan_no = (data.get("pan_no") or "").strip().upper()
+    gstn = (data.get("gstn") or "").strip().upper()
+    email = (data.get("email") or "").strip().lower()
+    opening_stock_mt = float(data.get("opening_stock_mt") or 0.0)
+
+    if not contractor_name:
+        return jsonify({"success": False, "error": "Middleman / Business Name is required."}), 400
+
+    cnt_row = db.query("SELECT COUNT(*) as c FROM contractors", one=True)
+    cnt = cnt_row["c"] if cnt_row else 0
+    contractor_code = f"CONT-{cnt + 1:03d}"
+
+    res_id = db.execute("""
+        INSERT INTO contractors (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+    """, (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt))
+
+    new_id = res_id if (res_id and isinstance(res_id, int)) else (cnt + 1)
+    
+    # Also create a login account for this contractor
+    username = f"contractor_{cnt + 1}"
+    existing_user = db.query("SELECT id FROM users WHERE username = ?", (username,), one=True)
+    if not existing_user:
+        from werkzeug.security import generate_password_hash
+        pwd_hash = generate_password_hash("contractor123")
+        db.execute("""
+            INSERT INTO users (username, password_hash, full_name, role, department, badge_number, email, phone, assigned_contractor_id)
+            VALUES (?, ?, ?, 'CONTRACTOR', 'Mineral Stock Custodian', ?, ?, ?, ?)
+        """, (username, pwd_hash, contractor_name, contractor_code, email or f"{username}@mining.gov.in", contact_phone, new_id))
+
+    log_audit("CONTRACTOR_REGISTERED", f"New mineral middleman '{contractor_name}' ({contractor_code}) registered by {session.get('user_role')} {session.get('username')}.", entity="CONTRACTOR")
+
+    return jsonify({
+        "success": True,
+        "contractor_id": new_id,
+        "contractor_code": contractor_code,
+        "contractor_name": contractor_name,
+        "opening_stock_mt": opening_stock_mt,
+        "username": username,
+        "message": f"Successfully registered middleman '{contractor_name}' ({contractor_code})!"
+    })
+
+
 @app.route("/admin/supply-chain")
-@login_required(roles=["ADMIN"])
+@login_required(roles=["ADMIN", "OFFICER"])
 def admin_supply_chain():
     """
-    Admin Statewide Material Supply Chain Ledger:
+    Statewide / District Material Supply Chain Ledger:
     LEGAL SOURCE -> CONTRACTOR CUSTODY (STOCK) -> DOWNSTREAM CONSUMERS & PROJECTS.
+    Scoped to assigned mine for officers; statewide for admins.
     """
-    contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
-    contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
+    user_role = session.get("user_role")
+    assigned_mine = session.get("assigned_mine_id")
+    is_officer = (user_role == "OFFICER" and assigned_mine)
 
-    receipts = db.query("""
-        SELECT cr.*, c.contractor_name, c.contractor_code
-        FROM contractor_receipts cr
-        JOIN contractors c ON c.id = cr.contractor_id
-        ORDER BY cr.received_at DESC, cr.id DESC
-    """) or []
+    if is_officer:
+        receipts = db.query("""
+            SELECT cr.*, c.contractor_name, c.contractor_code
+            FROM contractor_receipts cr
+            JOIN contractors c ON c.id = cr.contractor_id
+            WHERE cr.source_mine_id = ?
+            ORDER BY cr.received_at DESC, cr.id DESC
+        """, (assigned_mine,)) or []
 
-    dispatches = db.query("""
-        SELECT cd.*, c.contractor_name, c.contractor_code
-        FROM contractor_dispatches cd
-        JOIN contractors c ON c.id = cd.contractor_id
-        ORDER BY cd.dispatched_at DESC, cd.id DESC
-    """) or []
+        c_ids = list(set([r["contractor_id"] for r in receipts if r.get("contractor_id")]))
+        if c_ids:
+            pl = ",".join("?" for _ in c_ids)
+            contractors = db.query(f"SELECT * FROM contractors WHERE id IN ({pl}) ORDER BY id ASC", c_ids) or []
+        else:
+            contractors = db.query("SELECT * FROM contractors ORDER BY id ASC LIMIT 5") or []
+        contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
 
-    projects = db.query("""
-        SELECT ip.*, c.contractor_name, m.name as mine_name
-        FROM infrastructure_projects ip
-        LEFT JOIN contractors c ON c.id = ip.contractor_id
-        LEFT JOIN mines m ON m.id = ip.mine_id
-        ORDER BY ip.id ASC
-    """) or []
+        projects = db.query("""
+            SELECT ip.*, c.contractor_name, m.name as mine_name
+            FROM infrastructure_projects ip
+            LEFT JOIN contractors c ON c.id = ip.contractor_id
+            LEFT JOIN mines m ON m.id = ip.mine_id
+            WHERE ip.mine_id = ?
+            ORDER BY ip.id ASC
+        """, (assigned_mine,)) or []
+
+        dispatches = db.query("""
+            SELECT cd.*, c.contractor_name, c.contractor_code
+            FROM contractor_dispatches cd
+            JOIN contractors c ON c.id = cd.contractor_id
+            WHERE cd.project_id IN (SELECT id FROM infrastructure_projects WHERE mine_id = ?)
+            ORDER BY cd.dispatched_at DESC, cd.id DESC
+        """, (assigned_mine,)) or []
+    else:
+        contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
+        contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
+
+        receipts = db.query("""
+            SELECT cr.*, c.contractor_name, c.contractor_code
+            FROM contractor_receipts cr
+            JOIN contractors c ON c.id = cr.contractor_id
+            ORDER BY cr.received_at DESC, cr.id DESC
+        """) or []
+
+        dispatches = db.query("""
+            SELECT cd.*, c.contractor_name, c.contractor_code
+            FROM contractor_dispatches cd
+            JOIN contractors c ON c.id = cd.contractor_id
+            ORDER BY cd.dispatched_at DESC, cd.id DESC
+        """) or []
+
+        projects = db.query("""
+            SELECT ip.*, c.contractor_name, m.name as mine_name
+            FROM infrastructure_projects ip
+            LEFT JOIN contractors c ON c.id = ip.contractor_id
+            LEFT JOIN mines m ON m.id = ip.mine_id
+            ORDER BY ip.id ASC
+        """) or []
 
     return render_template(
         "admin_supply_chain.html",
         contractor_recons=contractor_recons,
         receipts=receipts,
         dispatches=dispatches,
-        projects=projects
+        projects=projects,
+        is_officer_locked=is_officer
     )
 
 
 @app.route("/admin/infrastructure-audit")
-@login_required(roles=["ADMIN"])
+@login_required(roles=["ADMIN", "OFFICER"])
 def admin_infrastructure_audit():
-    """Statewide Multi-Sector Infrastructure & Development Mineral Reconciliation Audit."""
+    """Statewide & District Multi-Sector Infrastructure & Mineral Reconciliation Audit."""
+    user_role = session.get("user_role")
+    assigned_mine = session.get("assigned_mine_id")
+    is_officer = (user_role == "OFFICER" and assigned_mine)
+
     req_mine = request.args.get("mine_id")
     req_sub_mine = request.args.get("sub_mine_id")
     req_category = request.args.get("category")
@@ -3272,7 +3371,13 @@ def admin_infrastructure_audit():
     params = []
 
     selected_mine_id = None
-    if req_mine and req_mine.isdigit() and int(req_mine) > 0:
+    if is_officer:
+        # Officer is strictly locked to their assigned jurisdiction mine
+        selected_mine_id = int(assigned_mine)
+        where_clauses.append("ip.mine_id = ?")
+        params.append(selected_mine_id)
+        sub_mines = db.query("SELECT id, block_code, block_name FROM quarry_blocks WHERE mine_id = ? ORDER BY id ASC", (selected_mine_id,))
+    elif req_mine and req_mine.isdigit() and int(req_mine) > 0:
         selected_mine_id = int(req_mine)
         where_clauses.append("ip.mine_id = ?")
         params.append(selected_mine_id)
@@ -3312,7 +3417,7 @@ def admin_infrastructure_audit():
     total_mineral_req = sum(float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0) for p in projects)
     total_mineral_rec = sum(float(p.get("mineral_received_mt") or p.get("sand_received_mt") or 0.0) for p in projects)
     
-    # 5% Statutory Tolerance Allowance (CPWD & IRC standard shrinkage / moisture buffer)
+    # 5% Statutory Tolerance Allowance (CPWD & IRC standard natural moisture/shrinkage buffer)
     total_penalties = 0.0
     for p in projects:
         req = float(p.get("mineral_required_mt") or p.get("sand_required_mt") or 0.0)
@@ -3324,7 +3429,13 @@ def admin_infrastructure_audit():
         total_penalties += actionable_deficit * rate
 
     # Also include contractor stock summaries for supply-chain context
-    contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
+    if is_officer:
+        c_filter = "WHERE id IN (SELECT DISTINCT contractor_id FROM infrastructure_projects WHERE mine_id = ? UNION SELECT DISTINCT contractor_id FROM contractor_receipts WHERE source_mine_id = ?)"
+        contractors = db.query(f"SELECT * FROM contractors {c_filter} ORDER BY id ASC", (selected_mine_id, selected_mine_id)) or []
+        if not contractors:
+            contractors = db.query("SELECT * FROM contractors ORDER BY id ASC LIMIT 3") or []
+    else:
+        contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
     contractor_recons = [get_contractor_reconciliation(c["id"]) for c in contractors]
 
     return render_template("admin_infrastructure_audit.html",
@@ -3338,7 +3449,8 @@ def admin_infrastructure_audit():
         total_sand_required=total_mineral_req,
         total_sand_received=total_mineral_rec,
         total_penalties_withheld=total_penalties,
-        contractor_recons=contractor_recons
+        contractor_recons=contractor_recons,
+        is_officer_locked=is_officer
     )
 
 

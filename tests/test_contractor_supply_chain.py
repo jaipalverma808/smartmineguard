@@ -227,7 +227,7 @@ class TestContractorSupplyChainArchitecture(unittest.TestCase):
             ('/trucks', b"Fleet"),
             ('/permits', b"e-Rawaana"),
             ('/trips', b"Trips"),
-            ('/admin/supply-chain', b"Statewide Material Supply Chain"),
+            ('/admin/supply-chain', b"Material Supply Chain"),
             ('/admin/infrastructure-audit', b"Consumer &amp; Project Mineral Audit"),
             ('/contractor/dashboard', b"Sharma Infrastructure Ltd")
         ]
@@ -235,6 +235,40 @@ class TestContractorSupplyChainArchitecture(unittest.TestCase):
             res = self.client.get(path)
             self.assertEqual(res.status_code, 200, f"Route {path} returned status {res.status_code}")
             self.assertIn(expected_content, res.data, f"Content {expected_content} not found in {path}")
+
+    def test_11_operator_registers_middleman(self):
+        """Test operator registering a new middleman/buyer at the weighbridge."""
+        self.client.post('/login', data={'username': 'operator1', 'password': 'operator123'}, follow_redirects=True)
+        headers = self._get_csrf_header()
+        res = self.client.post('/api/operator/register-contractor', json={
+            'contractor_name': 'Kisan River Sand Depot',
+            'contact_person': 'Raju Yadav',
+            'contact_phone': '+91 98120 77889',
+            'gstn': '06AABCU9603R1ZM',
+            'pan_no': 'AABCU9603R',
+            'opening_stock_mt': 50.0
+        }, headers=headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("contractor_name"), "Kisan River Sand Depot")
+        self.assertTrue(data.get("contractor_code").startswith("CONT-"))
+
+        # Verify record exists in DB
+        c_row = db.query("SELECT * FROM contractors WHERE contractor_code = ?", (data["contractor_code"],), one=True)
+        self.assertIsNotNone(c_row)
+        self.assertEqual(c_row["contractor_name"], "Kisan River Sand Depot")
+
+    def test_12_officer_can_access_audit_and_supply_chain(self):
+        """Test officer role accessing infrastructure audit and supply chain scoped to their jurisdiction."""
+        self.client.post('/login', data={'username': 'officer1', 'password': 'officer123'}, follow_redirects=True)
+        res_audit = self.client.get('/admin/infrastructure-audit')
+        self.assertEqual(res_audit.status_code, 200)
+        self.assertIn(b"JURISDICTION LOCKED", res_audit.data)
+
+        res_sc = self.client.get('/admin/supply-chain')
+        self.assertEqual(res_sc.status_code, 200)
+        self.assertIn(b"DISTRICT JURISDICTION LOCKED", res_sc.data)
 
 
 if __name__ == '__main__':

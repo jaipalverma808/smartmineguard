@@ -13,6 +13,11 @@
         <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">
           Directorate of Mines &amp; Geology &bull; Supply Chain Integrity Division
         </span>
+        {% if is_officer_locked %}
+        <span class="text-[10px] bg-indigo-900/90 border border-indigo-400 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
+          🔒 DISTRICT JURISDICTION LOCKED
+        </span>
+        {% endif %}
       </div>
       <h1 class="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
         <span>🔗 Statewide Material Supply Chain &amp; Contractor Custody Ledger</span>
