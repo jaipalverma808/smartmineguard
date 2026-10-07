@@ -69,7 +69,7 @@ class DatabaseManager:
         self.use_postgres = False
         self._pg_pool = None  # Connection pool for PostgreSQL
         self._query_cache = {}
-        self._sqlite_lock = threading.Lock()
+        self._sqlite_lock = threading.RLock()
         self._sqlite_initialized = False
         self._test_postgres()
         if self.use_postgres:
@@ -151,15 +151,14 @@ class DatabaseManager:
         else:
             conn = self._get_sqlite_connection()
             if not self._sqlite_initialized:
-                with self._sqlite_lock:
-                    if not self._sqlite_initialized:
-                        try:
-                            has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-                        except Exception:
-                            has_users = 0
-                        if not has_users:
-                            self.init_sqlite(force=True)
-                        self._sqlite_initialized = True
+                try:
+                    has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+                except Exception:
+                    has_users = 0
+                if not has_users:
+                    self.init_sqlite(force=True)
+                else:
+                    self._sqlite_initialized = True
             return conn
 
     def _return_connection(self, conn, is_bad=False):

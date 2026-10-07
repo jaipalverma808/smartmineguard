@@ -13,6 +13,7 @@ import math
 import uuid
 import traceback
 import secrets
+import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
@@ -5940,16 +5941,19 @@ def handle_internal_error(e):
 
 
 _db_initialized = False
+_lazy_db_lock = threading.Lock()
 
 @app.before_request
 def ensure_db_ready():
     global _db_initialized
     if not _db_initialized:
-        try:
-            db.init_db()
-            _db_initialized = True
-        except Exception as e:
-            logger.error(f"Lazy DB setup error: {e}")
+        with _lazy_db_lock:
+            if not _db_initialized:
+                try:
+                    db.init_db()
+                    _db_initialized = True
+                except Exception as e:
+                    logger.error(f"Lazy DB setup error: {e}")
 
 # Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
 if not _BOOT_ERROR and globals().get("simulator") is not None:
