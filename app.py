@@ -131,11 +131,21 @@ def check_boot_error_on_request():
 socketio = SocketIO()
 try:
     if not os.getenv("VERCEL") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
-        socketio.init_app(app, cors_allowed_origins=getattr(Config, "CORS_ALLOWED_ORIGINS", "*"), async_mode="threading")
+        socketio.init_app(
+            app,
+            cors_allowed_origins=getattr(Config, "CORS_ALLOWED_ORIGINS", "*"),
+            async_mode="threading",
+            manage_session=False,   # Let Flask handle sessions; avoids session conflicts on restart
+            ping_timeout=20,        # Client waits 20s before declaring server dead
+            ping_interval=10,       # Ping every 10s to detect stale sessions quickly
+            logger=False,           # Suppress noisy "Invalid session" INFO spam in logs
+            engineio_logger=False,  # Suppress engineio-level session noise
+        )
     if 'simulator' in locals():
         simulator.set_socketio(socketio)
 except Exception as _e:
     logger.warning(f"SocketIO initialization deferred: {_e}")
+
 
 
 def generate_csrf_token():
