@@ -149,6 +149,13 @@ except Exception as _e:
 
 
 
+@app.route("/health")
+@app.route("/api/health")
+def health_check():
+    """Ultra-lightweight endpoint for uptime bots (pings Render without DB overhead)."""
+    return jsonify({"status": "ok", "service": "SmartMineGuard", "uptime": "active"}), 200
+
+
 def generate_csrf_token():
     # generate a session CSRF token if not present
     if "_csrf_token" not in session:
@@ -5945,6 +5952,8 @@ _lazy_db_lock = threading.Lock()
 
 @app.before_request
 def ensure_db_ready():
+    if request.path in ("/health", "/api/health"):
+        return None
     global _db_initialized
     if not _db_initialized:
         with _lazy_db_lock:
