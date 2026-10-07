@@ -95,11 +95,13 @@ class DatabaseManager:
             self.use_postgres = False
             return
         try:
-            # Create a persistent connection pool (min=2, max=10 connections)
-            # This avoids expensive TCP handshakes on every request
+            # DEMO MODE — Neon free tier (max ~5 connections allowed).
+            # minconn=1 → open only 1 connection at startup (saves compute hours).
+            # maxconn=2 → minimum for demo. Fine for 1-5 simultaneous users.
+            # TODO: Increase to minconn=2, maxconn=10 when upgrading to paid DB.
             self._pg_pool = pg_pool.ThreadedConnectionPool(
-                minconn=2,
-                maxconn=10,
+                minconn=1,
+                maxconn=2,
                 dsn=Config.DATABASE_URL,
                 connect_timeout=5
             )
