@@ -17,3 +17,15 @@ graceful_timeout = 30
 loglevel = "info"
 accesslog = "-"
 errorlog = "-"
+
+
+def post_worker_init(worker):
+    """Start background services safely inside the worker process after fork."""
+    try:
+        from services.gps_simulator import simulator
+        if simulator and not simulator.is_running:
+            simulator.start()
+            worker.log.info("GPS simulator started safely in worker process.")
+    except Exception as e:
+        worker.log.warning(f"Could not start simulator in worker: {e}")
+

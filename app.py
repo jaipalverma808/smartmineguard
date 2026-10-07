@@ -5964,18 +5964,25 @@ def ensure_db_ready():
                 except Exception as e:
                     logger.error(f"Lazy DB setup error: {e}")
 
-# Auto-start GPS simulator loop (disabled in serverless environments like Vercel)
-if not _BOOT_ERROR and globals().get("simulator") is not None:
-    try:
-        is_serverless = getattr(Config, "IS_SERVERLESS", False) if "Config" in globals() else False
-        if not is_serverless:
-            simulator.start()
-    except Exception as _sim_err:
-        logger.warning(f"GPS simulator start failed: {_sim_err}")
+_simulator_started = False
 
+@app.before_request
+def ensure_simulator_running():
+    global _simulator_started
+    if not _simulator_started:
+        _simulator_started = True
+        if not _BOOT_ERROR and globals().get("simulator") is not None:
+            try:
+                is_serverless = getattr(Config, "IS_SERVERLESS", False) if "Config" in globals() else False
+                if not is_serverless and not simulator.is_running:
+                    simulator.start()
+            except Exception as _sim_err:
+                logger.warning(f"GPS simulator lazy start failed: {_sim_err}")
 
 
 if __name__ == "__main__":
+    if not _BOOT_ERROR and globals().get("simulator") is not None and not simulator.is_running:
+        simulator.start()
     port = Config.PORT
     logger.info(f"Starting SmartMineGuard server on port {port}...")
     try:
@@ -5983,3 +5990,4 @@ if __name__ == "__main__":
     except Exception as _e:
         logger.warning(f"socketio.run failed ({_e}), starting standard Flask app on port {port}...")
         app.run(host="0.0.0.0", port=port, debug=Config.DEBUG)
+
