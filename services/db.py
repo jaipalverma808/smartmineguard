@@ -3,6 +3,7 @@ SmartMineGuard - Database Abstraction Layer
 Supports PostgreSQL / PostGIS with seamless SQLite spatial-emulated fallback.
 """
 import sqlite3
+import threading
 import math
 import time
 import json
@@ -68,6 +69,8 @@ class DatabaseManager:
         self.use_postgres = False
         self._pg_pool = None  # Connection pool for PostgreSQL
         self._query_cache = {}
+        self._sqlite_lock = threading.Lock()
+        self._sqlite_initialized = False
         self._test_postgres()
         if self.use_postgres:
             try:
@@ -112,6 +115,22 @@ class DatabaseManager:
             self.use_postgres = False
             logger.info(f"PostgreSQL not active. Operating in SQLite mode. ({e})")
 
+    def _get_sqlite_connection(self):
+        """Creates a high-concurrency SQLite connection with WAL mode, 60s timeout, and Row factory."""
+        try:
+            Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        conn = sqlite3.connect(str(Config.SQLITE_PATH), timeout=60.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=60000;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
+        return conn
+
     def get_connection(self):
         """Get a connection from the pool (PostgreSQL) or create a SQLite connection."""
         if self.use_postgres:
@@ -130,21 +149,17 @@ class DatabaseManager:
                 logger.warning(f"Connection pool getconn failed ({e}), creating fresh direct connection.")
                 return psycopg2.connect(Config.DATABASE_URL)
         else:
-            try:
-                Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                pass
-            conn = sqlite3.connect(str(Config.SQLITE_PATH))
-            conn.row_factory = sqlite3.Row
-            try:
-                has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-            except Exception:
-                has_users = 0
-            if not has_users:
-                conn.close()
-                self.init_sqlite(force=True)
-                conn = sqlite3.connect(str(Config.SQLITE_PATH))
-                conn.row_factory = sqlite3.Row
+            conn = self._get_sqlite_connection()
+            if not self._sqlite_initialized:
+                with self._sqlite_lock:
+                    if not self._sqlite_initialized:
+                        try:
+                            has_users = conn.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+                        except Exception:
+                            has_users = 0
+                        if not has_users:
+                            self.init_sqlite(force=True)
+                        self._sqlite_initialized = True
             return conn
 
     def _return_connection(self, conn, is_bad=False):
@@ -899,7 +914,7 @@ class DatabaseManager:
         """Ensures all new schema columns and tables exist on existing SQLite databases."""
         close_needed = False
         if conn is None:
-            conn = sqlite3.connect(str(Config.SQLITE_PATH))
+            conn = self._get_sqlite_connection()
             close_needed = True
         cur = conn.cursor()
         try:
@@ -1477,27 +1492,24 @@ class DatabaseManager:
 
     def init_sqlite(self, force=False):
         """Set up SQLite with identical schema and realistic demo data."""
-        try:
-            Config.SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            pass
+        with self._sqlite_lock:
+            conn = self._get_sqlite_connection()
+            cur = conn.cursor()
 
-        conn = sqlite3.connect(str(Config.SQLITE_PATH))
-        cur = conn.cursor()
+            if not force:
+                try:
+                    has_users = cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
+                    if has_users:
+                        user_count = cur.execute("SELECT count(*) FROM users").fetchone()[0]
+                        if user_count > 0:
+                            conn.close()
+                            self._sqlite_initialized = True
+                            return
+                except Exception:
+                    pass
 
-        if not force:
-            try:
-                has_users = cur.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-                if has_users:
-                    user_count = cur.execute("SELECT count(*) FROM users").fetchone()[0]
-                    if user_count > 0:
-                        conn.close()
-                        return
-            except Exception:
-                pass
-
-        cur.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
+            cur.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
@@ -2065,6 +2077,7 @@ class DatabaseManager:
             self.run_auto_migrations()
         except Exception as e:
             logger.warning(f"Auto-migrations after fresh init encountered non-fatal error: {e}")
+        self._sqlite_initialized = True
         logger.info("SQLite database initialized and seeded.")
 
 
