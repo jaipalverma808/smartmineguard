@@ -1424,6 +1424,20 @@ def dashboard():
         crusher_kacha_maal_audit = MaterialMonitoringService.get_crusher_inward_kacha_maal_audit(mine_id=officer_mine_id)
         pit_dwell_watchdog = MaterialMonitoringService.get_active_pit_dwell_watchdog(mine_id=officer_mine_id)
 
+        # All contractors connected to all sub-mines within this officer's mine
+        officer_contractors = db.query("""
+            SELECT c.*,
+                   COALESCE((SELECT SUM(net_weight_mt) FROM contractor_receipts WHERE contractor_id = c.id AND source_mine_id = ?), 0) as total_received_from_mine_mt,
+                   qb.block_name as sub_mine_name,
+                   qb.block_code as sub_mine_code
+            FROM contractors c
+            LEFT JOIN quarry_blocks qb ON qb.id = c.sub_mine_id
+            WHERE c.mine_id = ? OR c.id IN (SELECT contractor_id FROM contractor_receipts WHERE source_mine_id = ?)
+            ORDER BY c.id DESC
+        """, (officer_mine_id, officer_mine_id, officer_mine_id)) or []
+        for c in officer_contractors:
+            c["reconciliation"] = get_contractor_reconciliation(c["id"])
+
         return render_template("dashboard_officer.html",
             critical_cases=critical_cases,
             pending_alerts=pending_alerts,
@@ -1445,7 +1459,8 @@ def dashboard():
             truck_material_ledger=truck_material_ledger,
             drone_dem_audit=drone_dem_audit,
             crusher_kacha_maal_audit=crusher_kacha_maal_audit,
-            pit_dwell_watchdog=pit_dwell_watchdog
+            pit_dwell_watchdog=pit_dwell_watchdog,
+            connected_contractors=officer_contractors
         )
 
     else:  # OPERATOR
@@ -1491,6 +1506,33 @@ def dashboard():
             active_permits_count = db.query("SELECT COUNT(*) as c FROM permits WHERE mine_id = ? AND status = 'ACTIVE'", (mine_id,), one=True)["c"]
             drivers_count = db.query("SELECT COUNT(*) as c FROM drivers WHERE assigned_truck_id IN (SELECT id FROM trucks WHERE assigned_mine_id = ?)", (mine_id,), one=True)["c"]
 
+        # Operator-scoped Contractors connected to this sub-mine
+        if sub_mine_id:
+            operator_contractors = db.query("""
+                SELECT c.*,
+                       COALESCE((SELECT SUM(net_weight_mt) FROM contractor_receipts WHERE contractor_id = c.id AND (source_sub_mine_id = ? OR source_mine_id = ?)), 0) as total_received_from_mine_mt,
+                       qb.block_name as sub_mine_name,
+                       qb.block_code as sub_mine_code
+                FROM contractors c
+                LEFT JOIN quarry_blocks qb ON qb.id = c.sub_mine_id
+                WHERE c.sub_mine_id = ? OR c.id IN (SELECT contractor_id FROM contractor_receipts WHERE source_sub_mine_id = ?)
+                ORDER BY c.id DESC
+            """, (sub_mine_id, mine_id, sub_mine_id, sub_mine_id)) or []
+        else:
+            operator_contractors = db.query("""
+                SELECT c.*,
+                       COALESCE((SELECT SUM(net_weight_mt) FROM contractor_receipts WHERE contractor_id = c.id AND source_mine_id = ?), 0) as total_received_from_mine_mt,
+                       qb.block_name as sub_mine_name,
+                       qb.block_code as sub_mine_code
+                FROM contractors c
+                LEFT JOIN quarry_blocks qb ON qb.id = c.sub_mine_id
+                WHERE c.mine_id = ? OR c.id IN (SELECT contractor_id FROM contractor_receipts WHERE source_mine_id = ?)
+                ORDER BY c.id DESC
+            """, (mine_id, mine_id, mine_id)) or []
+
+        for c in operator_contractors:
+            c["reconciliation"] = get_contractor_reconciliation(c["id"])
+
         # Operator-scoped Material & Dispatch Monitoring
         operator_daily_summary = MaterialMonitoringService.get_daily_dispatch_summary(mine_id=mine_id)
         operator_dispatch_control = MaterialMonitoringService.get_dispatch_control_planning(mine_id=mine_id)
@@ -1519,7 +1561,8 @@ def dashboard():
             operator_mismatch_check=operator_mismatch_check,
             operator_stock_recon=operator_stock_recon,
             operator_truck_material=operator_truck_material,
-            operator_quantity_anomalies=operator_quantity_anomalies
+            operator_quantity_anomalies=operator_quantity_anomalies,
+            connected_contractors=operator_contractors
         )
 
 
@@ -2827,7 +2870,31 @@ def operator_weighbridge():
             ORDER BY tr.id DESC
         """, (mine_id,))
     weighbridges = db.query("SELECT * FROM weighbridges WHERE mine_id = ? OR mine_id IS NULL", (mine_id,))
-    return render_template("operator_weighbridge.html", mine=mine, weighments=weighments, weighbridges=weighbridges, active_trips=active_trips)
+    sub_mine_id = get_operator_sub_mine_id() if session.get("user_role") == "OPERATOR" else None
+    if sub_mine_id:
+        connected_contractors = db.query("""
+            SELECT c.*,
+                   COALESCE((SELECT SUM(net_weight_mt) FROM contractor_receipts WHERE contractor_id = c.id AND (source_sub_mine_id = ? OR source_mine_id = ?)), 0) as total_received_from_mine_mt,
+                   qb.block_name as sub_mine_name
+            FROM contractors c
+            LEFT JOIN quarry_blocks qb ON qb.id = c.sub_mine_id
+            WHERE c.sub_mine_id = ? OR c.id IN (SELECT contractor_id FROM contractor_receipts WHERE source_sub_mine_id = ?)
+            ORDER BY c.id DESC
+        """, (sub_mine_id, mine_id, sub_mine_id, sub_mine_id)) or []
+    else:
+        connected_contractors = db.query("""
+            SELECT c.*,
+                   COALESCE((SELECT SUM(net_weight_mt) FROM contractor_receipts WHERE contractor_id = c.id AND source_mine_id = ?), 0) as total_received_from_mine_mt,
+                   qb.block_name as sub_mine_name
+            FROM contractors c
+            LEFT JOIN quarry_blocks qb ON qb.id = c.sub_mine_id
+            WHERE c.mine_id = ? OR c.id IN (SELECT contractor_id FROM contractor_receipts WHERE source_mine_id = ?)
+            ORDER BY c.id DESC
+        """, (mine_id, mine_id, mine_id)) or []
+    for c in connected_contractors:
+        c["reconciliation"] = get_contractor_reconciliation(c["id"])
+    return render_template("operator_weighbridge.html", mine=mine, weighments=weighments, weighbridges=weighbridges, active_trips=active_trips, connected_contractors=connected_contractors)
+
 
 
 # --- CONTRACTOR SUPPLY CHAIN & MATERIAL RECONCILIATION ROUTES ---
@@ -3242,6 +3309,24 @@ def api_operator_register_contractor():
     email = (data.get("email") or "").strip().lower()
     opening_stock_mt = float(data.get("opening_stock_mt") or 0.0)
 
+    # Determine mine_id and sub_mine_id based on role and payload
+    user_role = session.get("user_role")
+    if user_role == "OPERATOR":
+        mine_id = get_operator_mine_id() or 1
+        sub_mine_id = get_operator_sub_mine_id() or data.get("sub_mine_id")
+    elif user_role == "OFFICER":
+        mine_id = session.get("assigned_mine_id") or 1
+        sub_mine_id = data.get("sub_mine_id")
+    else:  # ADMIN
+        mine_id = data.get("mine_id") or 1
+        sub_mine_id = data.get("sub_mine_id")
+
+    if sub_mine_id:
+        try:
+            sub_mine_id = int(sub_mine_id)
+        except (ValueError, TypeError):
+            sub_mine_id = None
+
     if not contractor_name:
         return jsonify({"success": False, "error": "Middleman / Business Name is required."}), 400
 
@@ -3250,9 +3335,9 @@ def api_operator_register_contractor():
     contractor_code = f"CONT-{cnt + 1:03d}"
 
     res_id = db.execute("""
-        INSERT INTO contractors (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-    """, (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt))
+        INSERT INTO contractors (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status, mine_id, sub_mine_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+    """, (contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, mine_id, sub_mine_id))
 
     new_id = res_id if (res_id and isinstance(res_id, int)) else (cnt + 1)
     
@@ -3267,7 +3352,10 @@ def api_operator_register_contractor():
             VALUES (?, ?, ?, 'CONTRACTOR', 'Mineral Stock Custodian', ?, ?, ?, ?)
         """, (username, pwd_hash, contractor_name, contractor_code, email or f"{username}@mining.gov.in", contact_phone, new_id))
 
-    log_audit("CONTRACTOR_REGISTERED", f"New mineral middleman '{contractor_name}' ({contractor_code}) registered by {session.get('user_role')} {session.get('username')}.", entity="CONTRACTOR")
+    sub_mine_info = db.query("SELECT block_name FROM quarry_blocks WHERE id = ?", (sub_mine_id,), one=True) if sub_mine_id else None
+    sub_mine_name = sub_mine_info["block_name"] if sub_mine_info else "General Concession"
+
+    log_audit("CONTRACTOR_REGISTERED", f"New mineral middleman '{contractor_name}' ({contractor_code}) registered under sub-mine '{sub_mine_name}' by {session.get('user_role')} {session.get('username')}.", entity="CONTRACTOR")
 
     return jsonify({
         "success": True,
@@ -3275,8 +3363,10 @@ def api_operator_register_contractor():
         "contractor_code": contractor_code,
         "contractor_name": contractor_name,
         "opening_stock_mt": opening_stock_mt,
+        "sub_mine_id": sub_mine_id,
+        "sub_mine_name": sub_mine_name,
         "username": username,
-        "message": f"Successfully registered middleman '{contractor_name}' ({contractor_code})!"
+        "message": f"Successfully registered middleman '{contractor_name}' ({contractor_code}) under {sub_mine_name}!"
     })
 
 

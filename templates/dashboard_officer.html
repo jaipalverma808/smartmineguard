@@ -348,6 +348,106 @@
     </div>
   </div>
 
+  <!-- Mine-wide Registered Middlemen & Contractors (All Sub-Mines Jurisdiction) -->
+  <div class="gov-card border-indigo-200">
+    <div class="gov-card-header bg-indigo-50/40 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-sm">🏢</span>
+          <h3 class="gov-card-title text-indigo-950">
+            MINE-WIDE REGISTERED MIDDLEMEN &amp; CONTRACTORS (ALL SUB-MINES)
+          </h3>
+          <span class="text-xs bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold px-2 py-0.5 rounded font-mono">
+            {{ connected_contractors|length if connected_contractors else 0 }} ENTITIES
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-600 mt-1">
+          Authorized stock custodians lifting mineral across all {{ quarry_blocks|length }} sub-mines in <strong>{{ quarry_blocks[0].mine_name if quarry_blocks else 'Assigned Mine' }}</strong>. 
+          Audited under rule: <em>Max Legal Dispatch = Opening Stock + Legal Mine Liftings</em>.
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a href="{{ url_for('admin_supply_chain') }}" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold text-indigo-900 border-indigo-300 bg-white">
+          <span>🔗 Full Supply Chain Ledger</span>
+        </a>
+        <a href="{{ url_for('admin_infrastructure_audit') }}" class="btn-gov bg-indigo-800 hover:bg-indigo-700 text-white btn-sm flex items-center gap-1 font-bold">
+          <span>🏗️ Infrastructure Audit</span>
+        </a>
+      </div>
+    </div>
+    <div class="gov-table-container max-h-[380px] overflow-y-auto">
+      <table class="gov-table text-xs">
+        <thead class="sticky top-0 bg-slate-100 z-10">
+          <tr>
+            <th>Code</th>
+            <th>Middleman / Contractor Entity</th>
+            <th>Sub-Mine Origin</th>
+            <th>PAN / GSTIN</th>
+            <th>Contact Person & Phone</th>
+            <th class="text-right">Total Legal Stock</th>
+            <th class="text-right">Downstream Dispatches</th>
+            <th>Audit Status</th>
+            <th class="text-center">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in connected_contractors %}
+          {% set r = c.reconciliation or {} %}
+          <tr>
+            <td class="font-mono font-bold text-indigo-900">{{ c.contractor_code }}</td>
+            <td>
+              <div class="font-bold text-slate-900">{{ c.contractor_name }}</div>
+              <div class="text-[10px] text-slate-500">{{ c.email or 'N/A' }}</div>
+            </td>
+            <td>
+              <span class="font-semibold text-slate-800">{{ c.sub_mine_name or 'Mine General Plot' }}</span>
+              {% if c.sub_mine_code %}
+              <div class="font-mono text-[10px] text-slate-500">{{ c.sub_mine_code }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="font-mono text-slate-800">{{ c.gstn or 'Unregistered' }}</div>
+              <div class="font-mono text-[10px] text-slate-500">{{ c.pan_no or '' }}</div>
+            </td>
+            <td>
+              <div>{{ c.contact_person or 'Logistics Desk' }}</div>
+              <div class="font-mono text-[10px] text-slate-600">{{ c.contact_phone or '' }}</div>
+            </td>
+            <td class="text-right font-mono font-bold text-slate-900">
+              {{ "{:,.1f}".format(r.total_available_stock_mt or ((c.opening_stock_mt or 0.0) + (c.total_received_from_mine_mt or 0.0))) }} MT
+            </td>
+            <td class="text-right font-mono font-bold text-indigo-950">
+              {{ "{:,.1f}".format(r.verified_dispatches_mt or 0.0) }} MT
+            </td>
+            <td>
+              {% if r.has_reconciliation_anomaly %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
+                ⚠️ DEFICIT ({{ "{:,.1f}".format(r.anomaly_excess_mt) }} MT)
+              </span>
+              {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                ✅ BALANCED
+              </span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              <a href="{{ url_for('contractor_dashboard') }}?contractor_id={{ c.id }}" target="_blank" class="btn-gov btn-gov-secondary btn-sm py-0.5 px-2 text-[11px] text-indigo-800 font-semibold border border-indigo-300 bg-indigo-50 hover:bg-indigo-100">
+                Dossier &rarr;
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-6 text-slate-400">
+              No registered middlemen or contractors linked to sub-mines under this concession yet.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 
   <!-- Quantity Anomalies Enforcement Table (Section 22) -->
   <div class="gov-card border-red-200">

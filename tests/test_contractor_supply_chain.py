@@ -270,6 +270,22 @@ class TestContractorSupplyChainArchitecture(unittest.TestCase):
         self.assertEqual(res_sc.status_code, 200)
         self.assertIn(b"DISTRICT JURISDICTION LOCKED", res_sc.data)
 
+    def test_13_operator_and_officer_contractor_views(self):
+        """Test that Operator sees sub-mine contractors and Officer sees mine-wide contractors."""
+        # 1. Operator view
+        self.client.post('/login', data={'username': 'operator1', 'password': 'operator123'}, follow_redirects=True)
+        res_op = self.client.get('/dashboard')
+        self.assertEqual(res_op.status_code, 200)
+        self.assertIn(b"Sub-Mine Registered Contractors", res_op.data)
+        self.assertIn(b"+ Register Middleman / Buyer", res_op.data)
+
+        # 2. Officer view
+        self.client.post('/login', data={'username': 'officer1', 'password': 'officer123'}, follow_redirects=True)
+        res_off = self.client.get('/dashboard')
+        self.assertEqual(res_off.status_code, 200)
+        self.assertIn(b"MINE-WIDE REGISTERED MIDDLEMEN", res_off.data)
+
 
 if __name__ == '__main__':
     unittest.main()
+

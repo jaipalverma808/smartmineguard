@@ -1390,6 +1390,8 @@ class DatabaseManager:
                     email TEXT,
                     opening_stock_mt REAL DEFAULT 200.0,
                     status TEXT DEFAULT 'ACTIVE',
+                    mine_id INTEGER DEFAULT 1,
+                    sub_mine_id INTEGER,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -1402,6 +1404,7 @@ class DatabaseManager:
                     permit_id INTEGER,
                     permit_number TEXT NOT NULL,
                     source_mine_id INTEGER,
+                    source_sub_mine_id INTEGER,
                     source_name TEXT NOT NULL,
                     source_category TEXT DEFAULT 'MINE',
                     mineral TEXT NOT NULL,
@@ -1433,6 +1436,16 @@ class DatabaseManager:
             """)
 
             # Add extension columns if missing
+            c_cols = [r[1] for r in cur.execute("PRAGMA table_info(contractors)").fetchall()]
+            if "mine_id" not in c_cols:
+                cur.execute("ALTER TABLE contractors ADD COLUMN mine_id INTEGER DEFAULT 1")
+            if "sub_mine_id" not in c_cols:
+                cur.execute("ALTER TABLE contractors ADD COLUMN sub_mine_id INTEGER")
+
+            cr_cols = [r[1] for r in cur.execute("PRAGMA table_info(contractor_receipts)").fetchall()]
+            if "source_sub_mine_id" not in cr_cols:
+                cur.execute("ALTER TABLE contractor_receipts ADD COLUMN source_sub_mine_id INTEGER")
+
             ip_cols = [r[1] for r in cur.execute("PRAGMA table_info(infrastructure_projects)").fetchall()]
             if "contractor_id" not in ip_cols:
                 cur.execute("ALTER TABLE infrastructure_projects ADD COLUMN contractor_id INTEGER DEFAULT 1")
@@ -1448,8 +1461,8 @@ class DatabaseManager:
             # Seed Contractor 1: Sharma Infrastructure Ltd
             cur.execute("""
                 INSERT OR REPLACE INTO contractors 
-                (id, contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status)
-                VALUES (1, 'CONT-001', 'Sharma Infrastructure Ltd', 'AAACH4114R', '06AAACH4114R2ZG', 'Ramesh Sharma (Director Logistics)', '+91 98120 44551', 'projects@sharmainfra.com', 200.0, 'ACTIVE')
+                (id, contractor_code, contractor_name, pan_no, gstn, contact_person, contact_phone, email, opening_stock_mt, status, mine_id, sub_mine_id)
+                VALUES (1, 'CONT-001', 'Sharma Infrastructure Ltd', 'AAACH4114R', '06AAACH4114R2ZG', 'Ramesh Sharma (Director Logistics)', '+91 98120 44551', 'projects@sharmainfra.com', 200.0, 'ACTIVE', 1, 1)
             """)
 
             # Seed Inbound Receipts (Source -> Contractor)
