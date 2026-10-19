@@ -21,7 +21,11 @@
         <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
         <span class="text-[11px] text-emerald-800 uppercase font-bold">Assigned Mine:</span>
         <span class="font-bold text-slate-900">{{ quarry_blocks[0].mine_name if quarry_blocks else 'Aravalli Quartzite Quarry Block A' }}</span>
+        {% if quarry_blocks and ('Sand' in (quarry_blocks[0].mine_name or '') or 'Sand' in (quarry_blocks[0].mineral_type or '')) %}
+        <span class="text-[9px] bg-cyan-700 text-white font-mono px-1.5 py-0.2 rounded font-bold" title="Riverbed Sand Ghat Concession">🌊 SAND GHAT</span>
+        {% else %}
         <span class="text-[9px] bg-emerald-800 text-white font-mono px-1.5 py-0.2 rounded font-bold" title="Supervisory field post jurisdiction">LOCKED SECTOR</span>
+        {% endif %}
       </div>
 
       <span>Officer on Duty: <strong class="text-slate-900">{{ current_user.full_name }}</strong></span>
@@ -543,6 +547,64 @@
       </div>
       <div class="font-mono text-[11px] text-red-300 pt-1">
         Expected Stock: {{ "{:,.1f}".format(mismatch_check.metrics.expected_closing_mt) }} MT &bull; Recorded Stock: {{ "{:,.1f}".format(mismatch_check.metrics.recorded_stock_mt) }} MT &bull; Discrepancy Delta: {{ "{:,.1f}".format(mismatch_check.metrics.delta_mt) }} MT
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if drone_dem_audit and drone_dem_audit.audit_status == 'EXCAVATION_LEAKAGE_DETECTED' %}
+  <!-- Statutory Alert: Drone DEM Volumetric Leakage -->
+  <div class="bg-slate-900 text-white border-2 border-amber-500 rounded-lg p-4 shadow-md flex items-start gap-3">
+    <div class="w-6 h-6 rounded-full bg-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5 font-bold text-xs text-white">
+      🛰️
+    </div>
+    <div class="space-y-1 text-xs flex-1">
+      <div class="font-bold text-sm text-amber-300 uppercase tracking-wider flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span>STATUTORY AUDIT: DRONE LiDAR &amp; SATELLITE VOLUMETRIC EXCAVATION LEAKAGE</span>
+          <span class="badge badge-critical text-[10px]">SECTION 21 MMDR</span>
+        </div>
+        <span class="text-amber-400 font-mono text-[11px] font-semibold">Survey Date: {{ drone_dem_audit.last_flight_date }}</span>
+      </div>
+      <div class="text-white/90 leading-relaxed">
+        Differential 3D surface model indicates physical pit/ghat void of <strong>{{ "{:,.1f}".format(drone_dem_audit.dem_excavated_void_m3) }} m³</strong> (approx. <strong>{{ "{:,.1f}".format(drone_dem_audit.physical_extracted_mt) }} MT</strong>). Discrepancy exceeds recorded e-Rawaana dispatches (<strong>{{ "{:,.1f}".format(drone_dem_audit.cumulative_erawana_dispatched_mt) }} MT</strong>) by <strong>+{{ "{:,.1f}".format(drone_dem_audit.unaccounted_over_extraction_mt) }} MT</strong> ({{ drone_dem_audit.over_extraction_discrepancy_pct }}% unrecorded mineral).
+      </div>
+      <div class="font-mono text-[11px] text-amber-300 pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-700/80 mt-1.5">
+        <div>
+          Estimated Evaded Royalty &amp; Penalty: <strong class="text-white font-bold">₹{{ "{:,.2f}".format(drone_dem_audit.estimated_evaded_royalty_inr) }}</strong> &bull; Concession Status: <strong class="text-red-400">LEAKAGE DETECTED</strong>
+        </div>
+        <button type="button" onclick="document.getElementById('drone-plots-drawer').classList.toggle('hidden')" class="text-xs text-amber-300 hover:text-white underline font-semibold flex items-center gap-1 cursor-pointer">
+          <span>🔍 Inspect Sub-Plot Voids &amp; Kill-Switches ({{ drone_dem_audit.plot_breakdown|length }})</span>
+        </button>
+      </div>
+
+      <!-- Collapsible Sub-Plot Void Details Drawer (Keeps UI Simple by Default) -->
+      <div id="drone-plots-drawer" class="hidden mt-3 pt-3 border-t border-slate-700">
+        <div class="text-[11px] font-bold text-amber-200 uppercase tracking-wider mb-2">Sub-Plot / Reach Differential Void Breakdown</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+          {% for p in drone_dem_audit.plot_breakdown %}
+          <div class="p-2 rounded bg-slate-800/80 border {% if p.is_breached %}border-red-500/80 bg-red-950/20{% else %}border-slate-700{% endif %} flex justify-between items-center">
+            <div>
+              <div class="font-bold text-white flex items-center gap-1.5">
+                <span class="font-mono text-[10px] text-slate-300 bg-slate-700 px-1 rounded">{{ p.block_code }}</span>
+                <span>{{ p.block_name }}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                Void: <strong class="text-slate-200">{{ "{:,.0f}".format(p.dem_pit_volume_m3) }} m³</strong> ({{ "{:,.0f}".format(p.physical_extracted_mt) }} MT) &bull; e-Rawaana: {{ "{:,.0f}".format(p.dispatched_erawana_mt) }} MT
+              </div>
+            </div>
+            <div class="text-right">
+              {% if p.is_breached %}
+              <span class="bg-red-700 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded">🔒 LOCKED</span>
+              <div class="text-[10px] text-red-300 font-semibold mt-0.5">+{{ "{:,.0f}".format(p.unaccounted_extraction_mt) }} MT</div>
+              {% else %}
+              <span class="bg-emerald-700 text-white font-mono text-[10px] font-bold px-1.5 py-0.5 rounded">ACTIVE</span>
+              <div class="text-[10px] text-slate-400 mt-0.5">Compliant</div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>

@@ -64,7 +64,12 @@
             {% for m in mines %}
             <tr id="row-mine-{{ m.id }}">
               <td class="font-mono font-bold text-slate-900">{{ m.mine_code }}</td>
-              <td class="font-semibold text-slate-800">{{ m.name }}</td>
+              <td class="font-semibold text-slate-800">
+                {{ m.name }}
+                {% if m.concession_type == 'RIVERBED_SAND_GHAT' or 'Sand' in (m.mineral or '') %}
+                <span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-300">🌊 Sand Ghat</span>
+                {% endif %}
+              </td>
               <td class="text-slate-600">{{ m.operator_name }}</td>
               <td>{{ m.district }}, {{ m.state }}</td>
               <td><span class="font-medium text-amber-900">{{ m.mineral }}</span></td>
@@ -340,18 +345,41 @@
       <button onclick="closeModal('modal-add-mine')" class="text-slate-500 hover:text-slate-800 font-bold">&times;</button>
     </div>
     <form onsubmit="submitForm(event, '/api/crud/mines', 'modal-add-mine')" class="space-y-3 text-xs">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold mb-1">Concession Category *</label>
+          <select name="concession_type" id="mine-concession-type" class="gov-select w-full font-medium" onchange="toggleConcessionFields()">
+            <option value="OPENCAST_QUARRY">⛏️ Open-Cast Quarry / Hard Rock Pit</option>
+            <option value="RIVERBED_SAND_GHAT">🌊 Riverbed Sand Ghat / Desiltation Lease</option>
+          </select>
+        </div>
+        <div id="river-name-container" class="hidden">
+          <label class="block font-semibold mb-1 text-cyan-800">🌊 River / Basin Name *</label>
+          <input type="text" name="river_name" id="input-river-name" class="gov-input w-full" placeholder="e.g. Yamuna River / Chambal" />
+        </div>
+      </div>
       <div>
-        <label class="block font-semibold mb-1">Mine Lease Name *</label>
-        <input type="text" name="name" required class="gov-input w-full" placeholder="e.g. Alwar Silica Pit No. 2" />
+        <label class="block font-semibold mb-1" id="lbl-mine-name">Mine Lease Name *</label>
+        <input type="text" name="name" id="input-mine-name" required class="gov-input w-full" placeholder="e.g. Alwar Silica Pit No. 2" />
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block font-semibold mb-1">Mine Code *</label>
-          <input type="text" name="mine_code" required class="gov-input w-full font-mono" placeholder="MN-RJ-ALW-05" />
+          <label class="block font-semibold mb-1" id="lbl-mine-code">Mine Code *</label>
+          <input type="text" name="mine_code" id="input-mine-code" required class="gov-input w-full font-mono" placeholder="MN-RJ-ALW-05" />
         </div>
         <div>
           <label class="block font-semibold mb-1">Mineral Type *</label>
-          <input type="text" name="mineral" required class="gov-input w-full" placeholder="Quartzite / Limestone / Silica Sand" />
+          <input type="text" name="mineral" id="input-mine-mineral" list="mineral-presets" required class="gov-input w-full" placeholder="Select or type mineral..." />
+          <datalist id="mineral-presets">
+            <option value="River Sand (Natural Riverbed)">
+            <option value="Coarse Sand / Bajri">
+            <option value="Silica Sand (Industrial Grade)">
+            <option value="M-Sand (Manufactured Sand)">
+            <option value="Quartzite Aggregate">
+            <option value="Limestone Raw Boulder">
+            <option value="Granite Dimension Stone">
+            <option value="Gravel & Boulder">
+          </datalist>
         </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
@@ -625,6 +653,32 @@
   function closeModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
+  }
+
+  function toggleConcessionFields() {
+    const type = document.getElementById('mine-concession-type').value;
+    const riverBox = document.getElementById('river-name-container');
+    const lblName = document.getElementById('lbl-mine-name');
+    const inputName = document.getElementById('input-mine-name');
+    const inputCode = document.getElementById('input-mine-code');
+    const inputMineral = document.getElementById('input-mine-mineral');
+    const riverInput = document.getElementById('input-river-name');
+
+    if (type === 'RIVERBED_SAND_GHAT') {
+      riverBox.classList.remove('hidden');
+      riverInput.required = true;
+      lblName.textContent = '🌊 River Sand Ghat Lease Name *';
+      inputName.placeholder = 'e.g. Yamuna River Sand Ghat No. 4';
+      inputCode.placeholder = 'SG-HR-YAM-05';
+      inputMineral.value = 'River Sand (Natural Riverbed)';
+    } else {
+      riverBox.classList.add('hidden');
+      riverInput.required = false;
+      lblName.textContent = '⛏️ Mine Lease Name *';
+      inputName.placeholder = 'e.g. Alwar Silica Pit No. 2';
+      inputCode.placeholder = 'MN-RJ-ALW-05';
+      inputMineral.value = 'Quartzite Aggregate';
+    }
   }
 
   // Form Submission via Fetch

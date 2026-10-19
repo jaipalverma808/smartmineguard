@@ -16,7 +16,8 @@ INSERT INTO mines (id, mine_code, name, mineral, district, state, latitude, long
 (1, 'MN-RJ-ALW-01', 'Aravalli Quartzite Quarry Block A', 'Quartzite', 'Alwar', 'Rajasthan', 27.5624, 76.6121, 45000.0, 31250.0, 'OPERATIONAL', 'Aravalli Quartzite Consortium', '+91 99280 33445'),
 (2, 'MN-RJ-KOT-04', 'Kotputli High-Grade Limestone Lease', 'Limestone', 'Kotputli-Behror', 'Rajasthan', 27.7052, 76.2023, 85000.0, 58400.0, 'OPERATIONAL', 'Shree Cement Raw Materials Div.', '+91 94142 88776'),
 (3, 'MN-HR-REW-02', 'Khol Silica Sand & Stone Pit', 'Silica Sand', 'Rewari', 'Haryana', 28.1884, 76.6210, 30000.0, 28900.0, 'OPERATIONAL', 'Khol Mining Cooperative', '+91 98122 44332'),
-(4, 'MN-RJ-JHJ-09', 'Khetri Copper Tailings & Rock Zone', 'Copper Tailings / Quartz', 'Jhunjhunu', 'Rajasthan', 28.0125, 75.7891, 60000.0, 64200.0, 'QUOTA_EXCEEDED', 'Hindustan Quarrying Partners', '+91 97841 55667')
+(4, 'MN-RJ-JHJ-09', 'Khetri Copper Tailings & Rock Zone', 'Copper Tailings / Quartz', 'Jhunjhunu', 'Rajasthan', 28.0125, 75.7891, 60000.0, 64200.0, 'QUOTA_EXCEEDED', 'Hindustan Quarrying Partners', '+91 97841 55667'),
+(5, 'SG-HR-YAM-04', 'Yamuna River Sand Ghat No. 4', 'River Sand', 'Yamunanagar', 'Haryana', 30.1320, 77.2850, 60000.0, 18500.0, 'OPERATIONAL', 'Yamuna Sand Extraction Ltd', '+91 98120 77889')
 ON CONFLICT (id) DO NOTHING;
 
 -- 3. TRUCKS (Target of demo + normal fleet)

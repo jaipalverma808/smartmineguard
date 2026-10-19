@@ -592,6 +592,8 @@ class DatabaseManager:
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS daily_planned_dispatch_mt DOUBLE PRECISION DEFAULT 600.0;
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31';
                             ALTER TABLE mines ADD COLUMN IF NOT EXISTS ec_clearance_number VARCHAR(100) DEFAULT 'EC-MOEF-2024-8841';
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS concession_type VARCHAR(50) DEFAULT 'OPENCAST_QUARRY';
+                            ALTER TABLE mines ADD COLUMN IF NOT EXISTS river_name VARCHAR(100);
 
                             -- QUARRY BLOCKS
                             ALTER TABLE quarry_blocks ADD COLUMN IF NOT EXISTS lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31';
@@ -1240,7 +1242,24 @@ class DatabaseManager:
                     # Mine 3 (Khol Silica Sand - Rewari, Haryana) sub-blocks
                     (3, "QB-REW-01", "Khol Riverbank Sand Concession #1", "Haryana Glass Sand Producers (Anil Mittal)", "Jagdish Chand (Scale Operator 1)", "+91 98120 11223", 10000.0, 9400.0, 4, "OPERATIONAL"),
                     (3, "QB-REW-02", "Rewari Silica Extraction Basin #2", "Mittal Silica Minerals (Pardeep Mittal)", "Satbir Singh (Scale Operator 2)", "+91 98120 22334", 10000.0, 9800.0, 3, "OPERATIONAL"),
-                    (3, "QB-REW-03", "South Khol Co-operative Plot", "Khol Miners Welfare Union (Sukhbir Yadav)", "Baljit Yadav (Scale Operator 3)", "+91 98120 33445", 10000.0, 9700.0, 3, "OPERATIONAL")
+                    (3, "QB-REW-03", "South Khol Co-operative Plot", "Khol Miners Welfare Union (Sukhbir Yadav)", "Baljit Yadav (Scale Operator 3)", "+91 98120 33445", 10000.0, 9700.0, 3, "OPERATIONAL"),
+
+                    # Mine 5 (Yamuna River Sand Ghat No. 4 - Yamunanagar, Haryana) sub-blocks
+                    (5, "SG-YAM-01", "Yamuna River Sand Ghat Sector 1 (Tajewala Reach)", "Yamuna Sand Concessionaires Ltd", "Ramesh Verma (Scale Operator 1)", "+91 98120 44551", 20000.0, 6200.0, 5, "OPERATIONAL"),
+                    (5, "SG-YAM-02", "Yamuna Riverbed Desiltation Reach #2 (Hathnikund)", "Northern Sand Dredging Corp", "Kuldeep Saini (Scale Operator 2)", "+91 98120 44552", 20000.0, 7100.0, 4, "OPERATIONAL"),
+                    (5, "SG-YAM-03", "Yamuna Downstream Sand Plot #3 (Kalanaur)", "Shree Ram Riverbed Minerals", "Amit Tyagi (Scale Operator 3)", "+91 98120 44553", 20000.0, 5200.0, 4, "OPERATIONAL")
+                ])
+
+            mine5_blocks = cur.execute("SELECT COUNT(*) FROM quarry_blocks WHERE mine_id = 5").fetchone()[0]
+            if mine5_blocks == 0:
+                cur.executemany("""
+                    INSERT INTO quarry_blocks 
+                    (mine_id, block_code, block_name, leaseholder_name, operator_name, contact_phone, allocated_quota_mt, dispatched_mt, active_trucks_count, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    (5, "SG-YAM-01", "Yamuna River Sand Ghat Sector 1 (Tajewala Reach)", "Yamuna Sand Concessionaires Ltd", "Ramesh Verma (Scale Operator 1)", "+91 98120 44551", 20000.0, 6200.0, 5, "OPERATIONAL"),
+                    (5, "SG-YAM-02", "Yamuna Riverbed Desiltation Reach #2 (Hathnikund)", "Northern Sand Dredging Corp", "Kuldeep Saini (Scale Operator 2)", "+91 98120 44552", 20000.0, 7100.0, 4, "OPERATIONAL"),
+                    (5, "SG-YAM-03", "Yamuna Downstream Sand Plot #3 (Kalanaur)", "Shree Ram Riverbed Minerals", "Amit Tyagi (Scale Operator 3)", "+91 98120 44553", 20000.0, 5200.0, 4, "OPERATIONAL")
                 ])
 
             # Permit e-MB columns
@@ -1827,6 +1846,10 @@ class DatabaseManager:
             cur.execute("ALTER TABLE mines ADD COLUMN lease_expiry_date TEXT DEFAULT '2027-12-31'")
         if "ec_clearance_number" not in mine_cols:
             cur.execute("ALTER TABLE mines ADD COLUMN ec_clearance_number TEXT DEFAULT 'EC-MOEF-2024-8841'")
+        if "concession_type" not in mine_cols:
+            cur.execute("ALTER TABLE mines ADD COLUMN concession_type TEXT DEFAULT 'OPENCAST_QUARRY'")
+        if "river_name" not in mine_cols:
+            cur.execute("ALTER TABLE mines ADD COLUMN river_name TEXT")
 
         truck_cols = [r[1] for r in cur.execute("PRAGMA table_info(trucks)").fetchall()]
         if "assigned_mine_id" not in truck_cols:
@@ -1890,7 +1913,7 @@ class DatabaseManager:
         cur.execute("UPDATE trucks SET assigned_mine_id = 1 WHERE id IN (1, 3, 5)")
         cur.execute("UPDATE trucks SET assigned_mine_id = 2 WHERE id IN (2, 7)")
         cur.execute("UPDATE trucks SET assigned_mine_id = 3 WHERE id IN (4, 6)")
-        cur.execute("UPDATE trucks SET assigned_mine_id = 4 WHERE id = 8")
+        cur.execute("UPDATE trucks SET assigned_mine_id = 5 WHERE id = 8")
 
         # Insert Seed Data
         # Users
@@ -1906,14 +1929,17 @@ class DatabaseManager:
 
         # Mines
         cur.executemany("""
-        INSERT OR IGNORE INTO mines (id, mine_code, name, mineral, district, state, latitude, longitude, authorized_annual_quota_mt, current_dispatch_mt, status, operator_name, contact_phone, opening_stock_mt, current_stock_mt, daily_production_mt, daily_planned_dispatch_mt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR IGNORE INTO mines (id, mine_code, name, mineral, district, state, latitude, longitude, authorized_annual_quota_mt, current_dispatch_mt, status, operator_name, contact_phone, opening_stock_mt, current_stock_mt, daily_production_mt, daily_planned_dispatch_mt, concession_type, river_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
-            (1, 'MN-RJ-ALW-01', 'Aravalli Quartzite Quarry Block A', 'Quartzite', 'Alwar', 'Rajasthan', 27.5624, 76.6121, 45000.0, 31250.0, 'OPERATIONAL', 'Aravalli Quartzite Consortium', '+91 99280 33445', 4200.0, 4370.0, 650.0, 700.0),
-            (2, 'MN-RJ-KOT-04', 'Kotputli High-Grade Limestone Lease', 'Limestone', 'Kotputli-Behror', 'Rajasthan', 27.7052, 76.2023, 85000.0, 58400.0, 'OPERATIONAL', 'Shree Cement Raw Materials Div.', '+91 94142 88776', 7800.0, 8050.0, 1100.0, 1200.0),
-            (3, 'MN-HR-REW-02', 'Khol Silica Sand & Stone Pit', 'Silica Sand', 'Rewari', 'Haryana', 28.1884, 76.6210, 30000.0, 28900.0, 'OPERATIONAL', 'Khol Mining Cooperative', '+91 98122 44332', 2900.0, 2970.0, 450.0, 500.0),
-            (4, 'MN-RJ-JHJ-09', 'Khetri Copper Tailings & Rock Zone', 'Copper Tailings / Quartz', 'Jhunjhunu', 'Rajasthan', 28.0125, 75.7891, 60000.0, 64200.0, 'QUOTA_EXCEEDED', 'Hindustan Quarrying Partners', '+91 97841 55667', 5400.0, 5480.0, 800.0, 900.0)
+            (1, 'MN-RJ-ALW-01', 'Aravalli Quartzite Quarry Block A', 'Quartzite', 'Alwar', 'Rajasthan', 27.5624, 76.6121, 45000.0, 31250.0, 'OPERATIONAL', 'Aravalli Quartzite Consortium', '+91 99280 33445', 4200.0, 4370.0, 650.0, 700.0, 'OPENCAST_QUARRY', None),
+            (2, 'MN-RJ-KOT-04', 'Kotputli High-Grade Limestone Lease', 'Limestone', 'Kotputli-Behror', 'Rajasthan', 27.7052, 76.2023, 85000.0, 58400.0, 'OPERATIONAL', 'Shree Cement Raw Materials Div.', '+91 94142 88776', 7800.0, 8050.0, 1100.0, 1200.0, 'OPENCAST_QUARRY', None),
+            (3, 'MN-HR-REW-02', 'Khol Silica Sand & Stone Pit', 'Silica Sand', 'Rewari', 'Haryana', 28.1884, 76.6210, 30000.0, 28900.0, 'OPERATIONAL', 'Khol Mining Cooperative', '+91 98122 44332', 2900.0, 2970.0, 450.0, 500.0, 'RIVERBED_SAND_GHAT', 'Sahibi/Khol Stream Basin'),
+            (4, 'MN-RJ-JHJ-09', 'Khetri Copper Tailings & Rock Zone', 'Copper Tailings / Quartz', 'Jhunjhunu', 'Rajasthan', 28.0125, 75.7891, 60000.0, 64200.0, 'QUOTA_EXCEEDED', 'Hindustan Quarrying Partners', '+91 97841 55667', 5400.0, 5480.0, 800.0, 900.0, 'OPENCAST_QUARRY', None),
+            (5, 'SG-HR-YAM-04', 'Yamuna River Sand Ghat No. 4', 'River Sand', 'Yamunanagar', 'Haryana', 30.1320, 77.2850, 60000.0, 18500.0, 'OPERATIONAL', 'Yamuna Sand Extraction Ltd', '+91 98120 77889', 3500.0, 3620.0, 550.0, 600.0, 'RIVERBED_SAND_GHAT', 'Yamuna River')
         ])
+        cur.execute("UPDATE mines SET concession_type = 'RIVERBED_SAND_GHAT', river_name = 'Yamuna River' WHERE id = 5 OR mine_code = 'SG-HR-YAM-04'")
+        cur.execute("UPDATE mines SET concession_type = 'RIVERBED_SAND_GHAT', river_name = 'Sahibi/Khol Stream Basin' WHERE id = 3")
 
         # Trucks
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2000,7 +2026,9 @@ class DatabaseManager:
             (3, 'ALT-2026-00103', 1, 1, 1, 'GPS_BLACKOUT', 'HIGH', 20, 'GPS heartbeat lost for 14 minutes immediately adjacent to Sabi Riverbed Restricted Mining Zone.', '{"blackout_duration_min": 14, "proximity_zone": "Sabi Riverbed Restricted Mining Zone", "last_ping_lat": 27.8520, "last_ping_lng": 76.4530}', 'NEW', 2),
             (4, 'ALT-2026-00104', 3, 3, 3, 'PERMIT_REUSE', 'CRITICAL', 30, 'e-Rawaana TRP-2026-00088 is being presented by Truck OD02BA8812 after already being marked CONSUMED 10 hours ago.', '{"permit_number": "TRP-2026-00088", "original_status": "CONSUMED", "scanned_truck": "OD02BA8812"}', 'NEW', 2),
             (5, 'ALT-2026-00105', 4, 4, 4, 'IMPOSSIBLE_TRANSIT', 'HIGH', 30, 'Transit telemetry indicates average speed of 88.0 km/h with 96.0 km/h bursts on mountainous terrain (Maximum legal tipper speed: 85 km/h).', '{"avg_speed_kmh": 88.0, "max_speed_kmh": 96.0, "legal_limit_kmh": 85.0}', 'ACKNOWLEDGED', 2),
-            (6, 'ALT-2026-00106', None, None, None, 'PRODUCTION_MISMATCH', 'HIGH', 30, 'Mine MN-RJ-JHJ-09 (Khetri Zone) has dispatched 64,200 MT exceeding its authorized annual mining quota of 60,000 MT (+4,200 MT unpermitted extraction).', '{"mine_code": "MN-RJ-JHJ-09", "authorized_quota_mt": 60000.0, "current_dispatch_mt": 64200.0, "excess_mt": 4200.0}', 'NEW', 1)
+            (6, 'ALT-2026-00106', None, None, None, 'PRODUCTION_MISMATCH', 'HIGH', 30, 'Mine MN-RJ-JHJ-09 (Khetri Zone) has dispatched 64,200 MT exceeding its authorized annual mining quota of 60,000 MT (+4,200 MT unpermitted extraction).', '{"mine_code": "MN-RJ-JHJ-09", "authorized_quota_mt": 60000.0, "current_dispatch_mt": 64200.0, "excess_mt": 4200.0}', 'NEW', 1),
+            (7, 'ALT-2026-SAR-001', None, None, None, 'SATELLITE_SAR_ANOMALY', 'CRITICAL', 35, 'SAR SATELLITE RADAR ANOMALY: Automated radar backscatter change detected 14,200 m² unapproved excavation in Yamuna Riverbed Buffer Zone (Reach #3 Outskirts, 28.1824° N, 76.5120° E). No matching active mining permit found.', '{"sensor": "Sentinel-1 SAR C-Band", "area_sqm": 14200, "coherence_drop": 0.68, "lat": 28.1824, "lng": 76.5120, "reach": "Yamuna River Sand Reach #3"}', 'NEW', 2),
+            (8, 'ALT-2026-DRN-002', None, None, None, 'DRONE_VOLUMETRIC_LEAKAGE', 'CRITICAL', 35, 'High-precision Drone LiDAR DEM volumetric audit detected 14.5% pit void over-extraction (+51,109.6 MT unaccounted mineral removed vs official e-Rawaana permits).', '{"survey_type": "Drone LiDAR DEM", "void_m3": 249129.4, "extracted_mt": 403589.6, "erawana_mt": 352480.0, "leakage_mt": 51109.6, "evaded_royalty_inr": 19166100.0}', 'NEW', 2)
         ])
 
         # Investigations

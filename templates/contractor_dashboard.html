@@ -6,18 +6,22 @@
 <div class="space-y-6">
 
   <!-- Contractor Executive Header Banner -->
-  <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-slate-700 rounded-lg p-5 text-white shadow-lg space-y-4">
+  <div
+    class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-slate-700 rounded-lg p-5 text-white shadow-lg space-y-4">
     <div class="flex flex-wrap justify-between items-center gap-4">
       <div class="space-y-1.5">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="w-3 h-3 rounded-full {% if recon.unreconciled_mt > 0 %}bg-amber-400 animate-ping{% else %}bg-emerald-400{% endif %}"></span>
+          <span
+            class="w-3 h-3 rounded-full {% if recon.unreconciled_mt > 0 %}bg-amber-400 animate-ping{% else %}bg-emerald-400{% endif %}"></span>
           <span class="text-xs font-mono uppercase tracking-widest text-emerald-300 font-bold">
             Registered Mineral Stock Custodian &bull; Supply Chain Middle-Tier
           </span>
-          <span class="text-[10px] bg-indigo-900/90 border border-indigo-500 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
+          <span
+            class="text-[10px] bg-indigo-900/90 border border-indigo-500 text-indigo-200 px-2 py-0.5 rounded font-mono font-bold">
             ID: {{ contractor.contractor_code }}
           </span>
-          <span class="text-[10px] {% if recon.unreconciled_mt > 0 %}bg-amber-900/80 border-amber-500 text-amber-200{% else %}bg-emerald-900/80 border-emerald-500 text-emerald-200{% endif %} border px-2 py-0.5 rounded font-mono font-bold">
+          <span
+            class="text-[10px] {% if recon.unreconciled_mt > 0 %}bg-amber-900/80 border-amber-500 text-amber-200{% else %}bg-emerald-900/80 border-emerald-500 text-emerald-200{% endif %} border px-2 py-0.5 rounded font-mono font-bold">
             {% if recon.unreconciled_mt > 0 %}⚠️ AUDIT EXCEPTION{% else %}✅ ACTIVE &bull; VERIFIED{% endif %}
           </span>
         </div>
@@ -25,35 +29,41 @@
           <span>🏗️ {{ contractor.contractor_name }}</span>
         </h1>
         <p class="text-xs text-slate-300 max-w-3xl leading-relaxed">
-          GSTN: <span class="font-mono text-emerald-300 font-bold">{{ contractor.gstn or '06AAACH4114R2ZG' }}</span> &bull; 
-          PAN: <span class="font-mono text-slate-200">{{ contractor.pan_no or 'AAACH4114R' }}</span> &bull; 
-          Custodian / Manager: <strong class="text-white">{{ contractor.contact_person }}</strong> &bull; 
+          GSTN: <span class="font-mono text-emerald-300 font-bold">{{ contractor.gstn or '06AAACH4114R2ZG' }}</span>
+          &bull;
+          PAN: <span class="font-mono text-slate-200">{{ contractor.pan_no or 'AAACH4114R' }}</span> &bull;
+          Custodian / Manager: <strong class="text-white">{{ contractor.contact_person }}</strong> &bull;
           Phone: <span class="font-mono text-slate-300">{{ contractor.contact_phone }}</span>
         </p>
       </div>
 
       <!-- Quick Action Jump Links -->
       <div class="flex items-center gap-2.5 flex-wrap">
-        <a href="#inbound-receipt-section" class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+        <a href="#inbound-receipt-section"
+          class="btn-gov btn-gov-primary bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
           <span>📥 Receive Mine Pass</span>
         </a>
-        <a href="#outbound-dispatch-section" class="btn-gov bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
+        <a href="#outbound-dispatch-section"
+          class="btn-gov bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-xs py-2 px-3.5 rounded shadow flex items-center gap-1.5 transition">
           <span>📤 Dispatch to Site</span>
         </a>
-        <a href="{{ url_for('admin_supply_chain') }}" class="btn-gov bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs py-2 px-3 rounded shadow flex items-center gap-1.5 transition">
+        {% if current_user and current_user.role in ['ADMIN', 'OFFICER'] %}
+        <a href="{{ url_for('admin_supply_chain') }}"
+          class="btn-gov bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-xs py-2 px-3 rounded shadow flex items-center gap-1.5 transition">
           <span>🔗 Statewide Chain &rarr;</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
-    <!-- Multi-Contractor Switcher (for Admins / Officers / Demonstrations) -->
-    {% if all_contractors and all_contractors|length > 1 %}
+    <!-- Multi-Contractor Switcher (STRICTLY for Admins conducting inspections; NEVER rendered for Contractors) -->
+    {% if current_user and current_user.role == 'ADMIN' and all_contractors and all_contractors|length > 1 %}
     <div class="pt-3 border-t border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Switch Stock Custodian / Middleman:</span>
+        <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Admin Supervisory Switcher:</span>
         {% for c in all_contractors %}
-        <a href="{{ url_for('contractor_dashboard', contractor_id=c.id) }}" 
-           class="px-2.5 py-1 rounded text-xs font-semibold transition {% if c.id == contractor.id %}bg-indigo-600 text-white font-bold shadow{% else %}bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700{% endif %}">
+        <a href="{{ url_for('contractor_dashboard', contractor_id=c.id) }}"
+          class="px-2.5 py-1 rounded text-xs font-semibold transition {% if c.id == contractor.id %}bg-indigo-600 text-white font-bold shadow{% else %}bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700{% endif %}">
           {{ c.contractor_code }} &bull; {{ c.contractor_name }}
         </a>
         {% endfor %}
@@ -73,20 +83,23 @@
           <span>⚖️ Anti-Illegal Mining Stock Balance Equation</span>
         </h2>
         <p class="text-[11px] text-slate-500">
-          Middleman cannot sell more than his verified legal capacity. Dispatches exceeding legal capacity expose midnight sand mafia material.
+          Middleman cannot sell more than his verified legal capacity. Dispatches exceeding legal capacity expose
+          midnight sand mafia material.
         </p>
       </div>
-      <div class="text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1 rounded">
+      <div
+        class="text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1 rounded">
         FORMULA: Opening Stock + Today's Legal Purchases = Max Allowed to Sell
       </div>
     </div>
 
     <!-- The 5-Step Visual Mathematical Formula Blocks -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
-      
+
       <!-- 1. Opening Stock -->
       <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
-        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1">
+        <div
+          class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1">
           <span>📦 Opening Stock</span>
           <span class="text-slate-400" title="Tamper-proof baseline from previous period">🔒</span>
         </div>
@@ -130,18 +143,22 @@
       </div>
 
       <!-- 5. Remaining Legal Stock or Surplus -->
-      <div class="p-3.5 {% if recon.unreconciled_mt > 0 %}bg-red-50 border-2 border-red-500{% else %}bg-emerald-50 border border-emerald-300{% endif %} rounded-lg col-span-2 md:col-span-1">
-        <div class="text-[10px] font-bold {% if recon.unreconciled_mt > 0 %}text-red-900{% else %}text-emerald-900{% endif %} uppercase tracking-wider">
+      <div
+        class="p-3.5 {% if recon.unreconciled_mt > 0 %}bg-red-50 border-2 border-red-500{% else %}bg-emerald-50 border border-emerald-300{% endif %} rounded-lg col-span-2 md:col-span-1">
+        <div
+          class="text-[10px] font-bold {% if recon.unreconciled_mt > 0 %}text-red-900{% else %}text-emerald-900{% endif %} uppercase tracking-wider">
           {% if recon.unreconciled_mt > 0 %}🚨 Mafia Sand Injected{% else %}⚖️ Remaining Stock{% endif %}
         </div>
-        <div class="text-xl font-black {% if recon.unreconciled_mt > 0 %}text-red-700 animate-pulse{% else %}text-emerald-900{% endif %} mt-1 font-mono">
+        <div
+          class="text-xl font-black {% if recon.unreconciled_mt > 0 %}text-red-700 animate-pulse{% else %}text-emerald-900{% endif %} mt-1 font-mono">
           {% if recon.unreconciled_mt > 0 %}
-            +{{ "{:,.1f}".format(recon.unreconciled_mt) }} MT
+          +{{ "{:,.1f}".format(recon.unreconciled_mt) }} MT
           {% else %}
-            {{ "{:,.1f}".format(recon.expected_closing_stock_mt) }} MT
+          {{ "{:,.1f}".format(recon.expected_closing_stock_mt) }} MT
           {% endif %}
         </div>
-        <div class="text-[10px] {% if recon.unreconciled_mt > 0 %}text-red-800 font-bold{% else %}text-emerald-700{% endif %} mt-0.5">
+        <div
+          class="text-[10px] {% if recon.unreconciled_mt > 0 %}text-red-800 font-bold{% else %}text-emerald-700{% endif %} mt-0.5">
           {% if recon.unreconciled_mt > 0 %}Illegal Source Caught!{% else %}Available in Depot{% endif %}
         </div>
       </div>
@@ -163,23 +180,31 @@
         </span>
       </div>
       <p class="text-xs text-red-900 leading-relaxed">
-        Total outgoing dispatches (<strong>{{ "{:,.1f}".format(recon.total_dispatches_mt) }} MT</strong>) exceed legal verified available stock (<strong>{{ "{:,.1f}".format(recon.total_available_mt) }} MT</strong>). 
-        The middleman could not have sold this extra <strong>{{ "{:,.1f}".format(recon.unreconciled_mt) }} MT</strong> legally. 
-        This indicates minerals sourced from <strong>unauthorized midnight riverbed mining</strong> without royalty or transit passes.
+        Total outgoing dispatches (<strong>{{ "{:,.1f}".format(recon.total_dispatches_mt) }} MT</strong>) exceed legal
+        verified available stock (<strong>{{ "{:,.1f}".format(recon.total_available_mt) }} MT</strong>).
+        The middleman could not have sold this extra <strong>{{ "{:,.1f}".format(recon.unreconciled_mt) }} MT</strong>
+        legally.
+        This indicates minerals sourced from <strong>unauthorized midnight riverbed mining</strong> without royalty or
+        transit passes.
       </p>
       <div class="text-[11px] text-red-800 bg-red-100/70 p-2 rounded border border-red-200">
-        <strong>Enforcement Flagged:</strong> District Mining Officer notified for depot inspection &bull; Downstream e-Way Bills subject to immediate verification under MMDR Act.
+        <strong>Enforcement Flagged:</strong> District Mining Officer notified for depot inspection &bull; Downstream
+        e-Way Bills subject to immediate verification under MMDR Act.
       </div>
     </div>
     {% else %}
-    <div class="p-3 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs flex items-center justify-between text-xs text-emerald-900 flex-wrap gap-2">
+    <div
+      class="p-3 bg-emerald-50 border border-emerald-300 rounded-lg shadow-xs flex items-center justify-between text-xs text-emerald-900 flex-wrap gap-2">
       <div class="flex items-center gap-2">
         <span class="text-emerald-700 font-bold text-base">✓</span>
         <span>
-          <strong>100% Reconciled Position:</strong> All {{ "{:,.1f}".format(recon.total_dispatches_mt) }} MT outbound sales are fully supported by verified legal source receipts ({{ "{:,.1f}".format(recon.total_available_mt) }} MT legal capacity).
+          <strong>100% Reconciled Position:</strong> All {{ "{:,.1f}".format(recon.total_dispatches_mt) }} MT outbound
+          sales are fully supported by verified legal source receipts ({{ "{:,.1f}".format(recon.total_available_mt) }}
+          MT legal capacity).
         </span>
       </div>
-      <span class="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-[10px]">
+      <span
+        class="font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-[10px]">
         STATUS: 100% LEGAL &amp; VERIFIED
       </span>
     </div>
@@ -194,7 +219,8 @@
     <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-4" id="inbound-receipt-section">
       <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold text-sm">
+          <div
+            class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800 font-bold text-sm">
             📥
           </div>
           <div>
@@ -202,7 +228,8 @@
             <p class="text-[11px] text-slate-500">Legal Mine / Quarry / River Concession &rarr; Middleman Depot</p>
           </div>
         </div>
-        <span class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono px-2 py-0.5 rounded font-bold">
+        <span
+          class="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono px-2 py-0.5 rounded font-bold">
           LEGAL INFLOW
         </span>
       </div>
@@ -211,8 +238,10 @@
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">e-Rawaana Transit Pass # / Barcode *</label>
           <div class="flex gap-2">
-            <input type="text" id="permit-number-input" placeholder="e.g. SMG-2026-00125 or scan barcode" class="flex-1 bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600 uppercase">
-            <button onclick="submitInwardReceipt()" id="btn-inward-receipt" class="btn-gov btn-gov-primary bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded">
+            <input type="text" id="permit-number-input" placeholder="e.g. SMG-2026-00125 or scan barcode"
+              class="flex-1 bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-emerald-600 uppercase">
+            <button onclick="submitInwardReceipt()" id="btn-inward-receipt"
+              class="btn-gov btn-gov-primary bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded">
               Receive Pass
             </button>
           </div>
@@ -226,7 +255,9 @@
           <span class="font-bold text-slate-700 block text-[11px]">Quick Demo Active Passes (Click to Receive):</span>
           <div class="flex flex-wrap gap-2">
             {% for ap in available_permits[:3] %}
-            <button onclick="document.getElementById('permit-number-input').value='{{ ap.permit_number }}'; submitInwardReceipt();" class="text-[11px] bg-white border border-emerald-400 hover:bg-emerald-50 text-emerald-900 px-2 py-1 rounded font-mono font-bold transition">
+            <button
+              onclick="document.getElementById('permit-number-input').value='{{ ap.permit_number }}'; submitInwardReceipt();"
+              class="text-[11px] bg-white border border-emerald-400 hover:bg-emerald-50 text-emerald-900 px-2 py-1 rounded font-mono font-bold transition">
               + {{ ap.permit_number }} ({{ ap.permitted_weight_mt }} MT &bull; {{ ap.mineral[:14] }})
             </button>
             {% else %}
@@ -240,7 +271,8 @@
 
       <!-- Recent Inbound Receipts Table -->
       <div class="pt-2">
-        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Recent Inward Receipts (Depot Ledger)</h4>
+        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Recent Inward Receipts (Depot Ledger)
+        </h4>
         <div class="overflow-x-auto max-h-56 overflow-y-auto border border-slate-200 rounded">
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold sticky top-0">
@@ -256,14 +288,17 @@
               {% for r in receipts[:6] %}
               <tr class="hover:bg-slate-50">
                 <td class="py-1.5 px-2.5 font-bold text-indigo-900">{{ r.permit_number }}</td>
-                <td class="py-1.5 px-2.5 font-sans text-slate-800 text-[11px] truncate max-w-[120px]">{{ r.source_name }}</td>
+                <td class="py-1.5 px-2.5 font-sans text-slate-800 text-[11px] truncate max-w-[120px]">{{ r.source_name
+                  }}</td>
                 <td class="py-1.5 px-2.5 text-[11px] text-slate-600">{{ r.mineral[:12] }}</td>
-                <td class="py-1.5 px-2.5 text-right font-black text-emerald-800">+{{ "{:,.1f}".format(r.net_weight_mt) }} MT</td>
+                <td class="py-1.5 px-2.5 text-right font-black text-emerald-800">+{{ "{:,.1f}".format(r.net_weight_mt)
+                  }} MT</td>
                 <td class="py-1.5 px-2.5 text-[10px] text-slate-400 font-sans">{{ (r.received_at or '')[:10] }}</td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="5" class="text-center py-4 text-slate-400 font-sans text-[11px]">No inbound passes recorded yet</td>
+                <td colspan="5" class="text-center py-4 text-slate-400 font-sans text-[11px]">No inbound passes recorded
+                  yet</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -276,15 +311,18 @@
     <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm space-y-4" id="outbound-dispatch-section">
       <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-800 font-bold text-sm">
+          <div
+            class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-800 font-bold text-sm">
             📤
           </div>
           <div>
             <h3 class="font-bold text-slate-900 text-sm">2. Dispatch Material to Construction Sites</h3>
-            <p class="text-[11px] text-slate-500">Middleman Depot &rarr; Private Builders / Government Infrastructure</p>
+            <p class="text-[11px] text-slate-500">Middleman Depot &rarr; Private Builders / Government Infrastructure
+            </p>
           </div>
         </div>
-        <span class="text-[10px] bg-indigo-50 text-indigo-800 border border-indigo-300 font-mono px-2 py-0.5 rounded font-bold">
+        <span
+          class="text-[10px] bg-indigo-50 text-indigo-800 border border-indigo-300 font-mono px-2 py-0.5 rounded font-bold">
           DOWNSTREAM OUTFLOW
         </span>
       </div>
@@ -293,9 +331,11 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="col-span-2">
             <label class="block text-xs font-bold text-slate-700 mb-1">Destination Construction Site / Buyer *</label>
-            <select id="dispatch-project-id" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
+            <select id="dispatch-project-id"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-semibold focus:outline-none focus:border-indigo-600">
               {% for p in consumer_projects %}
-              <option value="{{ p.id }}">{{ p.project_code }} &bull; {{ p.project_name }} ({{ p.contractor_name }})</option>
+              <option value="{{ p.id }}">{{ p.project_code }} &bull; {{ p.project_name }} ({{ p.contractor_name }})
+              </option>
               {% else %}
               <option value="1">NHAI-PKG-04 &bull; NH-48 Express Highway Expansion</option>
               {% endfor %}
@@ -304,12 +344,14 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Dispatch Quantity (MT) *</label>
-            <input type="number" id="dispatch-quantity" step="0.5" value="25.0" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-indigo-600">
+            <input type="number" id="dispatch-quantity" step="0.5" value="25.0"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono font-bold focus:outline-none focus:border-indigo-600">
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Mineral Type</label>
-            <select id="dispatch-mineral" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-600">
+            <select id="dispatch-mineral"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-600">
               <option value="Aravalli Quartzite Aggregate">Aravalli Quartzite Aggregate</option>
               <option value="River Sand & Sub-base Fill">River Sand &amp; Sub-base Fill</option>
               <option value="High-Grade Limestone">High-Grade Limestone</option>
@@ -319,26 +361,31 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Vehicle Registration #</label>
-            <input type="text" id="dispatch-vehicle" value="HR26AB4492" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600">
+            <input type="text" id="dispatch-vehicle" value="HR26AB4492"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono uppercase focus:outline-none focus:border-indigo-600">
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">Driver Name</label>
-            <input type="text" id="dispatch-driver" value="Mukesh Yadav" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-600">
+            <input type="text" id="dispatch-driver" value="Mukesh Yadav"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs focus:outline-none focus:border-indigo-600">
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">GST Invoice # (e-Bill)</label>
-            <input type="text" id="dispatch-invoice" placeholder="Auto-generated if blank" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono focus:outline-none focus:border-indigo-600">
+            <input type="text" id="dispatch-invoice" placeholder="Auto-generated if blank"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono focus:outline-none focus:border-indigo-600">
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-700 mb-1">e-Way Bill #</label>
-            <input type="text" id="dispatch-eway" placeholder="Auto-generated if blank" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono focus:outline-none focus:border-indigo-600">
+            <input type="text" id="dispatch-eway" placeholder="Auto-generated if blank"
+              class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-xs font-mono focus:outline-none focus:border-indigo-600">
           </div>
         </div>
 
-        <button onclick="submitOutwardDispatch()" id="btn-outward-dispatch" class="w-full btn-gov bg-indigo-800 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded shadow">
+        <button onclick="submitOutwardDispatch()" id="btn-outward-dispatch"
+          class="w-full btn-gov bg-indigo-800 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded shadow">
           Confirm Downstream Dispatch
         </button>
 
@@ -347,7 +394,8 @@
 
       <!-- Recent Outbound Dispatches Table -->
       <div class="pt-2">
-        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Recent Outbound Dispatches (Challan Ledger)</h4>
+        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Recent Outbound Dispatches (Challan
+          Ledger)</h4>
         <div class="overflow-x-auto max-h-48 overflow-y-auto border border-slate-200 rounded">
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-50 text-slate-600 border-b border-slate-200 font-semibold sticky top-0">
@@ -363,14 +411,17 @@
               {% for d in dispatches[:6] %}
               <tr class="hover:bg-slate-50">
                 <td class="py-1.5 px-2.5 font-bold text-slate-800">{{ d.dispatch_code }}</td>
-                <td class="py-1.5 px-2.5 font-sans text-indigo-900 text-[11px] truncate max-w-[120px]">{{ d.project_code or d.consumer_name }}</td>
-                <td class="py-1.5 px-2.5 text-right font-black text-amber-900">&minus;{{ "{:,.1f}".format(d.quantity_mt) }} MT</td>
+                <td class="py-1.5 px-2.5 font-sans text-indigo-900 text-[11px] truncate max-w-[120px]">{{ d.project_code
+                  or d.consumer_name }}</td>
+                <td class="py-1.5 px-2.5 text-right font-black text-amber-900">&minus;{{ "{:,.1f}".format(d.quantity_mt)
+                  }} MT</td>
                 <td class="py-1.5 px-2.5 text-[11px] text-slate-600">{{ d.vehicle_number }}</td>
                 <td class="py-1.5 px-2.5 text-[10px] text-slate-400 font-sans">{{ (d.dispatched_at or '')[:10] }}</td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="5" class="text-center py-4 text-slate-400 font-sans text-[11px]">No outbound dispatches recorded yet</td>
+                <td colspan="5" class="text-center py-4 text-slate-400 font-sans text-[11px]">No outbound dispatches
+                  recorded yet</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -388,10 +439,12 @@
       <div>
         <h3 class="font-bold text-slate-900 text-sm">3. Downstream Construction Projects &amp; Statutory NOC Audit</h3>
         <p class="text-[11px] text-slate-500">
-          Cross-verifies structural sand requirement against legally received deliveries. Projects with deficits face e-MB payment freezes or RERA OC Locks.
+          Cross-verifies structural sand requirement against legally received deliveries. Projects with deficits face
+          e-MB payment freezes or RERA OC Locks.
         </p>
       </div>
-      <div class="text-xs font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded">
+      <div
+        class="text-xs font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded">
         Statutory Clause: MMDR Act Sec 21 &bull; Royalty Clearance NOC
       </div>
     </div>
@@ -421,11 +474,17 @@
               <div class="flex items-center gap-1.5 mt-0.5">
                 <span class="text-[10px] text-indigo-700 font-bold">{{ p.project_code }}</span>
                 {% if p.project_category == 'HIGHWAY_INFRA' %}
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-900 border border-blue-200">🛣️ Highway (e-MB)</span>
+                <span
+                  class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-900 border border-blue-200">🛣️
+                  Highway (e-MB)</span>
                 {% elif p.project_category == 'REAL_ESTATE_BUILDER' %}
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-900 border border-purple-200">🏢 Private Builder (OC Lock)</span>
+                <span
+                  class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-900 border border-purple-200">🏢
+                  Private Builder (OC Lock)</span>
                 {% else %}
-                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">🏭 RMC Plant</span>
+                <span
+                  class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">🏭
+                  RMC Plant</span>
                 {% endif %}
               </div>
             </td>
@@ -442,7 +501,8 @@
             <td class="py-3 px-3 text-right font-black text-emerald-800 bg-emerald-50/50">
               {{ "{:,.1f}".format(rec) }} MT
             </td>
-            <td class="py-3 px-3 text-right font-extrabold {% if gap > (req * 0.05) %}text-red-700 bg-red-50/60{% elif gap > 0 %}text-emerald-700{% else %}text-slate-400{% endif %}">
+            <td
+              class="py-3 px-3 text-right font-extrabold {% if gap > (req * 0.05) %}text-red-700 bg-red-50/60{% elif gap > 0 %}text-emerald-700{% else %}text-slate-400{% endif %}">
               {% if gap > (req * 0.05) %}
               +{{ "{:,.1f}".format(gap) }} MT
               <span class="text-[9px] text-red-600 block font-normal">(Black-Market Deficit)</span>
@@ -454,14 +514,15 @@
               {% endif %}
             </td>
             <td class="py-3 px-3 text-center">
-              {% if gap <= (req * 0.05) %}
-              <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">✅ COMPLIANT</span>
-              {% else %}
-              <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">⛔ DEFICIT LOCKED</span>
-              {% endif %}
+              {% if gap <= (req * 0.05) %} <span class="badge badge-low text-emerald-800 bg-emerald-100 text-[10px]">✅
+                COMPLIANT</span>
+                {% else %}
+                <span class="badge badge-critical text-red-800 bg-red-100 text-[10px]">⛔ DEFICIT LOCKED</span>
+                {% endif %}
             </td>
             <td class="py-3 px-3 text-center">
-              <a href="{{ url_for('contractor_download_noc', project_id=p.id) }}" class="text-[10px] bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded inline-flex items-center gap-1 shadow-xs transition">
+              <a href="{{ url_for('contractor_download_noc', project_id=p.id) }}"
+                class="text-[10px] bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-2.5 py-1.5 rounded inline-flex items-center gap-1 shadow-xs transition">
                 <span>📜 Download NOC</span>
               </a>
             </td>
@@ -476,43 +537,43 @@
 
 <!-- JAVASCRIPT LOGIC FOR INBOUND RECEIPT & OUTBOUND DISPATCH -->
 <script>
-async function submitInwardReceipt() {
-  const input = document.getElementById('permit-number-input');
-  const permitNum = input.value.trim().toUpperCase();
-  const fb = document.getElementById('inward-receipt-feedback');
-  const btn = document.getElementById('btn-inward-receipt');
+  async function submitInwardReceipt() {
+    const input = document.getElementById('permit-number-input');
+    const permitNum = input.value.trim().toUpperCase();
+    const fb = document.getElementById('inward-receipt-feedback');
+    const btn = document.getElementById('btn-inward-receipt');
 
-  if (!permitNum) {
-    fb.className = 'p-3 rounded text-xs bg-amber-100 text-amber-900 border border-amber-300 block font-semibold';
-    fb.textContent = 'Please enter or scan an e-Rawaana transit pass number.';
-    return;
-  }
-
-  btn.disabled = true;
-  btn.innerHTML = 'Verifying...';
-
-  try {
-    const res = await fetch('/api/contractor/receive-permit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        permit_number: permitNum,
-        contractor_id: {{ contractor.id }}
-      })
-    });
-    const data = await res.json();
-
-    if (res.ok && data.success) {
-      fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
-      fb.innerHTML = `✓ <strong>Verified:</strong> Recorded <code>${data.receipt_code}</code> (${data.permit_number}). Credited <strong>+${data.added_mt} MT</strong> from <em>${data.source_name}</em>. Total Legal Stock: <strong>${data.total_available_mt} MT</strong>.`;
-      input.value = '';
-      setTimeout(() => { window.location.reload(); }, 1400);
-    } else {
-      fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
-      fb.innerHTML = `✕ <strong>Verification Failed:</strong> ${data.error || 'Permit rejected.'}`;
-      btn.disabled = false;
-      btn.innerHTML = 'Receive Pass';
+    if (!permitNum) {
+      fb.className = 'p-3 rounded text-xs bg-amber-100 text-amber-900 border border-amber-300 block font-semibold';
+      fb.textContent = 'Please enter or scan an e-Rawaana transit pass number.';
+      return;
     }
+
+    btn.disabled = true;
+    btn.innerHTML = 'Verifying...';
+
+    try {
+      const res = await fetch('/api/contractor/receive-permit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          permit_number: permitNum,
+          contractor_id: {{ contractor.id }}
+      })
+  });
+  const data = await res.json();
+
+  if (res.ok && data.success) {
+    fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
+    fb.innerHTML = `✓ <strong>Verified:</strong> Recorded <code>${data.receipt_code}</code> (${data.permit_number}). Credited <strong>+${data.added_mt} MT</strong> from <em>${data.source_name}</em>. Total Legal Stock: <strong>${data.total_available_mt} MT</strong>.`;
+    input.value = '';
+    setTimeout(() => { window.location.reload(); }, 1400);
+  } else {
+    fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
+    fb.innerHTML = `✕ <strong>Verification Failed:</strong> ${data.error || 'Permit rejected.'}`;
+    btn.disabled = false;
+    btn.innerHTML = 'Receive Pass';
+  }
   } catch (err) {
     fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
     fb.textContent = 'Network error: ' + err.message;
@@ -521,34 +582,34 @@ async function submitInwardReceipt() {
   }
 }
 
-async function submitOutwardDispatch() {
-  const projSelect = document.getElementById('dispatch-project-id');
-  const projId = projSelect.value;
-  const qtyInput = document.getElementById('dispatch-quantity');
-  const qty = parseFloat(qtyInput.value);
-  const vehicle = document.getElementById('dispatch-vehicle').value.trim();
-  const driver = document.getElementById('dispatch-driver').value.trim();
-  const mineral = document.getElementById('dispatch-mineral').value;
-  const invoice = document.getElementById('dispatch-invoice').value.trim();
-  const eway = document.getElementById('dispatch-eway').value.trim();
-  const fb = document.getElementById('outward-dispatch-feedback');
-  const btn = document.getElementById('btn-outward-dispatch');
+  async function submitOutwardDispatch() {
+    const projSelect = document.getElementById('dispatch-project-id');
+    const projId = projSelect.value;
+    const qtyInput = document.getElementById('dispatch-quantity');
+    const qty = parseFloat(qtyInput.value);
+    const vehicle = document.getElementById('dispatch-vehicle').value.trim();
+    const driver = document.getElementById('dispatch-driver').value.trim();
+    const mineral = document.getElementById('dispatch-mineral').value;
+    const invoice = document.getElementById('dispatch-invoice').value.trim();
+    const eway = document.getElementById('dispatch-eway').value.trim();
+    const fb = document.getElementById('outward-dispatch-feedback');
+    const btn = document.getElementById('btn-outward-dispatch');
 
-  if (!qty || qty <= 0) {
-    fb.className = 'p-3 rounded text-xs bg-amber-100 text-amber-900 border border-amber-300 block font-semibold';
-    fb.textContent = 'Please specify a dispatch quantity greater than 0 MT.';
-    return;
-  }
+    if (!qty || qty <= 0) {
+      fb.className = 'p-3 rounded text-xs bg-amber-100 text-amber-900 border border-amber-300 block font-semibold';
+      fb.textContent = 'Please specify a dispatch quantity greater than 0 MT.';
+      return;
+    }
 
-  btn.disabled = true;
-  btn.innerHTML = 'Recording Dispatch...';
+    btn.disabled = true;
+    btn.innerHTML = 'Recording Dispatch...';
 
-  try {
-    const res = await fetch('/api/contractor/dispatch-material', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contractor_id: {{ contractor.id }},
+    try {
+      const res = await fetch('/api/contractor/dispatch-material', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractor_id: {{ contractor.id }},
         project_id: projId,
         quantity_mt: qty,
         vehicle_number: vehicle,
@@ -557,19 +618,19 @@ async function submitOutwardDispatch() {
         invoice_no: invoice,
         e_way_bill_no: eway
       })
-    });
-    const data = await res.json();
+  });
+  const data = await res.json();
 
-    if (res.ok && data.success) {
-      fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
-      fb.innerHTML = `✓ <strong>Dispatched:</strong> Recorded Challan <code>${data.dispatch_code}</code> (${data.quantity_mt} MT) to <strong>${data.project_code}</strong>. Closing Depot Stock: <strong>${data.new_closing_stock_mt} MT</strong>.`;
-      setTimeout(() => { window.location.reload(); }, 1400);
-    } else {
-      fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
-      fb.innerHTML = `✕ <strong>Dispatch Failed:</strong> ${data.error || 'Server rejected dispatch.'}`;
-      btn.disabled = false;
-      btn.innerHTML = 'Confirm Downstream Dispatch';
-    }
+  if (res.ok && data.success) {
+    fb.className = 'p-3 rounded text-xs bg-emerald-100 text-emerald-900 border border-emerald-300 block font-semibold';
+    fb.innerHTML = `✓ <strong>Dispatched:</strong> Recorded Challan <code>${data.dispatch_code}</code> (${data.quantity_mt} MT) to <strong>${data.project_code}</strong>. Closing Depot Stock: <strong>${data.new_closing_stock_mt} MT</strong>.`;
+    setTimeout(() => { window.location.reload(); }, 1400);
+  } else {
+    fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
+    fb.innerHTML = `✕ <strong>Dispatch Failed:</strong> ${data.error || 'Server rejected dispatch.'}`;
+    btn.disabled = false;
+    btn.innerHTML = 'Confirm Downstream Dispatch';
+  }
   } catch (err) {
     fb.className = 'p-3 rounded text-xs bg-red-100 text-red-900 border border-red-300 block font-semibold';
     fb.textContent = 'Network error: ' + err.message;

@@ -1227,6 +1227,8 @@ def dashboard():
             logger.warning(f"Could not load infrastructure_projects: {_ip_err}")
             infrastructure_projects = []
 
+        drone_dem_audit = MaterialMonitoringService.get_drone_dem_volumetric_audit(mine_id=selected_mine_id or 1)
+
         return render_template("dashboard_admin.html",
             total_mines=total_mines,
             total_sub_mines=total_sub_mines,
@@ -1255,6 +1257,7 @@ def dashboard():
             daily_summary=daily_summary,
             dispatch_control=dispatch_control,
             mismatch_check=mismatch_check,
+            drone_dem_audit=drone_dem_audit,
             stock_recon=stock_recon,
             mine_wise_summary=mine_wise_summary,
             truck_material_ledger=truck_material_ledger,
@@ -1369,7 +1372,7 @@ def dashboard():
                 LEFT JOIN permits p ON p.id = a.permit_id
                 LEFT JOIN trips tr ON tr.id = a.trip_id
                 WHERE a.status IN ('NEW', 'UNDER_REVIEW')
-                  AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+                  AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ? OR (a.truck_id IS NULL AND a.permit_id IS NULL))
                 ORDER BY a.id DESC LIMIT 5
             """, (officer_mine_id, officer_mine_id, officer_mine_id))
 
@@ -2312,13 +2315,13 @@ def alerts():
         """
         scope_params = (active_sub_mine_id, active_sub_mine_id)
     elif scope == "mine":
-        sql += " AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)"
+        sql += " AND (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ? OR (a.truck_id IS NULL AND a.permit_id IS NULL))"
         params.extend([active_mine_id, active_mine_id, active_mine_id])
         scope_join = """
             LEFT JOIN trips tr ON tr.id = a.trip_id
             LEFT JOIN permits p ON p.id = a.permit_id
             LEFT JOIN trucks t ON t.id = a.truck_id
-            WHERE (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ?)
+            WHERE (tr.mine_id = ? OR p.mine_id = ? OR t.assigned_mine_id = ? OR (a.truck_id IS NULL AND a.permit_id IS NULL))
         """
         scope_params = (active_mine_id, active_mine_id, active_mine_id)
     else:
@@ -2986,14 +2989,20 @@ def contractor_dashboard():
     Represents the Contractor as the middle entity receiving legally verified mineral
     from approved sources, maintaining rolling stock, and dispatching to downstream consumers/projects.
     """
-    contractor_id = request.args.get("contractor_id")
-    if not contractor_id:
-        user_id = session.get("user_id")
-        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
-        if user and user.get("assigned_contractor_id"):
-            contractor_id = user["assigned_contractor_id"]
-        else:
-            contractor_id = 1
+    user_role = session.get("user_role")
+    user_id = session.get("user_id")
+    user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+
+    if user_role == "CONTRACTOR":
+        # Strict Multi-Tenant Enforcement: Middleman can ONLY see their own company records
+        assigned_c_id = user.get("assigned_contractor_id") if user else None
+        contractor_id = int(assigned_c_id) if assigned_c_id else 1
+        all_contractors = []  # Strictly hide competitor list from contractors
+    else:
+        # Admin / Supervisory Oversight: Can inspect specific contractors
+        req_c_id = request.args.get("contractor_id")
+        contractor_id = int(req_c_id) if req_c_id else 1
+        all_contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
 
     recon_data = get_contractor_reconciliation(contractor_id)
     contractor = recon_data["contractor"]
@@ -3005,8 +3014,6 @@ def contractor_dashboard():
         FROM infrastructure_projects ip
         ORDER BY ip.id ASC
     """, (contractor["id"],)) or []
-
-    all_contractors = db.query("SELECT * FROM contractors ORDER BY id ASC") or []
 
     # Available legal sources for quick inbound receipt demo
     legal_sources = db.query("SELECT id, name, district, state, mineral FROM mines ORDER BY id ASC") or []
@@ -3054,12 +3061,15 @@ def api_contractor_receive_permit():
     """
     data = request.get_json(silent=True) or {}
     permit_number = (data.get("permit_number") or "").strip().upper()
-    contractor_id = data.get("contractor_id")
-    if not contractor_id:
-        user_id = session.get("user_id")
-        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
-        contractor_id = user["assigned_contractor_id"] if (user and user.get("assigned_contractor_id")) else 1
-    contractor_id = int(contractor_id)
+    user_role = session.get("user_role")
+    user_id = session.get("user_id")
+    user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+
+    if user_role == "CONTRACTOR":
+        contractor_id = int(user["assigned_contractor_id"]) if (user and user.get("assigned_contractor_id")) else 1
+    else:
+        req_c_id = data.get("contractor_id")
+        contractor_id = int(req_c_id) if req_c_id else (int(user["assigned_contractor_id"]) if (user and user.get("assigned_contractor_id")) else 1)
 
     if not permit_number:
         return jsonify({"success": False, "error": "e-Rawaana transit pass number is required."}), 400
@@ -3208,12 +3218,15 @@ def api_contractor_dispatch_material():
     Updates project received balance and recalculates contractor rolling stock.
     """
     data = request.get_json(silent=True) or {}
-    contractor_id = data.get("contractor_id")
-    if not contractor_id:
-        user_id = session.get("user_id")
-        user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
-        contractor_id = user["assigned_contractor_id"] if (user and user.get("assigned_contractor_id")) else 1
-    contractor_id = int(contractor_id)
+    user_role = session.get("user_role")
+    user_id = session.get("user_id")
+    user = db.query("SELECT * FROM users WHERE id = ?", (user_id,), one=True) if user_id else None
+
+    if user_role == "CONTRACTOR":
+        contractor_id = int(user["assigned_contractor_id"]) if (user and user.get("assigned_contractor_id")) else 1
+    else:
+        req_c_id = data.get("contractor_id")
+        contractor_id = int(req_c_id) if req_c_id else (int(user["assigned_contractor_id"]) if (user and user.get("assigned_contractor_id")) else 1)
 
     project_id = data.get("project_id")
     quantity_mt = float(data.get("quantity_mt") or 0.0)
@@ -4821,6 +4834,8 @@ def api_crud_mines():
     opening_stock = float(data.get("opening_stock_mt", 3500.0))
     operator_name = data.get("operator_name", "").strip()
     phone = data.get("contact_phone", "+91 99280 33445").strip()
+    concession_type = (data.get("concession_type") or "OPENCAST_QUARRY").strip()
+    river_name = (data.get("river_name") or "").strip() or None
 
     if not is_within_india(lat, lng):
         return jsonify({"error": f"Invalid coordinates ({lat}, {lng}). Concession must be within Indian territory.", "success": False}), 400
@@ -4832,11 +4847,12 @@ def api_crud_mines():
     mine_id = db.execute("""
         INSERT INTO mines (name, mine_code, mineral, district, state, latitude, longitude,
                            authorized_annual_quota_mt, current_dispatch_mt, opening_stock_mt,
-                           current_stock_mt, operator_name, contact_phone, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, 'OPERATIONAL')
-    """, (name, mine_code, mineral, district, state, lat, lng, quota, opening_stock, opening_stock, operator_name, phone))
+                           current_stock_mt, operator_name, contact_phone, status,
+                           concession_type, river_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, ?, ?, ?, 'OPERATIONAL', ?, ?)
+    """, (name, mine_code, mineral, district, state, lat, lng, quota, opening_stock, opening_stock, operator_name, phone, concession_type, river_name))
 
-    log_audit("MINE_REGISTER", f"Registered new mine concession: {mine_code} - {name} ({district}, {state})")
+    log_audit("MINE_REGISTER", f"Registered new mine concession: {mine_code} - {name} ({district}, {state}) [{concession_type}]")
     return jsonify({"success": True, "message": f"Mine '{name}' ({mine_code}) registered successfully.", "mine_id": mine_id})
 
 

@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS mines (
     lease_expiry_date VARCHAR(50) DEFAULT '2027-12-31',
     ec_clearance_number VARCHAR(100) DEFAULT 'EC-MOEF-2024-8841',
     status VARCHAR(30) DEFAULT 'OPERATIONAL',
+    concession_type VARCHAR(50) DEFAULT 'OPENCAST_QUARRY',
+    river_name VARCHAR(100),
     operator_name VARCHAR(150) NOT NULL,
     contact_phone VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

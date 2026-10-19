@@ -12,7 +12,12 @@
       <div>
         <span class="font-bold text-slate-900 uppercase">Sub-Mine Operations Console</span>
         <span class="text-slate-400 mx-2">|</span>
-        <span>Concession: <strong class="text-emerald-900">{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong> &bull; Parent: <span class="text-slate-700">{{ mine.name if mine else 'HSIIDC Ltd. (Khanak Stone Mines)' }}</span></span>
+        <span>
+          Concession: <strong class="text-emerald-900">{{ sub_mine.block_name if sub_mine else 'Khanak Blue Stone Pit 1A' }}</strong> &bull; Parent: <span class="text-slate-700">{{ mine.name if mine else 'HSIIDC Ltd. (Khanak Stone Mines)' }}</span>
+          {% if mine and (mine.concession_type == 'RIVERBED_SAND_GHAT' or 'Sand' in (mine.mineral or '') or 'Sand' in (mine.name or '')) %}
+          <span class="ml-1.5 inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-cyan-100 text-cyan-900 border border-cyan-300">🌊 RIVERBED SAND GHAT</span>
+          {% endif %}
+        </span>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
@@ -20,7 +25,7 @@
         <span>🏢 + Register Middleman / Buyer</span>
       </button>
       <button type="button" onclick="openOperatorSubMineModal()" class="btn-gov btn-gov-secondary btn-sm flex items-center gap-1 font-semibold border border-slate-300 text-amber-900 bg-amber-50 hover:bg-amber-100">
-        <span>⛏️ + Register Sub-Mine</span>
+        <span>{% if mine and (mine.concession_type == 'RIVERBED_SAND_GHAT' or 'Sand' in (mine.mineral or '') or 'Sand' in (mine.name or '')) %}🌊 + Register Sand Reach{% else %}⛏️ + Register Sub-Mine{% endif %}</span>
       </button>
       <button type="button" onclick="openOperatorTruckModal()" class="btn-gov btn-gov-primary btn-sm flex items-center gap-1 font-bold shadow-xs">
         <span>🚛 + Register Truck</span>
