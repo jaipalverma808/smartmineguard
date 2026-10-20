@@ -223,3 +223,26 @@ A Municipal Officer does **not** log into the Mining Department's website (avoid
    * Session 2 (Oct 20): `C:\Users\vc\.gemini\antigravity-ide\conversations\37536f2c-1391-46af-a3b9-d2d0faf47df9.db`
 2. **Permanent Log Integrity:** This file ([CONVERSATION_HISTORY.md](file:///d:/mail%20pdf/smartmineguard/CONVERSATION_HISTORY.md)) preserves all pair-programming architectural decisions, mathematical proofs, and hackathon presentation guides.
 
+---
+
+## 14. Keep-Alive / Cron Job Deactivation for SmartMineGuard & Stories-hub
+
+### User Request:
+> *"smartmineguard, Stories-hub from both project i use website alive model in which i use health file and corn job so i have to remove corn job or alive work from both website"*  
+> *"so you have to remove from my github profile i can stop corn job api i use only one api for all 3 website"*
+
+### Resolution & Implementation:
+1. **Root Cause Analysis:**
+   * Render provides **750 free instance hours per month** for each user account.
+   * Pinging 3 websites 24/7 consumes $3 \times 730 = 2,190\text{ hours/month}$, exhausting the free tier quota within ~10 days.
+   * The cron job was orchestrated entirely through a single GitHub Actions workflow (`.github/workflows/monitor.yml`) in `jaipalverma808/website-monitor`.
+2. **Changes Pushed to `jaipalverma808/website-monitor` (branch `main`):**
+   * **`database.py` (Commit `b36c321`):** Purged `SmartMineGuard` and `Stories Hub` from `INITIAL_WEBSITES`. Added automatic cleanup in `init_db()` to delete existing records of both services.
+   * **`monitor.py` (Commit `b448b65`):** Added safety filtering inside `run_monitor()` so ping requests are strictly bypassed for `SmartMineGuard` and `Stories Hub`.
+   * **`test_monitor.py` (Commit `f296a4a`):** Adjusted unit test assertions to match the single active keep-alive site (`ResumeForge`).
+   * **`README.md` (Commit `6960709`):** Updated architecture diagram and documentation.
+3. **Current Status:**
+   * **`ResumeForge`:** Continues receiving scheduled 10-minute keep-alive pings (staying alive 24/7).
+   * **`SmartMineGuard` & `Stories-hub`:** No longer pinged. Both will sleep automatically after 15 minutes of inactivity on Render, preserving free tier hours for `ResumeForge`.
+
+
