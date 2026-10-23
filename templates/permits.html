@@ -19,13 +19,6 @@
         <span class="badge bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-semibold">Ground Scale Passes</span>
         {% endif %}
       </h2>
-      <p class="text-[11px] text-slate-500">
-        {% if current_user.role == 'ADMIN' %}
-        Statewide repository of statutory mineral transit passes for regulatory audit, vigilance review, and court inquiry verification
-        {% else %}
-        Official transit authorizations, GST tax invoices &amp; weighbridge metrology records issued under MMDR &amp; State Concession Rules
-        {% endif %}
-      </p>
     </div>
     <div class="flex items-center gap-2">
       <a href="{{ url_for('view_permit', permit_id=permits[0].id) if permits else '#' }}" class="btn-gov btn-gov-primary text-xs flex items-center gap-1.5">
@@ -38,10 +31,9 @@
   <div class="bg-gradient-to-r from-emerald-900 to-slate-900 text-white p-3.5 rounded-lg shadow-sm flex flex-wrap justify-between items-center gap-3">
     <div class="space-y-1">
       <div class="flex items-center gap-2">
-        <span class="bg-emerald-500 text-slate-950 font-bold px-1.5 py-0.5 rounded text-[10px] uppercase">Real Mine System</span>
-        <span class="font-bold text-xs">HSIIDC Ltd. (Khanak Stone Mines, Bhiwani, Haryana) & Dept of Mines & Geology</span>
+        <span class="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Active Concession</span>
+        <span class="font-bold text-xs">HSIIDC Ltd. (Khanak Stone Mines, Bhiwani, Haryana) &bull; Directorate of Mines &amp; Geology</span>
       </div>
-      <p class="text-[11px] text-slate-300">Statutory 3-Document Suite active: 1. Official e-Rawana Pass (Mines & Geology) • 2. HSIIDC Tax Invoice • 3. Automated Weighbridge Slip (Gross)</p>
     </div>
     <div class="flex items-center gap-2 text-xs">
       <span class="text-slate-300">Authorized Format:</span>
