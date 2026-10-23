@@ -406,3 +406,44 @@ A Municipal Officer does **not** log into the Mining Department's website (avoid
    * Pushed to `https://github.com/jaipalverma808/ResumeForge.git`.
    * Synced full transcript log to `CONVERSATION_HISTORY.md` across both repositories.
 
+---
+
+## 19. Contact Us Admin Desk & Personal Email Integration
+
+**Date:** October 23, 2026  
+**Topic:** Integrating personal admin email (`jaipalverma808@gmail.com`), contact inquiry notifications, and a complete Contact Messages Admin Desk.
+
+### Problem Analysis & Requirements:
+1. The Contact Us page on the website displayed generic placeholder contact info (`support@resumeforge.com`).
+2. The user required their personal email (`jaipalverma808@gmail.com`) to be displayed and utilized directly on the website.
+3. Inquiries submitted via the Contact form were saved into `contact_messages` in the database, but there was no administrative interface to view, filter, mark read/replied, reply, or delete them.
+4. The user specifically instructed to keep all modifications in local files first so they can inspect and test comfortably before deciding to commit/push to GitHub or the live site.
+
+### Actions & Enhancements Applied:
+1. **Frontend Contact Details Updated (`templates/contact.html`):**
+   * Replaced generic support email with `jaipalverma808@gmail.com` with a direct, clickable `mailto:` link.
+   * Updated support badges to reflect prompt 24-hour response time and Mon–Sat availability.
+   * Updated `templates/faq.html` and `templates/admin/settings.html` to reflect `jaipalverma808@gmail.com`.
+2. **Contact Submission Logic (`app.py`):**
+   * Added instant email notification dispatch to `jaipalverma808@gmail.com` containing full sender details, subject, and message when anyone submits an inquiry.
+   * Graceful error catching when SMTP is not configured locally, ensuring zero disruptions to users.
+3. **Dedicated Admin Panel Template Created (`templates/admin/contacts.html`):**
+   * 4 Live Metric Cards: Total Inquiries, Pending/Unread Messages with pulsing amber badge, Answered/Replied count, and Primary Notification Desk indicator.
+   * Filter Tabs: `All`, `Unread`, `Read`, and `Replied` with count badges.
+   * Search Bar: Instant searching across sender name, email, subject, and message body.
+   * Interactive Messages Table: Select-all checkboxes, read/unread status badges, sender avatar, email with 1-click clipboard copy, and IP tracking.
+   * Full Message Detail Modal: Complete view of inquiry with auto-mark as read.
+   * Interactive Reply Modal: Direct email sending + "Open in Gmail" button prefilled with `mailto:` subject/body so the user can send directly from their personal Gmail.
+   * Bulk Actions Toolbar: Mark Read, Mark Unread, Mark Replied, or Delete Selected.
+4. **Admin Dashboard Integration (`templates/admin/dashboard.html` & `app.py`):**
+   * Added "📬 Contact Messages" action button to header with live unread counter badge.
+   * Added "Contacts" to the Quick Links grid.
+   * Enhanced Admin Notifications so clicking contact notifications deep-links directly to `/admin/contacts`.
+5. **Base Navigation Updates (`templates/base.html`):**
+   * Added direct "⚡ Admin Panel" and "📬 Contact Messages" links in the user profile dropdown when logged in as an administrator.
+6. **Local Database Synchronization:**
+   * Updated `instance/resumeforge.db` to ensure user `jaipalverma808@gmail.com` has `is_admin = 1`.
+   * Verified all 8 endpoints with automated tests.
+   * Kept all changes purely in local workspace files without pushing to GitHub.
+
+
