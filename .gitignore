@@ -18,4 +18,5 @@ venv/
 .venv/
 # Generated Reports
 static/reports/*.pdf
+CONVERSATION_HISTORY.md
 
